@@ -15,6 +15,19 @@ pnpm lint
 pnpm test
 ```
 
+## Lokalny backend Supabase
+
+Po zainstalowaniu i uruchomieniu Docker Desktop:
+
+```bash
+pnpm db:start
+pnpm db:status
+pnpm db:stop
+```
+
+Konfiguracja lokalnego projektu znajduje się w `supabase/config.toml`. Nie są wymagane żadne dane produkcyjne ani
+zdalny projekt Supabase.
+
 ## Struktura
 
 Patrz [AGENTS.md](AGENTS.md) — pełny opis struktury repo i zasad pracy dla agenta/programisty.

@@ -10,7 +10,8 @@ Nigdy nie wpisujemy ogólnego „działa” bez dowodu z uruchomienia.
 - npm: 11.19.0
 - pnpm: 12.11.2 (zainstalowany globalnie w tej sesji)
 - Git: 2.55.0.windows.5 (zainstalowany w tej sesji przez winget)
-- Docker: niedostępny (BLOCKED dla Supabase local)
+- Docker Desktop: 4.94.0; Docker Engine 29.8.2 (zainstalowany w sesji 4)
+- WSL: 3.0.1.0; CLI Supabase: 2.120.0 (lokalna zależność projektu)
 - Python: niedostępny (nie jest wymagany przez stack projektu)
 
 ## Sesja 1 — 11 października 2026
@@ -87,10 +88,33 @@ Androida; nie budowano APK/AAB ani nie uruchamiano emulatora.
 | `pnpm build` | root monorepo | PASS | Next.js produkcyjny build, Expo Android bundle (581 modułów), 6 pakietów |
 | `pnpm typecheck` | root monorepo | PASS | 8 workspaces |
 | `pnpm lint` | root monorepo | PASS | ESLint Web + Expo lint Mobile |
-| `pnpm test` | root monorepo | PASS | 10 asercji: geometry 3, calculators 3, ui-tokens 4; pozostałe workspaces nie mają jeszcze testów |
+| `pnpm test` | root monorepo | PASS | 10 asercji: geometry 3, calculators 3, ui-tokens 2 testy (4 asercje); pozostałe workspaces nie miały jeszcze testów |
 | Web w przeglądarce (`http://127.0.0.1:3010`) | dostępność i treść widoku | PASS | strona odpowiada, tytuł „Asystent Budowlańca”, polski lokalny pulpit; proces zatrzymany po kontroli |
 | Expo `GET http://localhost:8081/status` | status Metro | PASS | HTTP 200, `packager-status:running`; proces zatrzymany po kontroli |
 
 **Wniosek sesji 3:** lokalny UI Web/Mobile używa współdzielonych tokenów designu; wszystkie bramki kodu i smoke testy
 — **PASS**. Lokalny Supabase nadal **BLOCKED** przez niedostępny Docker Desktop. Nie uruchamiano usług chmurowych ani
 wdrożenia.
+
+## Sesja 4 — 11 października 2026
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm install --frozen-lockfile` | root monorepo | PASS | lockfile aktualny, pnpm 12.11.2 |
+| `pnpm build` | root monorepo | PASS | 8 zadań; Next.js build, Android JS bundle (581 modułów), pakiety |
+| `pnpm typecheck` | root monorepo | PASS | 8 zadań |
+| `pnpm lint` | root monorepo | PASS | Web i Mobile |
+| `pnpm test` | root monorepo | PASS | 15 przypadków testowych PASS: geometry 3, calculators 3, ui-tokens 2, schemas 4, domain 3; pozostałe workspaces 0 testów |
+| `pnpm db:start` | lokalny Supabase na Docker Desktop | PASS | kontenery utworzone; ostrzeżenie braku `supabase/seed.sql` nie przerwało startu |
+| `pnpm db:status` i `docker ps` | stan usług lokalnych | PASS | PostgreSQL healthy; API, Auth, Studio, Mailpit i Storage dostępne; `vector` restartuje się, `imgproxy` i `pooler` są zatrzymane |
+| `GET http://127.0.0.1:54321/auth/v1/health` | Supabase Auth health | PASS | HTTP 200 |
+| `GET http://127.0.0.1:54323` | Supabase Studio | PASS | HTTP 200 |
+| `GET http://127.0.0.1:54324` | Mailpit | PASS | HTTP 200 |
+| `docker exec supabase_db_Aplikacja_Budowa pg_isready -U postgres` | gotowość PostgreSQL | PASS | `/run/postgresql:5432 - accepting connections` |
+
+**Ograniczenia infrastruktury:** logi `supabase_vector` zgłaszają błąd połączenia z endpointem Docker IPv6
+`2375`; kontener zamyka się i restartuje. `supabase status` wymienia także zatrzymane `imgproxy` i `pooler`.
+Główne ścieżki Auth, Studio, Mailpit i PostgreSQL odpowiadają, lecz nie wykonano jeszcze migracji aplikacyjnych,
+testu danych przez PostgREST ani testów integracyjnych uprawnień/RLS. Etap 2 pozostaje **NOT RUN**.
+
+Nie wykonano `pnpm test:e2e` — skrypt nie jest skonfigurowany. Nie wykonano natywnego APK/AAB ani emulatora.

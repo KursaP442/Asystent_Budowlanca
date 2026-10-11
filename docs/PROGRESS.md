@@ -5,8 +5,9 @@ i od czego zacząć kolejną sesję. **To jest pierwszy plik, który agent powin
 
 ## Stan ogólny
 
-- **Aktualny etap:** ETAP 1 (Monorepo, UI tokens, Supabase local) — web/mobile, wspólne tokeny i bramki jakości
-  **PASS**; uruchomienie lokalnego Supabase pozostaje **BLOCKED** przez brak Docker Desktop.
+- **Aktualny etap:** ETAP 1 (Monorepo, UI tokens, Supabase local) — aplikacje, bramki jakości i podstawowe usługi
+  lokalnego Supabase **PASS**. Pomocniczy Vector restartuje się, a imgproxy i pooler są zatrzymane; szczegóły w
+  `docs/TEST_REPORT.md`.
 - **Tryb pracy:** wyłącznie lokalny (bez hostingu/wdrożenia). Repozytorium Git istnieje tylko lokalnie
   (`C:\Users\Patryk\Desktop\Aplikacja_Budowa`), bez zdalnego remote na GitHub.
 - **Źródło specyfikacji:** `C:\Users\Patryk\Downloads\Asystent_Budowlanca_MASTER_PROMPT_MULTI_AI_BYOK_MCP.pdf`,
@@ -128,3 +129,34 @@ działanie infrastrukturalne: zapewnić Docker Desktop i zweryfikować Supabase 
 3. Sprawdź `git log` / `git status` w katalogu repo — jeśli brak commitów, zrób pierwszy commit z aktualnym stanem
    przed dalszą pracą.
 4. Kontynuuj od pierwszego niewykonanego punktu w sekcji „Kontynuacja” sesji 3.
+
+## Sesja 4 — 11 października 2026
+
+### Zrobione
+
+1. Na wyraźną prośbę użytkownika zainstalowano Docker Desktop 4.94.0, WSL 2 i lokalną zależność Supabase CLI
+   2.120.0. Docker Engine 29.8.2 odpowiada; konfiguracja Supabase jest w `supabase/config.toml`.
+2. Uruchomiono lokalny stos `pnpm db:start`. PostgreSQL jest gotowy na porcie 54322; Supabase Auth, API i Studio
+   odpowiadają lokalnie. Mailpit odpowiada na porcie 54324. Nie skonfigurowano zdalnego projektu ani hostingu.
+3. Dodano skrypty `pnpm db:start`, `pnpm db:status`, `pnpm db:stop` oraz instrukcję do README.
+4. Dodano schematy organizacji/członkostwa z walidacją polskiego NIP-u i logikę wyboru aktywnego członkostwa;
+   7 nowych testów dla schematów i domeny.
+5. `pnpm install --frozen-lockfile`, `pnpm build`, `pnpm typecheck`, `pnpm lint` i `pnpm test` — **PASS**.
+   Testy raportują 15 przypadków PASS; szczegóły w `docs/TEST_REPORT.md`.
+
+### Ograniczenia i następne kroki
+
+- Kontener `supabase_vector` restartuje się z powodu niedostępnego endpointu Docker IPv6; `imgproxy` i `pooler`
+  pozostają zatrzymane. Główne usługi API/DB/Auth/Studio przeszły smoke testy, ale te komponenty pomocnicze
+  wymagają osobnej diagnozy.
+- Ostrzeżenie startu o braku `supabase/seed.sql` nie przerwało inicjalizacji.
+- Następny krok: ETAP 2 — zaprojektować i dodać migracje Auth/organizacji/ról/RLS oraz testy izolacji danych na
+  lokalnym Supabase. Nie oznaczać Auth/RLS jako ukończonych przed testami integracyjnymi.
+- Docker Desktop/WSL może wymagać restartu systemu po instalacji; po restarcie sprawdź `pnpm db:status`.
+- Kontener Supabase pozostawiono uruchomiony lokalnie. Zatrzymanie: `pnpm db:stop`; wznowienie: `pnpm db:start`.
+
+### Wznowienie
+
+1. Przeczytaj tę sesję oraz `docs/TEST_REPORT.md` i `docs/DECISIONS.md`.
+2. Sprawdź `git status` i lokalny stos (`pnpm db:status`); nie konfiguruj hostingu ani usług chmurowych.
+3. Zacznij ETAP 2 od migracji i testów Auth/organizacji/RLS zgodnie z `docs/MASTER_SPEC.md`.

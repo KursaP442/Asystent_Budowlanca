@@ -50,3 +50,16 @@ przez `tsc`, a testy JavaScript uruchamiają się bez bundlera i bez nowej zale�
 
 **Konsekwencje:** Nie zmieniono systemowych polityk bezpieczeństwa. W razie potrzeby DOM/UI tests można dodać osobno
 po wyborze runnera kompatybilnego z ograniczeniami środowiska.
+
+## ADR-005: Lokalny Docker Desktop i Supabase
+
+**Kontekst:** ADR-003 odkładał instalację Dockera do czasu wyraźnej zgody użytkownika. Użytkownik poprosił o
+zainstalowanie Dockera i Supabase.
+
+**Decyzja:** Zainstalowano Docker Desktop i WSL 2 oraz dodano Supabase CLI jako lokalną zależność projektu.
+Uruchamiamy Supabase wyłącznie lokalnie przez skrypty `pnpm db:*`; nie łączymy go z Supabase Cloud ani hostingiem.
+Ta decyzja zastępuje ADR-003.
+
+**Konsekwencje:** Lokalne usługi Auth, API, Studio i PostgreSQL są dostępne. Vector restartuje się z powodu
+problemu łączności z endpointem Docker IPv6, a imgproxy i pooler pozostają zatrzymane; te usługi pomocnicze
+wymagają diagnozy. Integracyjne Auth/RLS nie są jeszcze wdrożone ani zweryfikowane.
