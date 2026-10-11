@@ -39,3 +39,14 @@ end-to-end.
 
 **Konsekwencje:** Testy integracyjne wymagające bazy danych będą raportowane jako BLOCKED w `docs/TEST_REPORT.md`,
 dopóki Docker + Supabase CLI nie zostaną zainstalowane.
+
+## ADR-004: Wbudowany Node test runner zamiast Vitest
+
+**Kontekst:** W środowisku Windows polityka Application Control blokowała natywny plik Rollupa wymagany przez
+Vitest (`ERR_DLOPEN_FAILED`). Próba uruchomienia testów kończyła się przed wykonaniem testów.
+
+**Decyzja:** Dla testów jednostkowych czystych pakietów używamy wbudowanego `node:test`. Pakiety kompilują TypeScript
+przez `tsc`, a testy JavaScript uruchamiają się bez bundlera i bez nowej zależności testowej.
+
+**Konsekwencje:** Nie zmieniono systemowych polityk bezpieczeństwa. W razie potrzeby DOM/UI tests można dodać osobno
+po wyborze runnera kompatybilnego z ograniczeniami środowiska.

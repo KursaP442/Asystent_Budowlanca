@@ -9,13 +9,11 @@ Szkic do uzupełniania wraz z implementacją `packages/ui-tokens` i pierwszych e
 - Desktop: pasek boczny (nawigacja) + treść główna + inspektor właściwości (dla CAD).
 - Mobile: dolna nawigacja (tab bar) + uproszczony zestaw narzędzi.
 
-## Tokeny (do zdefiniowania w `packages/ui-tokens`)
+## Tokeny w `packages/ui-tokens`
 
-- Kolory: granat (nawigacja), pomarańcz (akcja główna), neutralne szarości (tło/tekst), kolory statusów
-  (sukces/ostrzeżenie/błąd), kolory pewności rozpoznania CAD (wysoka/średnia/niska).
-- Typografia: skala rozmiarów, wagi, line-height.
-- Spacing: skala odstępów (4/8/12/16/24/32...).
-- Promienie zaokrągleń, cienie, breakpointy.
+- `UI_TOKENS.color` udostępnia kolory nawigacji, akcji głównej, powierzchni, tekstu, obramowań i statusów.
+- `UI_TOKENS.spacing` udostępnia bazową skalę odstępów opartą na 4 px.
+- Typografia, promienie, cienie, breakpointy i kolory pewności CAD będą dodawane wraz z ekranami, które ich użyją.
 
 ## Dostępność (A11Y)
 
@@ -24,4 +22,5 @@ Szkic do uzupełniania wraz z implementacją `packages/ui-tokens` i pierwszych e
 
 ## Status
 
-Tokeny nie są jeszcze zaimplementowane — `packages/ui-tokens/src/index.ts` zawiera obecnie tylko placeholder.
+Podstawowe tokeny są zaimplementowane i testowane w `packages/ui-tokens`. Aplikacje nie używają jeszcze tokenów
+bezpośrednio w ekranach; integracja nastąpi podczas budowy wspólnych komponentów UI.

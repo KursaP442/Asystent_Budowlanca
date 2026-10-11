@@ -5,9 +5,8 @@ i od czego zacząć kolejną sesję. **To jest pierwszy plik, który agent powin
 
 ## Stan ogólny
 
-- **Aktualny etap:** ETAP 1 (Monorepo, UI tokens, Supabase local) — **build/typecheck/lint PASS**, `pnpm test`
-  **BLOCKED** (polityka systemowa, patrz niżej). Prawie ukończony — brakuje testów jednostkowych i ewentualnie
-  obejścia blokady Vitest/Rollup.
+- **Aktualny etap:** ETAP 1 (Monorepo, UI tokens, Supabase local) — kod i bramki jakości **PASS**; uruchomienie
+  lokalnego Supabase pozostaje **BLOCKED** przez brak Docker Desktop.
 - **Tryb pracy:** wyłącznie lokalny (bez hostingu/wdrożenia). Repozytorium Git istnieje tylko lokalnie
   (`C:\Users\Patryk\Desktop\Aplikacja_Budowa`), bez zdalnego remote na GitHub.
 - **Źródło specyfikacji:** `C:\Users\Patryk\Downloads\Asystent_Budowlanca_MASTER_PROMPT_MULTI_AI_BYOK_MCP.pdf`,
@@ -66,20 +65,43 @@ i od czego zacząć kolejną sesję. **To jest pierwszy plik, który agent powin
 
 ### Następne kroki (od tego trzeba zacząć kolejną sesję)
 
-1. **Najpierw rozwiązać blokadę Vitest/Rollup** (patrz `docs/TEST_REPORT.md`): sprawdzić z użytkownikiem, czy da się
-   dodać wyjątek w polityce Application Control / WDAC dla `node_modules\.pnpm\@rollup+rollup-win32-x64-msvc@*`,
-   albo przełączyć testy jednostkowe czystych pakietów (`geometry`, `calculators`, `domain`, `schemas`) na
-   `node:test` (wbudowany w Node.js, bez natywnego Rollupa) zamiast Vitest.
-2. Napisać pierwsze prawdziwe testy jednostkowe (na razie `packages/*` mają tylko placeholder `index.ts` bez logiki
-   i bez plików testowych — `vitest run` kończyłby się „no test files found”, gdyby nie blokada).
-3. Zdecydować z użytkownikiem: czy instalować Docker Desktop do lokalnego Supabase, czy na razie pracować z
-   zaślepkami/mockami backendu.
-4. Dopiero po ostatecznie zielonym ETAPIE 1 (łącznie z testami) przejść do ETAPU 2 (Auth, organizacje, role, RLS) —
-   patrz `MASTER_SPEC.md` sekcja 10 i prompt „PROMPT 02” w `docs/raw/MASTER_SPEC_RAW.txt`.
-5. Rozważyć utworzenie zdalnego repozytorium GitHub (dopiero gdy użytkownik zdecyduje się wystawić projekt na
-   hosting — zgodnie z poleceniem użytkownika, na razie wszystko ma zostać lokalnie, bez `git remote`).
-6. Zrobić pierwszy commit Git w repo (na koniec sesji 1 repo ma zainicjalizowany `.git`, ale **jeszcze nie
-   wykonano `git add`/`git commit`** — zrób to na początku kolejnej sesji, jeśli nie zostało zrobione automatycznie).
+1. Uruchomić lokalny Supabase po zapewnieniu Docker Desktop; do tego czasu nie rozpoczynać integracyjnego Auth/RLS
+   ani nie używać Supabase Cloud. Instalacja Docker Desktop wymaga osobnej decyzji ze względu na uprawnienia i
+   komponenty systemowe (WSL2/Hyper-V).
+2. Gdy Supabase lokalny jest dostępny, wykonać ETAP 2 zgodnie z `MASTER_SPEC.md`: Auth e-mail/hasło, organizacje,
+   role i polityki RLS z testami izolacji danych.
+3. Rozszerzać testy `domain`, `schemas`, `api-client` i aplikacji, które obecnie mają runner, ale nie mają jeszcze
+   własnych przypadków testowych.
+4. Pozostawić pracę lokalnie; utworzenie remote, hosting i wdrożenie odkładać do czasu wyraźnej decyzji użytkownika.
+
+## Sesja 2 — 11 października 2026
+
+### Zrobione
+
+1. Rozwiązano blokadę WDAC dla testów bez zmiany polityk Windows: Vitest zastąpiono w pakietach przez wbudowany
+   `node:test`, a TypeScript kompiluje się do `dist/` przez `tsc`.
+2. Dodano funkcje bazowe w `packages/geometry`: odległość punktów i pole wielokąta w mm² z walidacją skończonych
+   współrzędnych i liczby wierzchołków.
+3. Dodano funkcje bazowe w `packages/calculators`: powierzchnia z jawnym narzutem odpadu i objętość z mm³ na m³,
+   z walidacją danych oraz wyniku.
+4. Zdefiniowano podstawowe tokeny kolorów i odstępów w `packages/ui-tokens`.
+5. Dodano 8 testów jednostkowych geometrii, kalkulatorów i tokenów UI.
+6. Uzupełniono rzeczywisty lint Expo przez `eslint-config-expo`; skrypt `mobile:lint` nie jest już placeholderem.
+7. Ustawiono lokalny build aplikacji mobilnej jako `expo export --platform android` (eksport JS bundle, nie APK/AAB).
+8. Uruchomiono bramki: `pnpm install --frozen-lockfile`, `pnpm build`, `pnpm typecheck`, `pnpm lint`, `pnpm test` —
+   wszystkie **PASS**. Szczegóły: `docs/TEST_REPORT.md`.
+9. Wykonano smoke testy lokalnego startu: Next.js odpowiadał HTTP 200, a Expo `/status` zwrócił
+   `packager-status:running` — oba procesy zatrzymano po sprawdzeniu.
+
+### Zablokowane (BLOCKED)
+
+- Supabase local nadal wymaga Docker Desktop; Docker nie jest dostępny. Nie instalowano go automatycznie, ponieważ
+  wymaga zmian systemowych. ETAP 1 nie jest formalnie domknięty bez działającego Supabase local.
+
+### Kontynuacja
+
+Pierwszym zadaniem jest uruchomienie Supabase lokalnie po zapewnieniu Docker Desktop, a następnie przejście do ETAPU 2
+(Auth, organizacje, role i RLS). Nie twórz hostingu ani zdalnego Git remote.
 
 ## Jak wznowić pracę w nowej sesji
 
@@ -87,4 +109,4 @@ i od czego zacząć kolejną sesję. **To jest pierwszy plik, który agent powin
 2. Sprawdź `docs/TEST_REPORT.md`, aby zobaczyć ostatnie wyniki testów/budowy.
 3. Sprawdź `git log` / `git status` w katalogu repo — jeśli brak commitów, zrób pierwszy commit z aktualnym stanem
    przed dalszą pracą.
-4. Kontynuuj od pierwszego niewykonanego punktu w „Następne kroki”.
+4. Kontynuuj od pierwszego niewykonanego punktu w sekcji „Kontynuacja” sesji 2.

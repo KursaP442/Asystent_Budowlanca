@@ -10,6 +10,7 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
+    "eslint-config-expo": "~57.0.2",
     "typescript": "~6.0.3"
   },
   "scripts": {
@@ -17,10 +18,10 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "build": "echo \"no native build in this environment\" && exit 0",
+    "build": "expo export --platform android",
     "typecheck": "tsc --noEmit",
-    "lint": "echo \"no lint config yet\" && exit 0",
-    "test": "echo \"no tests yet\" && exit 0"
+    "lint": "expo lint",
+    "test": "node --test"
   },
   "private": true
 }

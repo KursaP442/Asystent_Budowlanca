@@ -34,7 +34,7 @@ Nigdy nie wpisujemy ogólnego „działa” bez dowodu z uruchomienia.
 | `pnpm lint` (turbo) | lint `apps/web` (eslint) i `apps/mobile` (placeholder) | PASS | mobile nie ma jeszcze konfiguracji ESLint — placeholder `exit 0` |
 | `pnpm test` (turbo, pakiety z vitest) | testy jednostkowe `packages/*` | **BLOCKED** | patrz niżej — polityka Application Control blokuje natywny Rollup |
 
-### BLOCKED: Vitest/Rollup — polityka Application Control (WDAC) systemu Windows
+### Historia: blokada Vitest/Rollup — rozwiązana przez zmianę runnera
 
 Komenda `vitest run` w `packages/api-client` i `packages/geometry` kończy się błędem:
 
@@ -50,20 +50,31 @@ błąd w kodzie repo — plik `.node` (natywny binarny moduł Rollupa używany w
 przez politykę zanim JavaScript zdąży go załadować. Próba `ROLLUP_SKIP_NODEJS_NATIVE=1` nie pomogła (Vitest/Vite
 i tak ładuje natywny moduł Rollupa niezależnie od tej zmiennej w tej wersji).
 
-**Status:** BLOCKED — wymaga decyzji/działania poza zakresem repozytorium (np. wyjątek w polityce AppLocker/WDAC na
-tej maszynie, inny komputer bez tej polityki, lub zmiana runnera testów na taki, który nie zależy od natywnego
-Rollupa).
-
-**Rekomendowane opcje na następną sesję (do wyboru z użytkownikiem):**
-1. Sprawdzić u administratora/w ustawieniach Windows, czy można dodać wyjątek dla katalogu `node_modules\.pnpm` lub
-   dla konkretnego pliku `.node` Rollupa.
-2. Zastąpić Vitest przez `node:test` + `tsx`/`ts-node` dla testów jednostkowych czystych funkcji (`packages/geometry`,
-   `packages/calculators` to głównie czyste funkcje — nie wymagają JSDOM/bundlera).
-3. Sprawdzić, czy problem występuje też z `jest`/`esbuild`-owym runnerem (esbuild natywny plugin już działa — jego
-   postinstall przeszedł wcześniej bez błędu), co sugeruje, że polityka blokuje konkretnie plik Rollupa, a nie
-   wszystkie natywne binarki Node.
+**Rozwiązanie:** usunięto Vitest z pakietów i przestawiono ich testy na wbudowany w Node.js `node:test`. Testy TypeScript
+kompilują się przez `tsc`, a następnie są uruchamiane bez bundlera. Nie zmieniano ustawień bezpieczeństwa Windows.
 
 **Wniosek sesji 1:** ETAP 0 (audyt środowiska) ukończony z udokumentowanymi brakami uzupełnionymi (pnpm, Git) i jednym
-pozostającym (Docker — BLOCKED dla Supabase local). ETAP 1 (scaffolding monorepo) w dużej mierze ukończony:
-`pnpm install`, `pnpm build`, `pnpm typecheck`, `pnpm lint` — wszystkie **PASS**. `pnpm test` — **BLOCKED** z powodu
-polityki systemowej (nie z powodu kodu). Patrz `docs/PROGRESS.md` sekcja „Następne kroki”.
+pozostającym (Docker — BLOCKED dla Supabase local). `pnpm test` było BLOCKED przez reguły systemowe dla pliku Rollupa;
+status ten rozwiązano w sesji 2 przez zmianę runnera na `node:test`.
+
+## Sesja 2 — 11 października 2026
+
+| Komenda | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm install --frozen-lockfile` | root monorepo | PASS | lockfile aktualny po usunięciu Vitest i dodaniu Expo ESLint |
+| `pnpm build` | root monorepo | PASS | 8 zadań; Next.js production build, Expo Android JS bundle export, kompilacja 6 pakietów |
+| `pnpm typecheck` | root monorepo | PASS | 8 zadań: web, mobile i 6 pakietów |
+| `pnpm lint` | root monorepo | PASS | ESLint dla web, Expo lint dla mobile |
+| `pnpm test` | root monorepo | PASS | 8 asercji: geometry 3, calculators 3, ui-tokens 2; pozostałe pakiety i aplikacje mają 0 testów |
+| `pnpm --filter mobile exec expo export --platform android` | lokalny bundle Android | PASS | 580 modułów zbundlowano; nie jest to natywne APK/AAB |
+| `pnpm --filter web exec next dev --hostname 127.0.0.1 --port 3010` + GET `/` | lokalny Web smoke test | PASS | serwer gotowy, HTTP 200; proces zatrzymany po sprawdzeniu |
+| `pnpm --filter mobile exec expo start --localhost --port 8081` + GET `/status` | lokalny Expo smoke test | PASS | HTTP 200, `packager-status:running`; proces zatrzymany po sprawdzeniu |
+| `supabase start` | lokalny backend | BLOCKED | Docker Desktop nie jest dostępny; nie instalowano go bez zgody użytkownika |
+
+Testy obejmują: długość odcinka, pole wielokąta w obu kierunkach, walidację geometrii, narzut odpadu, konwersję
+objętości mm³ → m³, walidację kalkulatorów, kolory UI oraz skalę odstępów.
+
+**Wniosek sesji 2:** bramka jakości kodu (install/build/typecheck/lint/test) — **PASS**. ETAP 1 pozostaje częściowo
+**BLOCKED** wyłącznie przez niedostępny Docker wymagany do uruchomienia lokalnego Supabase. Nie uruchamiano usług
+chmurowych ani wdrożenia. Web został zbudowany produkcyjnie, a Mobile wyeksportowało lokalny bundle JavaScript dla
+Androida; nie budowano APK/AAB ani nie uruchamiano emulatora.
