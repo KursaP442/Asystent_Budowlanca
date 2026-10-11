@@ -1,0 +1,41 @@
+# DECISIONS — Architecture Decision Records
+
+Format: krótki wpis per decyzja — kontekst, decyzja, konsekwencje. Dodawaj nowe wpisy na końcu pliku, nie modyfikuj
+wcześniejszych (jeśli decyzja się zmienia, dodaj nowy wpis odwołujący się do poprzedniego).
+
+## ADR-001: Menedżer pakietów — pnpm workspaces + Turborepo
+
+**Kontekst:** Specyfikacja (`docs/MASTER_SPEC.md` sekcja 3) wymaga monorepo z jedną bazą kodu dla `apps/web` i
+`apps/mobile` oraz współdzielonych pakietów.
+
+**Decyzja:** Używamy pnpm workspaces (`pnpm-workspace.yaml`) + Turborepo (`turbo.json`) do orkiestracji zadań
+(`build`, `dev`, `lint`, `typecheck`, `test`).
+
+**Konsekwencje:** pnpm nie było domyślnie dostępne w środowisku — zainstalowane globalnie (`npm install -g pnpm`).
+Wymaga to, aby każde nowe środowisko deweloperskie miało wykonany ten krok (brak `corepack` w użytej wersji Node).
+
+## ADR-002: Praca wyłącznie lokalna do czasu akceptacji hostingu
+
+**Kontekst:** Użytkownik wprost zastrzegł: „na razie cała aplikacja musi być budowana lokalnie, gdy będzie gotowa to
+wtedy zostanie wrzucona na host”.
+
+**Decyzja:** Nie konfigurujemy ani nie uruchamiamy żadnych płatnych usług chmurowych (hosting, Supabase Cloud,
+domeny, CI w chmurze) bez wyraźnej zgody użytkownika. Repozytorium Git pozostaje lokalne (bez `git remote`) do
+czasu takiej decyzji.
+
+**Konsekwencje:** ETAP 0 „podstawowy CI” z checklisty w `MASTER_SPEC.md` (pipeline w chmurze, ochrona gałęzi na
+GitHub) jest odłożony — lokalnie wystarczą skrypty `pnpm lint/typecheck/test/build` uruchamiane ręcznie lub przez
+lokalny git hook, jeśli zajdzie potrzeba.
+
+## ADR-003: Brak lokalnego Supabase (Docker) na start
+
+**Kontekst:** Lokalny Supabase (`supabase start`) wymaga Docker Desktop. Docker nie był zainstalowany w środowisku
+na początku prac.
+
+**Decyzja:** Nie instalujemy Dockera automatycznie — to duża, inwazyjna zmiana systemowa (Hyper-V/WSL2, usługi
+systemowe). Czekamy na potwierdzenie użytkownika. Do tego czasu backend (Auth/DB/Storage/Edge Functions) jest
+projektowany (schemas, migracje SQL, kontrakty API w `packages/schemas` i `packages/api-client`), ale nie uruchamiany
+end-to-end.
+
+**Konsekwencje:** Testy integracyjne wymagające bazy danych będą raportowane jako BLOCKED w `docs/TEST_REPORT.md`,
+dopóki Docker + Supabase CLI nie zostaną zainstalowane.
