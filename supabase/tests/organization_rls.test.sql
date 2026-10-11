@@ -1,6 +1,6 @@
 begin;
 
-select plan(16);
+select plan(20);
 
 insert into auth.users (
   id,
@@ -81,6 +81,21 @@ select is(
   1,
   'Authenticated user can read only their own profile'
 );
+select lives_ok(
+  $$update public.profiles
+    set account_type = 'client'
+    where id = '00000000-0000-4000-8000-000000000001'$$,
+  'Authenticated user can save their own account type'
+);
+select is(
+  (
+    select account_type::text
+    from public.profiles
+    where id = '00000000-0000-4000-8000-000000000001'
+  ),
+  'client',
+  'Saved account type is returned from the profile'
+);
 
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000002', true);
 select lives_ok(
@@ -102,6 +117,23 @@ select is(
   1,
   'Profile access is isolated between users'
 );
+select lives_ok(
+  $$update public.profiles
+    set account_type = 'contractor'
+    where id = '00000000-0000-4000-8000-000000000001'$$,
+  'RLS filters an attempted update to another user profile'
+);
+reset role;
+select is(
+  (
+    select account_type::text
+    from public.profiles
+    where id = '00000000-0000-4000-8000-000000000001'
+  ),
+  'client',
+  'A user cannot change another account type'
+);
+set local role authenticated;
 
 select throws_ok(
   $$insert into public.organizations (name, kind, created_by)

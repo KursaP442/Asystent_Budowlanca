@@ -76,3 +76,17 @@ zweryfikowanego przepływu zaproszeń.
 
 **Konsekwencje:** Tworzenie organizacji i izolacja danych są testowane na lokalnym Supabase. Do czasu następnej
 migracji nie można dołączać kolejnych użytkowników ani przydzielać ról `admin`/`member`.
+
+## ADR-007: Typ konta jako krok lokalnego onboardingu
+
+**Kontekst:** Po pierwszym logowaniu użytkownik ma wybrać jeden z trzech głównych sposobów korzystania z aplikacji:
+Zleceniodawca, Wykonawca albo Sklep. Nie może to zastępować ról członkostwa, bo użytkownik może należeć do wielu
+organizacji i mieć różne role w każdej z nich.
+
+**Decyzja:** Zapisujemy preferowany typ w `profiles.account_type`, mapowany na istniejący enum
+`organization_kind`. Użytkownik wybiera typ na trzech kafelkach; aplikacja zapisuje go przez RLS i przechodzi do
+formularza tworzenia organizacji tego typu. Typ organizacji pozostaje w `organizations.kind`, a role pozostają
+przy członkostwach. Użytkownik może zmienić wybór przed utworzeniem pierwszej organizacji.
+
+**Konsekwencje:** Wymagana jest wersjonowana migracja i test izolacji zapisu profilu. Onboarding jest lokalny i
+nie uzależnia dalszego hostingu ani usługi chmurowej.

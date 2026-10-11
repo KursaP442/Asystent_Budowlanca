@@ -5,8 +5,8 @@ i od czego zacząć kolejną sesję. **To jest pierwszy plik, który agent powin
 
 ## Stan ogólny
 
-- **Aktualny etap:** ETAP 2 (Auth, organizacje, role, RLS) — fundament profili, organizacji, członkostw właściciela
-  i izolacji RLS wdrożony lokalnie; pgTAP **PASS**. Pełny przepływ logowania/zaproszeń i E2E pozostają do wykonania.
+- **Aktualny etap:** ETAP 2 (Auth, organizacje, role, RLS) — lokalny Auth, onboarding typu konta, organizacje,
+  członkostwa właściciela i izolacja RLS wdrożone; pgTAP **PASS**. Zaproszenia i automatyczne E2E pozostają do wykonania.
   Ograniczenia usług pomocniczych Supabase opisano w `docs/TEST_REPORT.md`.
 - **Tryb pracy:** wyłącznie lokalny (bez hostingu/wdrożenia). Repozytorium Git istnieje tylko lokalnie
   (`C:\Users\Patryk\Desktop\Aplikacja_Budowa`), bez zdalnego remote na GitHub.
@@ -196,3 +196,74 @@ działanie infrastrukturalne: zapewnić Docker Desktop i zweryfikować Supabase 
 Następnie dodać przepływ zaproszenia/akceptacji członkostwa oparty o zweryfikowany adres e-mail oraz ograniczony
 RPC/Edge Function, potem połączyć rejestrację/logowanie z Web i dodać lokalny E2E. Nie otwierać bezpośredniego
 INSERT/UPDATE tabeli `memberships` dla klienta i nie łączyć projektu z Supabase Cloud.
+
+## Sesja 6 — 11 października 2026
+
+### Zrobione
+
+1. Dodano responsywny interfejs Web logowania/rejestracji w języku polskim, obsługę stanu ładowania i czytelnych
+   błędów oraz widok lokalnego miejsca pracy.
+2. Podłączono Web do lokalnego Supabase Auth przez `@supabase/supabase-js`. Ekran po zalogowaniu korzysta z
+   RLS-chronionych członkostw i organizacji; formularz pozwala utworzyć inwestora, wykonawcę lub skład. Walidację
+   NIP-u i uprawnienia egzekwuje baza; użytkownik-twórca dostaje rolę właściciela.
+3. Zdefiniowano wspólne typy tabel i funkcji Supabase w `packages/api-client`, używane przez Web.
+4. Lokalny przepływ sprawdzono w przeglądarce: formularz rejestracji → konto Auth/profil → utworzenie organizacji
+   → wyświetlenie roli właściciela. Tymczasowe konto i organizację testową usunięto z lokalnej bazy.
+5. Dodano `apps/web/.env.example` i instrukcję konfiguracji kluczem anon (bez kluczy serwisowych) oraz Mailpit do
+   README. Rzeczywista konfiguracja developerska znajduje się w ignorowanym przez Git `apps/web/.env.local`.
+6. Sprawdzono przeglądarkowo pełny podstawowy przepływ: rejestracja → wylogowanie → ponowne logowanie. Przeglądarka
+   zgłosiła `ERR_ABORTED` dla żądania logout przy zmianie widoku, ale UI wylogował użytkownika, można było zalogować
+   się ponownie i przejść do pulpitu. Tymczasowe konto usunięto po teście.
+
+### Weryfikacja
+
+- `pnpm install --frozen-lockfile`, `pnpm build`, `pnpm typecheck`, `pnpm lint`, `pnpm test` — **PASS**.
+- Web smoke test — **PASS** (HTTP 200); kontrola przeglądarkowa rejestracji, utworzenia konta i organizacji — **PASS**.
+- `pnpm db:test` — **PASS** (16/16); lint schematu `public` — **PASS**.
+- Wylogowanie przełącza interfejs do logowania, a ponowne logowanie działa. Diagnostyka narzędzia przeglądarki
+  nadal odnotowuje przerwany request logout; warto potwierdzić zachowanie automatycznym E2E.
+
+### Pozostało (ETAP 2 — w toku)
+
+- Pełny Playwright E2E dla AUTH-01/AUTH-02 i izolacji tenantów — **NOT RUN**; repo nie ma skonfigurowanego
+  runnera E2E.
+- Zaproszenie drugiej osoby, potwierdzenie adresu i bezpieczne dołączenie do organizacji — **NOT IMPLEMENTED**.
+- Mobile nie ma jeszcze ekranu Auth ani podłączenia do Supabase.
+- Rzeczywiste `.env.local` jest lokalne/ignorowane. Na nowym środowisku skopiuj wartości z `pnpm db:status` zgodnie
+  z README; nigdy nie wklejaj `SECRET_KEY` ani `SERVICE_ROLE_KEY` do klienta.
+
+### Kontynuacja
+
+Następnie wprowadzić lokalny E2E dla rejestracji/logowania/organizacji. Potem
+zaprojektować zaproszenia z potwierdzeniem adresu e-mail i bezpiecznym RPC/Edge Function, bez przyznawania ról
+bezpośrednio z przeglądarki. Nie łączyć Supabase Cloud ani nie konfigurować hostingu.
+
+## Sesja 7 — 11 października 2026
+
+### Zrobione
+
+1. Dodano trzy responsywne kafelki pierwszego wyboru typu konta: Zleceniodawca, Wykonawca i Sklep, z własnymi
+   ilustracjami SVG i krótkim opisem.
+2. Po wyborze aplikacja zapisuje `profiles.account_type` pod RLS i przechodzi do kroku utworzenia organizacji z
+   przypisanym typem. Kolejne logowania odczytują zapisany typ; przed utworzeniem pierwszej organizacji można go
+   zmienić.
+3. Zastosowano lokalnie migrację `20261011210000_profile_account_type.sql`; typ konta jest odrębny od ról
+   członkostwa i od typów poszczególnych organizacji.
+4. Rozszerzono pgTAP o zapis własnego typu, izolację aktualizacji profilu i ochronę przed zmianą typu innego
+   użytkownika. Poprawiono asercję RLS, używając UPDATE filtrowanego przez politykę zamiast zapisu w CTE.
+5. Zaktualizowano README, ADR-007 i ten dziennik.
+
+### Weryfikacja
+
+- `pnpm install --frozen-lockfile`, `pnpm build`, `pnpm typecheck`, `pnpm lint`, `pnpm test` — **PASS**.
+- `pnpm exec supabase migration up --local` — **PASS**.
+- `pnpm db:test` — **PASS** (20/20); lint schematu `public` — **PASS**.
+- Lokalny Web smoke test — **PASS** (HTTP 200); podgląd w przeglądarce potwierdził wyświetlanie trzech kafelków.
+  Kliknięcie wyboru na istniejącym koncie i weryfikacja po ponownym logowaniu — **NOT RUN**.
+- Automatyczny Playwright E2E — **NOT RUN** (brak skonfigurowanego runnera).
+- `git diff --check` — **PASS**.
+
+### Kontynuacja
+
+Następnie dodać automatyczny lokalny E2E nowego onboardingu oraz przepływ zaproszeń i bezpiecznego dołączania
+członków. Zmiany zapisać wyłącznie lokalnie; nie konfigurować hostingu ani Supabase Cloud.

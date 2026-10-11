@@ -14,6 +14,23 @@ Nigdy nie wpisujemy ogólnego „działa” bez dowodu z uruchomienia.
 - WSL: 3.0.1.0; CLI Supabase: 2.120.0 (lokalna zależność projektu)
 - Python: niedostępny (nie jest wymagany przez stack projektu)
 
+## Sesja 7 — 11 października 2026
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm install --frozen-lockfile` | root monorepo | PASS | lockfile aktualny |
+| `pnpm build` | root monorepo | PASS | Next.js, Android JS bundle i pakiety |
+| `pnpm typecheck` | root monorepo | PASS | wszystkie workspace |
+| `pnpm lint` | root monorepo | PASS | Web i Mobile |
+| `pnpm test` | root monorepo | PASS | testy jednostkowe wszystkich workspace |
+| `pnpm exec supabase migration up --local` | migracja `20261011210000_profile_account_type.sql` | PASS | dodano typ konta profilu |
+| `$env:PATH = 'C:\Program Files\Docker\Docker\resources\bin;' + $env:PATH; pnpm db:test` | lokalny Supabase | PASS | 20/20 asercji pgTAP; dodano ścieżkę Docker CLI dla procesu narzędziowego |
+| `pnpm exec supabase db lint --local --schema public --fail-on error` | lokalny schemat aplikacji | PASS | brak błędów schematu |
+| Web `GET http://127.0.0.1:3010/` | lokalny smoke test | PASS | HTTP 200 |
+| Podgląd strony w przeglądarce | konto zalogowane w istniejącej sesji | PASS | trzy kafelki widoczne; zapis wyboru na koncie — NOT RUN |
+| Playwright E2E onboardingu | rejestracja → wybór → ponowne logowanie | NOT RUN | runner E2E nie jest skonfigurowany |
+| `git diff --check` | zmienione pliki | PASS | brak błędów whitespace |
+
 ## Sesja 1 — 11 października 2026
 
 | Komenda | Kontekst | Wynik | Uwagi |
@@ -140,3 +157,22 @@ przyznawania ról, walidacja NIP oraz odmowa odczytu przez `anon`.
 
 **Status ETAPU 2:** migracja i polityki bazowe **PASS**; pełny etap **NOT RUN** — brak jeszcze UI i E2E logowania,
 przepływu zaproszeń/akceptacji członkostwa oraz testów właściciel/członek po dołączeniu przez zaproszenie.
+
+## Sesja 6 — 11 października 2026
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm install --frozen-lockfile` | wszystkie workspace | PASS | klient Supabase i wspólny pakiet API rozwiązane |
+| `pnpm build` | root monorepo | PASS | Web, Android JS bundle, 6 pakietów |
+| `pnpm typecheck` | root monorepo | PASS | 8 workspace, w tym typowany klient Supabase |
+| `pnpm lint` | root monorepo | PASS | Web i Mobile |
+| `pnpm test` | root monorepo | PASS | 15 testów jednostkowych |
+| `pnpm db:test` | lokalna baza | PASS | 16/16 testów pgTAP |
+| `pnpm exec supabase db lint --local --schema public --fail-on error` | lokalna baza, schemat aplikacji | PASS | brak błędów |
+| `GET http://127.0.0.1:3010/` | lokalny Web | PASS | HTTP 200, tytuł aplikacji |
+| Rejestracja, tworzenie organizacji i lista członkostw w przeglądarce | lokalny Supabase Auth + RLS | PASS | tymczasowe konto i organizację usunięto po sprawdzeniu |
+| Rejestracja → wylogowanie → ponowne logowanie | lokalny Supabase Auth + Web | PASS z uwagą | UI wylogowuje i pozwala ponownie się zalogować; narzędzie przeglądarki notuje `ERR_ABORTED` dla requestu logout, warto potwierdzić w automatycznym E2E |
+| Widok przy szerokości 390 px | przeglądarka lokalna | PASS | formularz logowania widoczny, brak poziomego przepełnienia |
+
+Nie uruchomiono Playwright/E2E; brak runnera. Etap 2 pozostaje w toku do wdrożenia zaproszeń i automatycznych
+scenariuszy AUTH-01/AUTH-02.
