@@ -22,5 +22,5 @@ Szkic do uzupełniania wraz z implementacją `packages/ui-tokens` i pierwszych e
 
 ## Status
 
-Podstawowe tokeny są zaimplementowane i testowane w `packages/ui-tokens`. Aplikacje nie używają jeszcze tokenów
-bezpośrednio w ekranach; integracja nastąpi podczas budowy wspólnych komponentów UI.
+Podstawowe tokeny są zaimplementowane i testowane w `packages/ui-tokens`. Pierwsze ekrany `apps/web` i `apps/mobile`
+korzystają ze współdzielonych kolorów i odstępów.

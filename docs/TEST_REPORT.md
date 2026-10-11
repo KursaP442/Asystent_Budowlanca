@@ -65,7 +65,7 @@ status ten rozwiązano w sesji 2 przez zmianę runnera na `node:test`.
 | `pnpm build` | root monorepo | PASS | 8 zadań; Next.js production build, Expo Android JS bundle export, kompilacja 6 pakietów |
 | `pnpm typecheck` | root monorepo | PASS | 8 zadań: web, mobile i 6 pakietów |
 | `pnpm lint` | root monorepo | PASS | ESLint dla web, Expo lint dla mobile |
-| `pnpm test` | root monorepo | PASS | 8 asercji: geometry 3, calculators 3, ui-tokens 2; pozostałe pakiety i aplikacje mają 0 testów |
+| `pnpm test` | root monorepo | PASS | 8 asercji w sesji 2: geometry 3, calculators 3, ui-tokens 2; później dodano 2 testy UI |
 | `pnpm --filter mobile exec expo export --platform android` | lokalny bundle Android | PASS | 580 modułów zbundlowano; nie jest to natywne APK/AAB |
 | `pnpm --filter web exec next dev --hostname 127.0.0.1 --port 3010` + GET `/` | lokalny Web smoke test | PASS | serwer gotowy, HTTP 200; proces zatrzymany po sprawdzeniu |
 | `pnpm --filter mobile exec expo start --localhost --port 8081` + GET `/status` | lokalny Expo smoke test | PASS | HTTP 200, `packager-status:running`; proces zatrzymany po sprawdzeniu |
@@ -78,3 +78,19 @@ objętości mm³ → m³, walidację kalkulatorów, kolory UI oraz skalę odstę
 **BLOCKED** wyłącznie przez niedostępny Docker wymagany do uruchomienia lokalnego Supabase. Nie uruchamiano usług
 chmurowych ani wdrożenia. Web został zbudowany produkcyjnie, a Mobile wyeksportowało lokalny bundle JavaScript dla
 Androida; nie budowano APK/AAB ani nie uruchamiano emulatora.
+
+## Sesja 3 — 11 października 2026
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm install --frozen-lockfile` | root monorepo | PASS | workspace dependencies web/mobile rozwiązane |
+| `pnpm build` | root monorepo | PASS | Next.js produkcyjny build, Expo Android bundle (581 modułów), 6 pakietów |
+| `pnpm typecheck` | root monorepo | PASS | 8 workspaces |
+| `pnpm lint` | root monorepo | PASS | ESLint Web + Expo lint Mobile |
+| `pnpm test` | root monorepo | PASS | 10 asercji: geometry 3, calculators 3, ui-tokens 4; pozostałe workspaces nie mają jeszcze testów |
+| Web w przeglądarce (`http://127.0.0.1:3010`) | dostępność i treść widoku | PASS | strona odpowiada, tytuł „Asystent Budowlańca”, polski lokalny pulpit; proces zatrzymany po kontroli |
+| Expo `GET http://localhost:8081/status` | status Metro | PASS | HTTP 200, `packager-status:running`; proces zatrzymany po kontroli |
+
+**Wniosek sesji 3:** lokalny UI Web/Mobile używa współdzielonych tokenów designu; wszystkie bramki kodu i smoke testy
+— **PASS**. Lokalny Supabase nadal **BLOCKED** przez niedostępny Docker Desktop. Nie uruchamiano usług chmurowych ani
+wdrożenia.

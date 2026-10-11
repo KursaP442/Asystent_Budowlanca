@@ -5,8 +5,8 @@ i od czego zacząć kolejną sesję. **To jest pierwszy plik, który agent powin
 
 ## Stan ogólny
 
-- **Aktualny etap:** ETAP 1 (Monorepo, UI tokens, Supabase local) — kod i bramki jakości **PASS**; uruchomienie
-  lokalnego Supabase pozostaje **BLOCKED** przez brak Docker Desktop.
+- **Aktualny etap:** ETAP 1 (Monorepo, UI tokens, Supabase local) — web/mobile, wspólne tokeny i bramki jakości
+  **PASS**; uruchomienie lokalnego Supabase pozostaje **BLOCKED** przez brak Docker Desktop.
 - **Tryb pracy:** wyłącznie lokalny (bez hostingu/wdrożenia). Repozytorium Git istnieje tylko lokalnie
   (`C:\Users\Patryk\Desktop\Aplikacja_Budowa`), bez zdalnego remote na GitHub.
 - **Źródło specyfikacji:** `C:\Users\Patryk\Downloads\Asystent_Budowlanca_MASTER_PROMPT_MULTI_AI_BYOK_MCP.pdf`,
@@ -103,10 +103,28 @@ i od czego zacząć kolejną sesję. **To jest pierwszy plik, który agent powin
 Pierwszym zadaniem jest uruchomienie Supabase lokalnie po zapewnieniu Docker Desktop, a następnie przejście do ETAPU 2
 (Auth, organizacje, role i RLS). Nie twórz hostingu ani zdalnego Git remote.
 
+## Sesja 3 — 11 października 2026
+
+### Zrobione
+
+1. Podłączono `@asystent/ui-tokens` przez workspace dependencies do `apps/web` i `apps/mobile`; naprawiono kodowanie
+   BOM w manifestach pakietów tak, aby Next.js i Metro mogły je parsować.
+2. Zastąpiono domyślny ekran Next.js polskim, responsywnym lokalnym pulpitem z obszarami projektów, zleceń i
+   materiałów oraz jasnym komunikatem, że serwer/baza nie są jeszcze podłączone.
+3. Zastąpiono domyślny ekran Expo lokalnym ekranem startowym używającym tych samych tokenów.
+4. Ustawiono polski tytuł i `lang="pl"` dla dokumentu Web.
+5. Zbudowano Web i eksport JS dla Androida, uruchomiono typecheck/lint/testy; wszystkie wyniki **PASS**.
+   Smoke test Web potwierdził polski tytuł i widok; Expo `/status` zwrócił `packager-status:running`.
+
+### Kontynuacja
+
+Projekt pozostaje lokalny. Nie rozpoczynać Auth/RLS, dopóki lokalny Supabase nie może zostać uruchomiony. Następne
+działanie infrastrukturalne: zapewnić Docker Desktop i zweryfikować Supabase local; później ETAP 2.
+
 ## Jak wznowić pracę w nowej sesji
 
 1. Przeczytaj ten plik (`docs/PROGRESS.md`) od sekcji „Następne kroki”.
 2. Sprawdź `docs/TEST_REPORT.md`, aby zobaczyć ostatnie wyniki testów/budowy.
 3. Sprawdź `git log` / `git status` w katalogu repo — jeśli brak commitów, zrób pierwszy commit z aktualnym stanem
    przed dalszą pracą.
-4. Kontynuuj od pierwszego niewykonanego punktu w sekcji „Kontynuacja” sesji 2.
+4. Kontynuuj od pierwszego niewykonanego punktu w sekcji „Kontynuacja” sesji 3.
