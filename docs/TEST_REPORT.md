@@ -118,3 +118,25 @@ Główne ścieżki Auth, Studio, Mailpit i PostgreSQL odpowiadają, lecz nie wyk
 testu danych przez PostgREST ani testów integracyjnych uprawnień/RLS. Etap 2 pozostaje **NOT RUN**.
 
 Nie wykonano `pnpm test:e2e` — skrypt nie jest skonfigurowany. Nie wykonano natywnego APK/AAB ani emulatora.
+
+## Sesja 5 — 11 października 2026
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm install --frozen-lockfile` | root monorepo | PASS | lockfile aktualny |
+| `pnpm build` | root monorepo | PASS | 8 zadań; Web, Android JS bundle i pakiety |
+| `pnpm typecheck` | root monorepo | PASS | 8 workspace |
+| `pnpm lint` | root monorepo | PASS | Web i Mobile |
+| `pnpm test` | root monorepo | PASS | 15 testów jednostkowych: geometry 3, calculators 3, ui-tokens 2, schemas 4, domain 3 |
+| `pnpm exec supabase migration up --local` | wdrożenie migracji identity/organizations | PASS | bez resetu lokalnej bazy |
+| `pnpm exec supabase test db --local` | pgTAP: `supabase/tests/organization_rls.test.sql` | PASS | 16/16 testów |
+| `pnpm db:test` | skrót do lokalnych testów pgTAP | PASS | ten sam zestaw testów |
+| `pnpm exec supabase db lint --local --schema public --fail-on error` | lint schematu aplikacji | PASS | brak błędów |
+| `pnpm exec supabase db lint --local` | lint wszystkich schematów, w tym `extensions` | FAIL | diagnostyka dotyczy dołączonego pgTAP i starszych obiektów katalogowych w `extensions`; lint aplikacyjnego `public` przechodzi |
+
+Zakres pgTAP: profil tworzony z metadanych użytkownika Auth, tworzenie organizacji, automatyczny właściciel,
+izolacja organizacji/profili/członkostw pomiędzy użytkownikami, odmowa podszywania się i bezpośredniego
+przyznawania ról, walidacja NIP oraz odmowa odczytu przez `anon`.
+
+**Status ETAPU 2:** migracja i polityki bazowe **PASS**; pełny etap **NOT RUN** — brak jeszcze UI i E2E logowania,
+przepływu zaproszeń/akceptacji członkostwa oraz testów właściciel/członek po dołączeniu przez zaproszenie.

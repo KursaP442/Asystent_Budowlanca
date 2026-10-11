@@ -5,9 +5,9 @@ i od czego zacząć kolejną sesję. **To jest pierwszy plik, który agent powin
 
 ## Stan ogólny
 
-- **Aktualny etap:** ETAP 1 (Monorepo, UI tokens, Supabase local) — aplikacje, bramki jakości i podstawowe usługi
-  lokalnego Supabase **PASS**. Pomocniczy Vector restartuje się, a imgproxy i pooler są zatrzymane; szczegóły w
-  `docs/TEST_REPORT.md`.
+- **Aktualny etap:** ETAP 2 (Auth, organizacje, role, RLS) — fundament profili, organizacji, członkostw właściciela
+  i izolacji RLS wdrożony lokalnie; pgTAP **PASS**. Pełny przepływ logowania/zaproszeń i E2E pozostają do wykonania.
+  Ograniczenia usług pomocniczych Supabase opisano w `docs/TEST_REPORT.md`.
 - **Tryb pracy:** wyłącznie lokalny (bez hostingu/wdrożenia). Repozytorium Git istnieje tylko lokalnie
   (`C:\Users\Patryk\Desktop\Aplikacja_Budowa`), bez zdalnego remote na GitHub.
 - **Źródło specyfikacji:** `C:\Users\Patryk\Downloads\Asystent_Budowlanca_MASTER_PROMPT_MULTI_AI_BYOK_MCP.pdf`,
@@ -160,3 +160,39 @@ działanie infrastrukturalne: zapewnić Docker Desktop i zweryfikować Supabase 
 1. Przeczytaj tę sesję oraz `docs/TEST_REPORT.md` i `docs/DECISIONS.md`.
 2. Sprawdź `git status` i lokalny stos (`pnpm db:status`); nie konfiguruj hostingu ani usług chmurowych.
 3. Zacznij ETAP 2 od migracji i testów Auth/organizacji/RLS zgodnie z `docs/MASTER_SPEC.md`.
+
+## Sesja 5 — 11 października 2026
+
+### Zrobione
+
+1. Dodano migrację `20261011204000_identity_organizations_rls.sql`: typy organizacji i ról, profile tworzone
+   po utworzeniu użytkownika Supabase Auth, organizacje z walidacją formatu/sumy kontrolnej NIP oraz członkostwo
+   właściciela tworzone transakcyjnie przy utworzeniu organizacji.
+2. Włączono RLS dla profili, organizacji i członkostw. Użytkownik widzi wyłącznie swój profil i organizacje,
+   których jest członkiem; właściciel/admin może aktualizować dane organizacji. Bezpiecznie zamknięto bezpośredni
+   zapis członkostw do czasu dodania przepływu zaproszeń. Uprawnienia funkcji pomocniczych ograniczono, a funkcje
+   SECURITY DEFINER mają ustalony `search_path`.
+3. Dodano 16 pgTAP testów dla tworzenia profili, organizacji i właściciela, izolacji między użytkownikami,
+   ochrony przed podszywaniem się, braku bezpośredniego nadawania ról oraz odmowy dostępu anonimowego.
+4. Migrację zastosowano do istniejącej lokalnej bazy bez resetu: `pnpm exec supabase migration up --local` — **PASS**.
+   `pnpm exec supabase test db --local` — **PASS** (16/16).
+5. Dodano `pnpm db:test` i opis testów/migracji w README.
+6. Lint schematu aplikacji: `pnpm exec supabase db lint --local --schema public --fail-on error` — **PASS**.
+
+### Pozostało (ETAP 2 — w toku)
+
+- Logowanie/rejestracja z UI i E2E przepływu Auth — **NOT RUN**.
+- Zaproszenia i bezpieczne dołączanie drugiego członka organizacji — **NOT IMPLEMENTED**; bezpośredni zapis
+  członkostw pozostaje celowo niedostępny.
+- Pełna kontrola uprawnień owner/admin/member dla operacji na członkostwach — **NOT RUN**.
+- Testy helpera auth w pakiecie `api-client` i smoke test publicznego Auth REST — **NOT RUN**.
+- Testy E2E wg AUTH-01/AUTH-02 oraz pełne kryterium izolacji etapu — **NOT RUN**.
+- Pełny `pnpm exec supabase db lint --local` — **FAIL** z błędami w dołączonym schemacie `extensions` (pgTAP
+  i starsze obiekty katalogowe); ograniczony lint schematu `public` przechodzi. Baza aplikacji nie ma w lint
+  błędów.
+
+### Kontynuacja
+
+Następnie dodać przepływ zaproszenia/akceptacji członkostwa oparty o zweryfikowany adres e-mail oraz ograniczony
+RPC/Edge Function, potem połączyć rejestrację/logowanie z Web i dodać lokalny E2E. Nie otwierać bezpośredniego
+INSERT/UPDATE tabeli `memberships` dla klienta i nie łączyć projektu z Supabase Cloud.

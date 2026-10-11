@@ -63,3 +63,16 @@ Ta decyzja zastępuje ADR-003.
 **Konsekwencje:** Lokalne usługi Auth, API, Studio i PostgreSQL są dostępne. Vector restartuje się z powodu
 problemu łączności z endpointem Docker IPv6, a imgproxy i pooler pozostają zatrzymane; te usługi pomocnicze
 wymagają diagnozy. Integracyjne Auth/RLS nie są jeszcze wdrożone ani zweryfikowane.
+
+## ADR-006: Członkostwa wyłącznie przez bezpieczny przepływ zaproszeń
+
+**Kontekst:** Etap 2 wymaga organizacji z rolami, a aplikacja musi obsłużyć wielu użytkowników w jednej
+organizacji. Bezpośrednie przyznawanie członkostw z klienta pozwalałoby przypisać dowolne konto i rolę bez
+potwierdzenia zaproszenia.
+
+**Decyzja:** Na tym etapie klient może tworzyć organizację, a trigger przypisuje twórcy rolę `owner`. Tabele
+członkostw są tylko do odczytu dla członków; nadawanie i zmiana ról pozostają zamknięte do wdrożenia
+zweryfikowanego przepływu zaproszeń.
+
+**Konsekwencje:** Tworzenie organizacji i izolacja danych są testowane na lokalnym Supabase. Do czasu następnej
+migracji nie można dołączać kolejnych użytkowników ani przydzielać ról `admin`/`member`.

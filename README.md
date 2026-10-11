@@ -22,11 +22,12 @@ Po zainstalowaniu i uruchomieniu Docker Desktop:
 ```bash
 pnpm db:start
 pnpm db:status
+pnpm db:test
 pnpm db:stop
 ```
 
 Konfiguracja lokalnego projektu znajduje się w `supabase/config.toml`. Nie są wymagane żadne dane produkcyjne ani
-zdalny projekt Supabase.
+zdalny projekt Supabase. Migracje i testy pgTAP są w `supabase/migrations` i `supabase/tests`.
 
 ## Struktura
 
