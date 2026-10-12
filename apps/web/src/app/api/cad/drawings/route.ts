@@ -1,4 +1,4 @@
-import { CadDocumentSchema } from "@asystent/schemas";
+import { CadDocumentSchema, cadEntityTool, getCadDrawingTools } from "@asystent/schemas";
 import { apiError, createAdminClient } from "@/lib/server-supabase";
 import { findDrawingRequirement, requireCadOwner } from "@/lib/cad-api";
 
@@ -15,7 +15,26 @@ export async function POST(request: Request) {
     }
     const access = await requireCadOwner(request, document.projectId);
     if (access.response) return access.response;
-    if (!findDrawingRequirement(access.job, document.requirementId)) return apiError("Etap nie należy do zakresu budowy.", 400);
+    const drawingRequirement = findDrawingRequirement(access.job, document.requirementId);
+    if (!drawingRequirement) return apiError("Etap nie należy do zakresu budowy.", 400);
+    const allowed = getCadDrawingTools(drawingRequirement.requirement.kind, drawingRequirement.requirement.drawings[drawingRequirement.index]);
+    if (document.entities.some((entity) => {
+      const tool = cadEntityTool(entity);
+      return tool && !entity.derivedFrom && !allowed.includes(tool);
+    })) return apiError("Rysunek zawiera element niepasujący do tego etapu. Przenieś go do właściwego rysunku.", 400);
+    const references = document.entities.flatMap((entity) => entity.derivedFrom ? [entity.derivedFrom] : []);
+    if (references.length) {
+      const { data: sources, error: sourceError } = await access.caller.client.from("cad_drawings").select("payload,revision")
+        .eq("job_id", document.projectId).in("payload->>id", [...new Set(references.map((reference) => reference.documentId))]);
+      if (sourceError) throw sourceError;
+      const revisions = new Map(sources.map((source) => [CadDocumentSchema.parse(source.payload).id, source.revision]));
+      if (references.some((reference) => {
+        const sourceRevision = revisions.get(reference.documentId);
+        return reference.documentId === document.id || sourceRevision === undefined || reference.revision > sourceRevision;
+      })) {
+        return apiError("Podkład musi pochodzić z zapisanej wersji innego rysunku tego projektu.", 400);
+      }
+    }
     if (document.sourceImage && !document.sourceImage.storagePath.startsWith(`${access.caller.user.id}/${document.projectId}/${document.sourceImage.id}.`)) {
       return apiError("Skan nie należy do tego projektu.", 400);
     }

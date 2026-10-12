@@ -350,3 +350,35 @@ Limit prób nie jest limitem kwotowym wydatków. Import zastępuje bieżący rys
 może przywrócić poprzedni. Historia undo jest lokalna do karty; zapisywana jest bieżąca rewizja, nie archiwum zmian.
 Nie ma korekcji perspektywy, 3D, zatwierdzania konstrukcji ani MCP w tej zmianie. Testy mockowanego dostawcy
 nie dowodzą dokładności rzeczywistego rozpoznawania.
+
+## ADR-022: Typowane narzędzia etapu, warstwy, węzły i podkłady między rysunkami
+
+**Kontekst:** Jeden zestaw ogólnych kresek nie opisuje projektu do przyszłych obliczeń. Użytkownik wymaga
+narzędzi właściwych dla rysunku, warstw izolacyjnych, wspólnych narożników, wymiarów i ponownego używania rzutów.
+
+**Decyzja:** Wspólny katalog `cadDrawingTools` i `getCadDrawingTools` w schemas dobiera narzędzia do rodzaju
+dokumentacji i funkcji rysunku. `construction-line`/`construction-area` mają jawne role, parametry i referencję
+projektową. Serwer odrzuca elementy niepasujące do rysunku; kopie odniesienia są oddzielnie oznaczone.
+Warstwy przechowują funkcję, materiał, rzeczywistą grubość i stronę. Typowane fabryki w domain obsługują
+rysowanie ręczne i klasyfikację skalibrowanych obrysów AI, bez utraty confidence i źródła.
+
+Węzły ścian/ław i wybranych elementów konstrukcyjnych są łączone przez zgodne współrzędne (tolerancja 0,001 mm).
+Przyciąganie do końców zależy od tolerancji ekranowej. Ruch węzła zmienia wszystkie połączone końce;
+przesunięcie całego elementu jest atomowe. Otwory zachowują względną pozycję w ścianie.
+Osie i zwykłe trasy nie są przypadkowo włączane do tej samej sieci połączeń.
+
+Kopia rysunku dodaje geometrię z nowymi ID, przepisuje powiązania otworów i zachowuje identyfikator
+rysunku/elementu źródłowego oraz rewizję. Nie synchronizuje późniejszych zmian. Kopie są podkładami,
+nie drugimi pozycjami przedmiaru i nie przechodzą bramki zatwierdzania.
+API wymaga istniejącego rysunku tego samego projektu i rewizji nie nowszej od zapisanej.
+Rozwinięcie ściany wykorzystuje długość, wysokość oraz wysokość/parapet otworów; odrzuca otwory poza obrysem.
+Nie jest przekrojem konstrukcyjnym z doborem poziomów, podpór i zbrojenia.
+
+Kreator belki/siatki generuje edytowalne pręty, opisy oraz wymiary z jawnych parametrów użytkownika.
+Położenia strzemion są `representation: projection`, bez domyślnej długości gięcia;
+nie mogą przejść zatwierdzania jako fizyczne pręty. Zbrojenie nadal wymaga kontroli projektanta.
+
+**Konsekwencje:** Kolor kroków wynika z zapisanych obiektów, nie z przejścia przez ankietę.
+Usunięto UI pomiarów opisowych, zachowując starsze dane. Obecny zestaw jest rozszerzonym szkicem CAD,
+nie pełnym zamiennikiem branżowego CAD 1:1. Nie ma jeszcze pełnych przekrojów konstrukcyjnych,
+kształtów gięcia z łukami/hakami, kompletnej topologii otworów powierzchniowych ani zweryfikowanego przedmiaru.

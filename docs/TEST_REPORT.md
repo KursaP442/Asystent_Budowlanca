@@ -3,6 +3,26 @@
 Zasada: zapisujemy **dokładne komendy**, **datę**, **środowisko** i **rzeczywisty wynik** (PASS/FAIL/BLOCKED/NOT RUN).
 Nigdy nie wpisujemy ogólnego „działa” bez dowodu z uruchomienia.
 
+## Sesja 25 — 12 października 2026
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|---|
+| `pnpm --filter @asystent/schemas build`, `pnpm --filter @asystent/domain build`, `pnpm --filter web typecheck` | pierwsze iteracje modelu i nawigacji | FAIL | walidator przeniesiono do schemas (bez nowej zależności Zod w domain), poprawiono handler przycisku i jawne guards punktów |
+| `pnpm --filter web build` | dodatkowa walidacja pochodzenia podkładów | FAIL | ID rysunku jest w `payload`, nie osobnej kolumnie; poprawiono typowane zapytanie JSON i ponowiono |
+| `pnpm --filter web exec playwright test --grep 'CAD workspace\|stage canvas'` | pierwsze gesty/scoped reuse | FAIL | test wykonywał gest poza viewportem; select wymagał jednoznacznego label/ID; naprawiono i ponowiono |
+| `pnpm --filter @asystent/geometry test` | zoom z kotwicą i dotychczasowa geometria | PASS | 10/10 |
+| `pnpm --filter @asystent/schemas test` | kontrakty i adaptacyjny zakres | PASS | 32/32 |
+| `pnpm --filter @asystent/domain test` | profile/fabryki, węzły, warstwy, kopie, rozwinięcia i zbrojenie | PASS | 18/18; kontrola wszystkich narzędzi i rodzajów dokumentacji; brak podwójnego zatwierdzania podkładów |
+| `pnpm --filter web build` | produkcyjny edytor | PASS | typy, bundle i PDF worker |
+| `pnpm --filter web exec playwright test` | pełna regresja Edge | PASS | 8/8; zakresy, nawierzchnia/elewacja/dach, zoom, połączenia, warstwy, kroki, kopiowanie, otwory, rozwinięcia, zbrojenie, refresh, mock importu i klasyfikacja |
+| `pnpm typecheck`, `pnpm lint` | współdzielone typy i Web | PASS | 13 / 7 zadań Turbo |
+| `git diff --check` | zmiany sesji | PASS | brak błędów whitespace |
+| Screenshoty desktop/mobile | kreator rzutów zbrojenia | PASS | bez overflow, centrowanie rzutu i pojedyncze opisy zamiast nakładających się etykiet |
+| Podgląd `http://127.0.0.1:3010/` i `/pdf.worker.min.mjs` | aktualny build po restarcie | PASS | HTTP 200; nie przeładowywano formularza użytkownika |
+| Baza pgTAP | brak zmian SQL | NOT RUN | API/uprawnienia sprawdzone w E2E; nie powtarzano 108 historycznych asercji |
+| Pełne odwzorowanie projektu 1:1, fizyczne kształty gięcia, automatyczne przekroje konstrukcyjne i kompletny przedmiar | wymagania docelowe | NOT RUN | obecne profile, rzuty i rozwinięcia nie są dowodem ukończenia tych funkcji |
+| Rzeczywiste rozpoznawanie OpenAI | konfiguracja użytkownika | BLOCKED | brak płatnego wywołania; E2E używa mocka |
+
 ## Sesja 24 — 12 października 2026
 
 | Komenda / kontrola | Kontekst | Wynik | Uwagi |

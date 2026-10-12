@@ -155,7 +155,12 @@ export function ConstructionForm({ job, userId, isAdministrator, onSaved, onCanc
     finally { setBusy(false); }
   }
 
-  return <><form ref={formRef} hidden={documentationScope !== null} className="panel workflow-form form-stack" onSubmit={save}>
+  return <div className="cad-survey construction-workspace"><form ref={formRef} hidden={documentationScope !== null} className="panel workflow-form form-stack" onSubmit={save}>
+    <nav className="cad-progress" aria-label="Kroki budowy">
+      <button type="button" aria-current={activeTab === "details" ? "step" : undefined} onClick={() => setActiveTab("details")}><b>1</b>Dane budowy</button>
+      <button type="button" aria-current={activeTab === "technology" ? "step" : undefined} onClick={continueToTechnology}><b>2</b>Materiały i technologia</button>
+      <span><b>3</b>Projekt</span>
+    </nav>
     {error && <div className="alert alert-error" role="alert">{error}</div>}
     <fieldset disabled={busy}>
       <legend>Dane ogólne budowy</legend>
@@ -264,8 +269,8 @@ export function ConstructionForm({ job, userId, isAdministrator, onSaved, onCanc
       <button className="primary-button" disabled={busy || loadingPhotos || photoLoadError}>{busy ? "Zapisywanie…" : "Przejdź dalej"}</button></div>
   </form>
     {documentationScope && <ProjectDocumentationQuestionnaire jobId={id} scope={documentationScope}
-      onBack={() => setDocumentationScope(null)} onSaved={onSaved} />}
-  </>;
+      onBack={(tab = "details") => { setActiveTab(tab); setDocumentationScope(null); }} onSaved={onSaved} />}
+  </div>;
 }
 
 function errorMessage(error: unknown) {

@@ -13,6 +13,8 @@ i od czego zacząć kolejną sesję. **To jest pierwszy plik, który agent powin
 - **Rozszerzenie w toku:** adaptacyjny edytor CAD po „Przejdź dalej”, autosave rysunków, PDF/zdjęcia,
   ręczna kalibracja i adapter OpenAI/BYOK są zaimplementowane lokalnie. Scenariusz płótna/importu z mockiem AI
   ma **PASS**. Analiza rzeczywistym OpenAI — **BLOCKED** do konfiguracji klucza i szyfrowania.
+  Dodano profile narzędzi etapu, warstwy materiałowe, węzły ścian, zoom/linijki, krokowy status rysunków,
+  kopiowanie rzutów, rozwinięcia ścian i kreator rzutów zbrojenia. Nie oznacza to pełnego CAD 1:1.
   MCP, 3D, korekcja perspektywy i pełny zweryfikowany przedmiar pozostają niezakończone.
 - **Tryb pracy:** wyłącznie lokalny (bez hostingu/wdrożenia). Repozytorium Git istnieje tylko lokalnie
   (`C:\Users\Patryk\Desktop\Aplikacja_Budowa`), bez zdalnego remote na GitHub.
@@ -862,3 +864,49 @@ Istniejąca publikacja zlecenia nadal publikuje bazowy raport, nie zatwierdzony 
 - Ręcznie dodawane obiekty mają jawnie robocze parametry do uzupełnienia z projektu. Wszystkie rysunki są szkicami.
 - Podłączyć niesensytywny projekt referencyjny po konfiguracji BYOK i zgodzie na rozliczenia; sprawdzić
   rzeczywistą jakość przed rozszerzaniem automatycznego przedmiaru lub przekazaniem projektu wykonawcom.
+
+## Sesja 25 — 12 października 2026
+
+### Zrobione
+
+1. Dane budowy, technologie i projekt korzystają z tej samej szerokiej przestrzeni i nawigacji.
+   Dodano numerowane, klikalne kroki rysunków: zielony to zapisany niepusty szkic, czerwony pusty dokument.
+   „Przejdź dalej” przechodzi kolejno po rysunkach, nie pomija przekrojów ani zbrojenia etapu.
+2. Usunięto sekcję „Dane szczegółowe etapu i źródła pomiarów” z UI bez usuwania starszych wpisów.
+3. Zoom kółkiem zachowuje punkt pod kursorem; przyciski skalują wokół środka. Dodano osie, linijki
+   i odczyt X/Y w mm. Przyciąganie jest regulowane, również 0 mm. Fit centruje również wąskie rzuty.
+4. Wspólny katalog narzędzi rozróżnia ławy, stopy, ściany fundamentowe, słupy, belki, nadproża, wieńce,
+   płyty, połacie, krokwie, otwory, warstwy/obszary wykończenia, nawierzchnie, obrzeża, ogrodzenia i trasy.
+   Profile zależą od rodzaju i funkcji rysunku; API również odrzuca np. dach rysowany w fundamentach.
+5. Ściany mają automatyczne linie wymiarowe i przerywane pomocnicze. Połączone końce mają uchwyty;
+   ruch narożnika/elementu aktualizuje połączenia oraz związane otwory. Osie nie są węzłami konstrukcyjnymi.
+6. Warstwy materiałowe mają funkcję, materiał, stronę i grubość mm; izolacja ma widoczne oznaczenie.
+   Materiały ankiety są podpowiedzią, a nie domyślną grubością. Dla obrysów pas warstwy nie zastępuje przekroju.
+7. Kopiowanie zapisanych rzutów zachowuje otwory i źródłową rewizję. Kopie są podkładami, nie dodatkowymi
+   ilościami. Dodano automatyczne rozwinięcia ścian z jawnych wysokości i otworów, bez generowania konstrukcji.
+8. Kreator belki/siatki rysuje edytowalne układy, opisy i wymiary z danych użytkownika.
+   Strzemiona w rzucie są oznaczone jako projekcja i nie mogą udawać długości prętów do przedmiaru.
+9. Skalibrowane obrysy AI można przypisać do typowanego elementu aktualnego etapu.
+   Pochodzenie i confidence pozostają zachowane; parametry trzeba uzupełnić z dokumentacji.
+
+### Weryfikacja
+
+- Testy geometry/schemas/domain — **PASS**: 10 + 32 + 18 = 60 testów w zmienianych pakietach.
+- Web build, `pnpm typecheck`, `pnpm lint`, `git diff --check` — **PASS**.
+- Pełny Playwright — **PASS**: 8/8; w tym zoom, połączenia, ocieplenie, statusy, reuse, rozwinięcia,
+  zbrojenie, refresh, klasyfikacja AI oraz edytory nawierzchni/elewacji/dachu i odrzucenie niewłaściwego typu przez API.
+- Pierwsze iteracje — **FAIL**: naprawiono typowanie pustych punktów fabryki oraz jednoznaczne etykiety select;
+  testy myszy przewijają teraz płótno do viewportu przed gestem. Końcowe kontrole — **PASS**.
+- Baza pgTAP — **NOT RUN** w tej sesji: brak zmian SQL; izolacja dostępu nadal pokryta E2E API.
+
+### Niedokończone wymagania użytkownika
+
+- Pełne przeniesienie dowolnego projektu branżowego 1:1 — **NOT RUN**. Brakuje m.in. łuków/haków i
+  pełnych rozwinięć gięcia, przekrojów konstrukcyjnych z poziomami, rozbudowanych detali i parametrycznych zestawień.
+- Obecne rozwinięcie ścian nie jest automatycznym przekrojem budynku/stropu/fundamentu.
+- Rzuty zbrojenia nie zastępują fizycznych kształtów prętów i zestawienia mas.
+- Kopie nie synchronizują zmian źródła; otwory powierzchniowe nie mają jeszcze kompletnej topologii i odejmowania.
+- Dokładny, zweryfikowany przedmiar, odbiór konstrukcyjny, przekazanie wykonawcy, MCP — **NOT RUN**.
+- Rzeczywiste AI — **BLOCKED** do konfiguracji BYOK/szyfrowania i zgody na płatny test.
+- Następny krok: model poziomów i przekrojów, powiązania otworów powierzchniowych, rozwinięcia prętów
+  i obliczenia na potwierdzonych parametrach; test odwzorowania na niesensytywnym projekcie referencyjnym.

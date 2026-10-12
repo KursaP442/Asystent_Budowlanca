@@ -25,3 +25,14 @@ export function drawingBounds(points: readonly Point2D[]) {
   const width = Math.max(100, Math.max(...xs) - minX), height = Math.max(100, Math.max(...ys) - minY);
   return { x: minX - width * 0.1, y: minY - height * 0.1, width: width * 1.2, height: height * 1.2 };
 }
+export function zoomDrawingView(view: { x: number; y: number; width: number; height: number },
+  anchor: { x: number; y: number }, factor: number) {
+  if (![factor, anchor.x, anchor.y, view.x, view.y, view.width, view.height].every(Number.isFinite)
+    || factor <= 0 || view.width <= 0 || view.height <= 0) {
+    throw new Error("Nieprawidłowe przybliżenie.");
+  }
+  const width = Math.max(100, Math.min(10000000, view.width * factor));
+  const ratio = width / view.width;
+  return { x: anchor.x - (anchor.x - view.x) * ratio, y: anchor.y - (anchor.y - view.y) * ratio,
+    width, height: view.height * ratio };
+}

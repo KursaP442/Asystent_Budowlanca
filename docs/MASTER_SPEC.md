@@ -149,9 +149,24 @@ Lista wymaganych rysunków jest dopiero pierwszą warstwą wymagań, nie gotowym
 
 Doprecyzowanie widoku: dalsza ankieta to pełnoszerokościowy edytor projektu wzorowany na ekranie użytkownika:
 zakładki etapów i rysunków, płótno wektorowe z siatką, narzędzia, panel właściwości, warstwy i cofanie zmian.
-Opisy pomiarów są dodatkiem schowanym pod edytorem, nie jego zamiennikiem. „Skanuj lub importuj projekt”
+Sekcja opisowych pomiarów została usunięta z UI na życzenie użytkownika; istniejące wpisy pozostają w danych.
+„Skanuj lub importuj projekt”
 przyjmuje zdjęcie albo wybraną stronę PDF; propozycja OpenAI staje się edytowalną geometrią na tym samym płótnie.
 Nie pokazujemy pozornych, niewdrożonych funkcji 3D. Skala skanu wymaga dwóch punktów o znanej odległości.
+
+Doprecyzowanie edytora: dane budowy, technologie i dokumentacja mają wspólną przestrzeń roboczą.
+Rysunki są numerowanymi, klikalnymi krokami. Zielony oznacza zapisaną niepustą geometrię, czerwony pusty
+rysunek; nie jest to zatwierdzenie konstrukcyjne ani potwierdzenie kompletności przedmiaru.
+Płótno ma zoom kółkiem wokół kursora, osie, linijki, odczyt X/Y w mm i regulowane przyciąganie.
+Narzędzia zależą od rodzaju i funkcji rysunku: fundamenty rozróżniają ławy, stopy, ściany i słupy;
+strop, dach, zbrojenie, elewacje, nawierzchnie, wykończenia oraz ogrodzenia mają odrębne profile.
+Ściany mają połączone narożniki i wymiarowanie z liniami pomocniczymi. Materiały i grubości warstw
+przypisuje się do elementów; preferencje ankiety nie mogą zastąpić danych projektu.
+Rzuty mogą być wykorzystane jako wersjonowane podkłady kolejnych rysunków z zachowaniem otworów.
+Automatyczne rozwinięcia ścian bazują na jawnych wysokościach, parapetach i otworach; nie generują
+domyślnie projektu konstrukcyjnego przekroju. Kreator zbrojenia wymaga danych z projektu.
+Rzut strzemion nie jest długością prętów do przedmiaru. Pełne odwzorowanie dowolnej dokumentacji 1:1,
+przekroje konstrukcyjne i rozwinięcia gięcia są wymaganiami docelowymi, nie ukończoną funkcją.
 
 **Firma wykonawcza:** rejestracja organizacji (NIP, specjalizacje, obszar działania), feed zleceń z filtrami, oferty
 (cena netto/brutto, VAT, zakres, harmonogram, ważność), licytacja z audytem, realizacja zleceń.

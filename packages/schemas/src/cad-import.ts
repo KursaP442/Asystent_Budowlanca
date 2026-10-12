@@ -26,14 +26,38 @@ const common = {
     origin: z.enum(["manual", "openai"]),
     confidence: z.number().min(0).max(1).nullable(),
   }).strict(),
+  buildUp: z.array(z.object({
+    purpose: z.enum(["structure", "thermal", "waterproofing", "finish", "bedding"]),
+    material: z.string().trim().min(1).max(160),
+    thicknessMm: positiveMm,
+    side: z.enum(["left", "right", "both"]),
+  }).strict()).max(20).optional(),
+  derivedFrom: z.object({ documentId: z.uuid(), entityId: z.uuid(), revision: z.number().int().min(0) }).strict().optional(),
 };
 
 export const CadEntitySchema = z.discriminatedUnion("kind", [
+  z.object({
+    ...common, kind: z.literal("construction-line"), geometry: segment,
+    attributes: z.object({
+      role: z.enum(["foundation-wall", "beam", "lintel", "ring-beam", "rafter", "ridge", "gutter", "fence", "kerb", "drain", "axis", "section-cut"]),
+      widthMm: positiveMm, heightMm: positiveMm, material: z.string().trim().min(1).max(160),
+      designReference: z.string().trim().min(1).max(240),
+    }).strict(),
+  }).strict(),
+  z.object({
+    ...common, kind: z.literal("construction-area"), geometry: polygon,
+    attributes: z.object({
+      role: z.enum(["column", "pad", "section", "elevation", "paving", "finish", "ceiling", "terrain", "equipment", "void"]),
+      thicknessMm: positiveMm, heightMm: positiveMm, material: z.string().trim().min(1).max(160),
+      designReference: z.string().trim().min(1).max(240),
+    }).strict(),
+  }).strict(),
   z.object({
     ...common, kind: z.literal("rebar-line"), geometry: segment,
     attributes: z.object({
       diameterMm: positiveMm, count: positiveCount, steelGrade: z.string().min(1).max(160),
       coverMm: positiveMm, designReference: z.string().min(1).max(240), specialistVerified: z.boolean(),
+      representation: z.enum(["physical", "projection"]).optional(),
     }).strict(),
   }).strict(),
   z.object({

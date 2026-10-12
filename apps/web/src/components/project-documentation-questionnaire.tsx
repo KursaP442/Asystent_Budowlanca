@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  CadDocumentSchema,
   DocumentationDraftSchema,
   getProjectDocumentationRequirements,
+  getCadTechnologyHints,
   type DocumentationDraft,
   type ProjectScope,
 } from "@asystent/schemas";
@@ -17,7 +19,7 @@ function message(error: unknown) {
 }
 
 export function ProjectDocumentationQuestionnaire({ jobId, scope, onBack, onSaved }: {
-  jobId: string; scope: ProjectScope; onBack: () => void; onSaved: () => void;
+  jobId: string; scope: ProjectScope; onBack: (tab?: "details" | "technology") => void; onSaved: () => void;
 }) {
   const requirements = useMemo(() => getProjectDocumentationRequirements(scope), [scope]);
   const [draft, setDraft] = useState<DocumentationDraft | null>(null);
@@ -28,7 +30,14 @@ export function ProjectDocumentationQuestionnaire({ jobId, scope, onBack, onSave
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [drawingIndex, setDrawingIndex] = useState(0);
   const [cadPending, setCadPending] = useState(false);
+  const [completion, setCompletion] = useState<Record<string, number>>({});
+  const [completionLoaded, setCompletionLoaded] = useState(false);
   const onCadPending = useCallback((pending: boolean) => setCadPending(pending), []);
+  const onSavedDrawing = useCallback((id: string, count: number) => setCompletion((current) => ({ ...current, [id]: count })), []);
+  const drawingSteps = useMemo(() => requirements.flatMap((requirement) => requirement.drawings.map((label, index) => ({
+    id: `${requirement.id}-drawing-${index}`, stageId: requirement.id, index, label: `${requirement.label} — ${label}`,
+    title: label,
+  }))), [requirements]);
 
   useEffect(() => {
     let active = true;
@@ -37,6 +46,10 @@ export function ProjectDocumentationQuestionnaire({ jobId, scope, onBack, onSave
         .from("construction_documentation_drafts").select("*").eq("job_id", jobId).maybeSingle();
       if (loadError) throw loadError;
       const stored = data ? DocumentationDraftSchema.parse(data.payload) : null;
+      const { data: drawings, error: drawingsError } = await getSupabaseClient().from("cad_drawings")
+        .select("requirement_id,payload").eq("job_id", jobId);
+      if (drawingsError) throw drawingsError;
+      const counts = Object.fromEntries(drawings.map((item) => [item.requirement_id, CadDocumentSchema.parse(item.payload).entities.length]));
       const first = requirements[0];
       if (!first) throw new Error("Wybrany zakres nie ma reguł dokumentacji. Wróć do technologii i wybierz zakres prac.");
       const modules: DocumentationDraft["modules"] = {};
@@ -52,13 +65,13 @@ export function ProjectDocumentationQuestionnaire({ jobId, scope, onBack, onSave
         step: stored && requirements.some(({ id }) => id === stored.step) ? stored.step : first.id,
         modules,
       });
-      if (active) { setDraft(next); setRevision(data?.revision ?? 0); setError(""); }
+      if (active) { setDraft(next); setRevision(data?.revision ?? 0); setCompletion(counts); setCompletionLoaded(true); setError(""); }
     }
     void load().catch((cause: unknown) => { if (active) setError(message(cause)); });
     return () => { active = false; };
   }, [jobId, requirements, loadAttempt]);
 
-  async function save(next: DocumentationDraft, destination: "stay" | "panel" | "back" = "stay") {
+  async function save(next: DocumentationDraft, destination: "stay" | "panel" | "back" | "technology" = "stay", nextDrawing?: number) {
     setBusy(true); setError(""); setNotice("");
     try {
       const parsed = DocumentationDraftSchema.parse(next);
@@ -67,75 +80,69 @@ export function ProjectDocumentationQuestionnaire({ jobId, scope, onBack, onSave
       });
       if (saveError) throw saveError;
       setRevision(data); setDraft(parsed);
-      if (draft?.step !== parsed.step) setDrawingIndex(0);
+      setDrawingIndex(nextDrawing ?? (draft?.step !== parsed.step ? 0 : drawingIndex));
       setNotice("Zapisano szkic dokumentacji i bieżący etap. Możesz wznowić pracę po odświeżeniu strony.");
       if (destination === "panel") onSaved();
-      if (destination === "back") onBack();
+      if (destination === "back") onBack("details");
+      if (destination === "technology") onBack("technology");
     } catch (cause: unknown) { setError(message(cause)); }
     finally { setBusy(false); }
   }
 
   const current = draft ? requirements.find(({ id }) => id === draft.step) : null;
-  const index = current ? requirements.indexOf(current) : -1;
-  const answers = draft && current ? draft.modules[current.id] : null;
-  function changeMeasurement(position: number, value: string) {
-    if (!draft || !current || !answers) return;
-    setNotice("");
-    setDraft({ ...draft, modules: { ...draft.modules, [current.id]: {
-      ...answers, measurements: answers.measurements.map((answer, i) => i === position ? value : answer),
-    } } });
+  const currentDrawingId = current ? `${current.id}-drawing-${drawingIndex}` : "";
+  const flatIndex = drawingSteps.findIndex((item) => item.id === currentDrawingId);
+  function navigateDrawing(position: number) {
+    const next = drawingSteps[position];
+    if (!next || !draft) return;
+    void save({ ...draft, step: next.stageId }, "stay", next.index);
   }
   return <section className="panel workflow-form form-stack cad-survey" aria-label="Dokumentacja projektu">
-    <div className="cad-progress"><span>✓ Dane budowy</span><span>✓ Materiały i technologia</span><strong>3. Projekt</strong><span>Weryfikacja dokumentacji</span></div>
+    <nav className="cad-progress" aria-label="Kroki budowy">
+      <button type="button" data-completion="saved" disabled={busy || cadPending} onClick={() => draft && void save(draft, "back")}><b>✓</b>Dane budowy</button>
+      <button type="button" data-completion="saved" disabled={busy || cadPending} onClick={() => draft && void save(draft, "technology")}><b>✓</b>Materiały i technologia</button>
+      <span aria-current="step"><b>3</b>Projekt</span>
+    </nav>
     <h2>Dokumentacja projektu</h2>
     <p>Narysuj projekt lub zeskanuj gotowy rysunek. Dodaj elementy wybranego etapu i uzupełnij ich właściwości.</p>
     {error && <div className="alert alert-error" role="alert">{error}</div>}
     {notice && <div className="alert alert-success" role="status">{notice}</div>}
     {!draft ? <><p role="status">{error ? "Nie wczytano dokumentacji." : "Wczytywanie dokumentacji…"}</p>
       {error && <button type="button" className="quiet-button" onClick={() => setLoadAttempt((value) => value + 1)}>Ponów wczytywanie dokumentacji</button>}
-      <button type="button" className="quiet-button" onClick={onBack}>Wróć do danych budowy</button></>
-      : current && answers && <>
+      <button type="button" className="quiet-button" onClick={() => onBack("details")}>Wróć do danych budowy</button></>
+      : current && <>
+        <nav className="cad-drawing-progress" aria-label="Postęp rysunków">
+          {drawingSteps.map((item, i) => <button type="button" key={item.id} disabled={busy || cadPending || !completionLoaded}
+            aria-current={item.id === currentDrawingId ? "step" : undefined}
+            data-completion={(completion[item.id] ?? 0) > 0 ? "saved" : "empty"}
+            title={(completion[item.id] ?? 0) > 0 ? "Zapisany szkic — nie oznacza zatwierdzenia" : "Brak obiektów na rysunku"}
+            onClick={() => navigateDrawing(i)}><b>{(completion[item.id] ?? 0) > 0 ? "✓" : i + 1}</b><span>{item.label}</span></button>)}
+        </nav>
+        <div className="cad-stage-picker"><label htmlFor="documentation-step">Etap dokumentacji</label><select id="documentation-step" disabled={busy || cadPending} value={draft.step}
+          onChange={(event) => void save({ ...draft, step: event.target.value })}>
+          {requirements.map(({ id, label }) => <option key={id} value={id}>{label}</option>)}
+        </select></div>
         <div className="cad-stage-tabs" role="tablist" aria-label="Etapy projektu">
-          {requirements.map(({ id, label }) => <button key={id} type="button" role="tab" aria-selected={draft.step === id}
+          {requirements.map(({ id, label, drawings }) => <button key={id} type="button" role="tab" aria-selected={draft.step === id}
+            data-completion={drawings.every((_, i) => (completion[`${id}-drawing-${i}`] ?? 0) > 0) ? "saved" : "empty"}
             disabled={busy || cadPending} onClick={() => void save({ ...draft, step: id })}>{label}</button>)}
         </div>
         <div className="cad-stage-tabs cad-drawing-tabs" role="tablist" aria-label="Rysunki etapu">
           {current.drawings.map((label, i) => <button key={label} type="button" role="tab" aria-selected={drawingIndex === i}
-            disabled={busy || cadPending} onClick={() => setDrawingIndex(i)}>{label}</button>)}
+            data-completion={(completion[`${current.id}-drawing-${i}`] ?? 0) > 0 ? "saved" : "empty"}
+            disabled={busy || cadPending} onClick={() => navigateDrawing(drawingSteps.findIndex((item) => item.id === `${current.id}-drawing-${i}`))}>{label}</button>)}
         </div>
         <StageCadEditor key={`${current.id}-drawing-${drawingIndex}`} jobId={jobId}
-          requirementId={`${current.id}-drawing-${drawingIndex}`} title={current.drawings[drawingIndex]} onPendingChange={onCadPending} />
-        <details className="cad-stage-notes">
-        <summary>Dane szczegółowe etapu i źródła pomiarów</summary>
-        <fieldset disabled={busy}>
-          <legend>{current.label} — etap {index + 1} z {requirements.length}</legend>
-          <label htmlFor="documentation-step">Etap dokumentacji</label>
-          <select id="documentation-step" disabled={cadPending} value={draft.step} onChange={(event) => void save({ ...draft, step: event.target.value })}>
-            {requirements.map(({ id, label }) => <option key={id} value={id}>{label}</option>)}
-          </select>
-          <h3>Rysunki wymagane w tym zakresie</h3>
-          <ul>{current.drawings.map((drawing) => <li key={drawing}>{drawing}</li>)}</ul>
-          <p>Wymiary podawaj z jednostkami, osobno dla każdego elementu. Dane zbrojenia i innych elementów
-            konstrukcyjnych przepisuj wyłącznie z dokumentacji projektanta.</p>
-          {current.measurements.map((measurement, position) => <div key={measurement}>
-            <label htmlFor={`documentation-measurement-${position}`}>{measurement}</label>
-            <textarea id={`documentation-measurement-${position}`} rows={3} maxLength={4000} value={answers.measurements[position]}
-              onChange={(event) => changeMeasurement(position, event.target.value)} />
-          </div>)}
-          <label htmlFor="documentation-notes">Źródło danych, uwagi i brakujące informacje</label>
-          <textarea id="documentation-notes" rows={3} maxLength={4000} value={answers.notes}
-            onChange={(event) => {
-              setNotice("");
-              setDraft({ ...draft, modules: { ...draft.modules, [current.id]: { ...answers, notes: event.target.value } } });
-            }} />
-        </fieldset>
-        </details>
+          requirementId={currentDrawingId} title={current.drawings[drawingIndex]} kind={current.kind}
+          technologyHints={getCadTechnologyHints(current.kind, scope.workType, scope.technology)}
+          sources={drawingSteps.filter((item) => (completion[item.id] ?? 0) > 0)} onPendingChange={onCadPending} onSavedDrawing={onSavedDrawing} />
+        <p className="cad-disclaimer">Zielony: zapisano obiekty. Czerwony: pusty rysunek. Kolory nie oznaczają zatwierdzenia ani kompletności przedmiaru.</p>
         <div className="form-actions">
           <button type="button" className="quiet-button" disabled={busy} onClick={() => void save(draft)}>Zapisz postęp</button>
-          {index > 0 && <button type="button" className="quiet-button" disabled={busy || cadPending}
-            onClick={() => void save({ ...draft, step: requirements[index - 1].id })}>Poprzedni etap</button>}
-          {index < requirements.length - 1 && <button type="button" className="primary-button" disabled={busy || cadPending}
-            onClick={() => void save({ ...draft, step: requirements[index + 1].id })}>Przejdź dalej</button>}
+          {flatIndex > 0 && <button type="button" className="quiet-button" disabled={busy || cadPending}
+            onClick={() => navigateDrawing(flatIndex - 1)}>Poprzedni rysunek</button>}
+          {flatIndex < drawingSteps.length - 1 && <button type="button" className="primary-button" disabled={busy || cadPending}
+            onClick={() => navigateDrawing(flatIndex + 1)}>Przejdź dalej</button>}
           <button type="button" className="quiet-button" disabled={busy || cadPending} onClick={() => void save(draft, "panel")}>Zapisz szkic i wróć do panelu</button>
           <button type="button" className="quiet-button" disabled={busy || cadPending} onClick={() => void save(draft, "back")}>Wróć do danych budowy</button>
         </div>

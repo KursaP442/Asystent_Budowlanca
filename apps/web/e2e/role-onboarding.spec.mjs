@@ -460,22 +460,18 @@ test("work-specific details, consent map, private photos and upload retry persis
   await page.unroute(uploadRoute);
   await page.getByRole("button", {name:"Przejdź dalej",exact:true}).click();
   await expect(page.getByRole("heading", {name:"Dokumentacja projektu",exact:true})).toBeVisible();
-  await page.locator(".cad-stage-notes summary").click();
-  await page.getByLabel("Wymiary istniejących elementów", {exact:true}).fill("Ściana kuchni: 4200 mm długości, 2650 mm wysokości.");
+  await expect(page.getByText("Dane szczegółowe etapu i źródła pomiarów", {exact:true})).toHaveCount(0);
   const draftRoute = "**/rest/v1/rpc/save_documentation_draft";
   await page.route(draftRoute, (route) => route.fulfill({
     status:503,contentType:"application/json",body:JSON.stringify({message:"Test draft save failure"}),
   }));
-  await page.getByRole("button", {name:"Przejdź dalej",exact:true}).click();
+  await page.getByRole("tab", {name:"Pomieszczenia i wykończenia",exact:true}).click();
   await expect(page.getByRole("region", {name:"Dokumentacja projektu"}).getByRole("alert"))
     .toContainText("Test draft save failure");
   await expect(page.getByLabel("Etap dokumentacji", {exact:true})).toHaveValue("existing");
-  await expect(page.getByLabel("Wymiary istniejących elementów", {exact:true}))
-    .toHaveValue("Ściana kuchni: 4200 mm długości, 2650 mm wysokości.");
   await page.unroute(draftRoute);
-  await page.getByRole("button", {name:"Przejdź dalej",exact:true}).click();
+  await page.getByRole("tab", {name:"Pomieszczenia i wykończenia",exact:true}).click();
   await expect(page.getByLabel("Etap dokumentacji", {exact:true})).toHaveValue("interior");
-  await page.getByLabel("Źródło danych, uwagi i brakujące informacje", {exact:true}).fill("Pomiar ręczny, brak projektu zmian instalacji.");
   await returnToPanelFromDocumentation(page);
   await expect(page.getByRole("heading", {name:"Remont mieszkania",exact:true})).toBeVisible();
   const {data:jobs,error} = await admin.from("construction_jobs").select("*").eq("client_id",owner.id);
@@ -516,13 +512,9 @@ test("work-specific details, consent map, private photos and upload retry persis
     .toContainText("Blacha cynkowo-tytanowa");
   await expect(page.locator('[data-technology-stage="renovationKitchenFitout"]')).toHaveCount(0);
   await page.getByRole("button", {name:"Przejdź dalej",exact:true}).click();
-  await page.locator(".cad-stage-notes summary").click();
   await expect(page.getByLabel("Etap dokumentacji", {exact:true})).toHaveValue("interior");
-  await expect(page.getByLabel("Źródło danych, uwagi i brakujące informacje", {exact:true}))
-    .toHaveValue("Pomiar ręczny, brak projektu zmian instalacji.");
   await page.getByLabel("Etap dokumentacji", {exact:true}).selectOption("existing");
-  await expect(page.getByLabel("Wymiary istniejących elementów", {exact:true}))
-    .toHaveValue("Ściana kuchni: 4200 mm długości, 2650 mm wysokości.");
+  await expect(page.getByText("Dane szczegółowe etapu i źródła pomiarów", {exact:true})).toHaveCount(0);
   await page.getByRole("button", {name:"Wróć do danych budowy",exact:true}).click();
   await page.getByRole("tab", {name:"Dane budowy"}).click();
   const other = createClient(url, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY, {auth:{persistSession:false}});
@@ -568,6 +560,23 @@ test("work-specific details, consent map, private photos and upload retry persis
   await fillTechnology(page, "other");
   await page.getByLabel("Planowany termin", { exact: true }).fill("2026-12-20");
   await page.getByRole("button", {name:"Przejdź dalej",exact:true}).click();
+  const pavingEditor = page.locator(".cad-editor");
+  const pavingCanvas = pavingEditor.getByRole("img", {name:/Płótno projektu/});
+  await expect(pavingEditor.getByRole("button", {name:"Pole nawierzchni",exact:true})).toBeVisible();
+  await expect(pavingEditor.getByRole("button", {name:"Połać dachu",exact:true})).toHaveCount(0);
+  await pavingEditor.getByRole("button", {name:"Pole nawierzchni",exact:true}).click();
+  await pavingCanvas.scrollIntoViewIfNeeded();
+  const pavingBox = await pavingCanvas.boundingBox();
+  for (const [x,y] of [[.2,.4],[.6,.4],[.6,.7],[.2,.7]]) {
+    await page.mouse.click(pavingBox.x+pavingBox.width*x,pavingBox.y+pavingBox.height*y);
+  }
+  await pavingEditor.getByRole("button", {name:"Zamknij obrys (4)",exact:true}).click();
+  await pavingEditor.getByLabel("Grubość (mm)", {exact:true}).fill("80");
+  await pavingEditor.getByLabel("Grubość (mm)", {exact:true}).press("Tab");
+  await expect(pavingEditor.getByRole("status")).toContainText("Rysunek zapisany automatycznie");
+  await page.getByRole("tab", {name:"Elewacja",exact:true}).click();
+  await expect(pavingEditor.getByRole("button", {name:"Pole elewacji",exact:true})).toBeVisible();
+  await expect(pavingEditor.getByRole("button", {name:"Ława fundamentowa",exact:true})).toHaveCount(0);
   await returnToPanelFromDocumentation(page);
   await expect(page.getByRole("heading", {name:"Remont mieszkania",exact:true})).toBeVisible();
   const {data:otherJob,error:otherError} = await admin.from("construction_jobs").select("*").eq("id",jobs[0].id).single();
@@ -624,7 +633,9 @@ test("work-specific details, consent map, private photos and upload retry persis
   const steps = page.getByLabel("Etap dokumentacji", {exact:true});
   await expect(steps).toHaveValue("roof");
   await expect(steps.locator("option")).toHaveText(["Dach"]);
-  await expect(page.locator(".cad-stage-notes ul")).not.toContainText("fundamentów");
+  await expect(page.locator(".cad-editor").getByRole("button", {name:"Połać dachu",exact:true})).toBeVisible();
+  await expect(page.locator(".cad-editor").getByRole("button", {name:"Ława fundamentowa",exact:true})).toHaveCount(0);
+  await expect(page.locator(".cad-drawing-progress")).not.toContainText("fundamentów");
   await returnToPanelFromDocumentation(page);
 });
 
@@ -706,6 +717,7 @@ test("stage canvas draws, edits, undoes, autosaves and imports AI proposal with 
   const canvas = editor.getByRole("img", {name:/Płótno projektu/});
   await expect(canvas).toBeVisible();
   await editor.getByRole("button", {name:"Ława fundamentowa",exact:true}).click();
+  await canvas.scrollIntoViewIfNeeded();
   const box = await canvas.boundingBox();
   if (!box) throw new Error("Brak płótna.");
   await page.mouse.move(box.x + 80, box.y + 130);
@@ -715,6 +727,8 @@ test("stage canvas draws, edits, undoes, autosaves and imports AI proposal with 
   await expect(canvas.locator("[data-entity-id]")).toHaveCount(1);
   await editor.getByRole("button", {name:"Cofnij",exact:true}).click();
   await expect(canvas.locator("[data-entity-id]")).toHaveCount(0);
+  await expect(editor.getByRole("status")).toContainText("Rysunek zapisany automatycznie");
+  await expect(page.locator(".cad-drawing-progress button").first()).toHaveAttribute("data-completion","empty");
   await editor.getByRole("button", {name:"Ponów",exact:true}).click();
   await expect(canvas.locator("[data-entity-id]")).toHaveCount(1);
   await editor.locator(".cad-element-list button").first().click();
@@ -765,6 +779,7 @@ test("stage canvas draws, edits, undoes, autosaves and imports AI proposal with 
   await editor.locator(".cad-element-list button").first().click();
   await expect(editor.getByLabel("Szerokość (mm)", {exact:true})).toHaveValue("800");
   await editor.getByRole("button", {name:"Obrys / płyta",exact:true}).click();
+  await canvas.scrollIntoViewIfNeeded();
   const polygonBox = await canvas.boundingBox();
   for (const [x,y] of [[70,260],[200,260],[200,360],[70,360]]) {
     await page.mouse.click(polygonBox.x+x,polygonBox.y+y);
@@ -789,6 +804,7 @@ test("stage canvas draws, edits, undoes, autosaves and imports AI proposal with 
   await page.getByRole("tab", {name:"Detale zbrojenia i zestawienie prętów",exact:true}).click();
   await expect(canvas.locator("[data-entity-id]")).toHaveCount(0);
   await editor.getByRole("button", {name:"Pręt zbrojeniowy",exact:true}).click();
+  await canvas.scrollIntoViewIfNeeded();
   const rebarBox = await canvas.boundingBox();
   await page.mouse.move(rebarBox.x + 80,rebarBox.y + 200); await page.mouse.down();
   await page.mouse.move(rebarBox.x + 300,rebarBox.y + 200); await page.mouse.up();
@@ -828,6 +844,7 @@ test("stage canvas draws, edits, undoes, autosaves and imports AI proposal with 
   await editor.locator(".cad-element-list button").click();
   await expect(editor.locator(".cad-inspector")).toContainText("85% pewności");
   await editor.getByRole("button", {name:"Ustaw skalę skanu",exact:true}).click();
+  await canvas.scrollIntoViewIfNeeded();
   const importedView = (await canvas.getAttribute("viewBox")).split(" ").map(Number);
   const importedBox = await canvas.boundingBox();
   const screen = (x,y) => ({x:importedBox.x+(x-importedView[0])/importedView[2]*importedBox.width,
@@ -844,6 +861,15 @@ test("stage canvas draws, edits, undoes, autosaves and imports AI proposal with 
   expect(calibrated.payload.sourceImage.mmPerPixel).toBeCloseTo(10,5);
   expect(Math.abs(calibrated.payload.entities[0].geometry.end.x-6000)).toBeLessThan(0.01);
   expect(calibrated.payload.entities[0].reviewStatus).toBe("draft");
+  await editor.locator(".cad-element-list button").click();
+  await editor.getByLabel("Klasyfikacja rozpoznanego elementu", {exact:true}).selectOption("footing");
+  await expect(editor.getByLabel("Szerokość (mm)", {exact:true})).toBeVisible();
+  await expect(editor.getByRole("status")).toContainText("Rysunek zapisany automatycznie");
+  const {data:classified,error:classificationError} = await admin.from("cad_drawings").select("payload")
+    .eq("job_id",job.id).eq("requirement_id","foundation-drawing-0").single();
+  if (classificationError) throw classificationError;
+  expect(classified.payload.entities[0].kind).toBe("footing");
+  expect(classified.payload.entities[0].source.origin).toBe("openai");
   await page.screenshot({path:test.info().outputPath("stage-canvas-desktop.png"),fullPage:true});
   await page.setViewportSize({width:390,height:844});
   expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
@@ -861,6 +887,117 @@ test("stage canvas draws, edits, undoes, autosaves and imports AI proposal with 
   if (scanListError) throw scanListError;
   expect(scanFiles.some(({name}) => name.endsWith("-original.pdf"))).toBe(true);
   await returnToPanelFromDocumentation(page);
+});
+test("scoped CAD workspace zooms, joins corners, shows layers, reuses plans and creates reinforcement", async ({ page, request }) => {
+  test.setTimeout(90000);
+  const owner = await createAccount();
+  await page.setViewportSize({width:1440,height:1100});
+  await login(page, owner.email);
+  await page.locator(".account-type-card.type-client").click();
+  await fillConstruction(page, "CAD narzędzia etapowe");
+  await page.getByRole("button", {name:"Edytuj",exact:true}).click();
+  await page.getByRole("button", {name:"Przejdź dalej",exact:true}).click();
+  const editor = page.locator(".cad-editor");
+  const canvas = editor.getByRole("img", {name:/Płótno projektu/});
+  await expect(canvas).toBeVisible();
+  await expect(editor.getByRole("button", {name:"Połać dachu",exact:true})).toHaveCount(0);
+  await expect(editor.getByRole("button", {name:"Ściana fundamentowa",exact:true})).toBeVisible();
+  const progress = page.getByRole("navigation", {name:"Postęp rysunków"});
+  await expect(progress.locator("button").first()).toHaveAttribute("data-completion","empty");
+  const originalView = (await canvas.getAttribute("viewBox")).split(" ").map(Number);
+  await canvas.scrollIntoViewIfNeeded();
+  const box = await canvas.boundingBox();
+  await page.mouse.move(box.x+box.width*.6,box.y+box.height*.5);
+  await page.mouse.wheel(0,-300);
+  await expect.poll(async () => Number((await canvas.getAttribute("viewBox")).split(" ")[2])).toBeLessThan(originalView[2]);
+  await expect(editor.locator(".cad-coordinates")).toContainText("X:");
+  await expect(canvas.locator(".cad-rulers")).toHaveCount(1);
+  await editor.getByRole("button", {name:"Dopasuj widok",exact:true}).click();
+  async function draw(tool, from, to) {
+    await editor.getByRole("button", {name:tool,exact:true}).click();
+    await canvas.scrollIntoViewIfNeeded();
+    const rect = await canvas.boundingBox();
+    const v = (await canvas.getAttribute("viewBox")).split(" ").map(Number);
+    const screen = (point) => ({x:rect.x+(point.x-v[0])/v[2]*rect.width,y:rect.y+(point.y-v[1])/v[3]*rect.height});
+    const a = screen(from), b = screen(to);
+    await page.mouse.move(a.x,a.y); await page.mouse.down(); await page.mouse.move(b.x,b.y); await page.mouse.up();
+  }
+  await draw("Ściana",{x:1000,y:1000},{x:6000,y:1000});
+  await draw("Ściana",{x:6000,y:1000},{x:6000,y:5000});
+  await expect(canvas.locator("[data-entity-id].cad-entity")).toHaveCount(2);
+  await expect(canvas.locator(".cad-dimension line[stroke-dasharray]")).not.toHaveCount(0);
+  await editor.locator(".cad-element-list button").first().click();
+  await expect(canvas.locator(".cad-junction")).toHaveCount(2);
+  await editor.getByLabel("Punkt 2 X (mm)", {exact:true}).fill("7000");
+  await editor.getByLabel("Punkt 2 X (mm)", {exact:true}).press("Tab");
+  await editor.getByText("Warstwy materiałowe / ocieplenie", {exact:true}).click();
+  await editor.getByLabel("Materiał warstwy", {exact:true}).fill("XPS projektowy");
+  await editor.getByLabel("Grubość warstwy (mm)", {exact:true}).fill("150");
+  await editor.getByRole("button", {name:"Dodaj warstwę",exact:true}).click();
+  await expect(canvas.locator('line[stroke*="cad-hatch-"]')).toHaveCount(2);
+  await expect(editor.getByRole("status")).toContainText("Rysunek zapisany automatycznie");
+  await expect(progress.locator("button").first()).toHaveAttribute("data-completion","saved");
+  const {data:job,error:jobError} = await admin.from("construction_jobs").select("*").eq("client_id",owner.id).single();
+  if (jobError) throw jobError;
+  const {data:saved,error:saveError} = await admin.from("cad_drawings").select("*").eq("job_id",job.id).eq("requirement_id","foundation-drawing-0").single();
+  if (saveError) throw saveError;
+  expect(saved.payload.entities[0].geometry.end).toEqual(saved.payload.entities[1].geometry.start);
+  expect(saved.payload.entities[0].buildUp[0].thicknessMm).toBe(150);
+  const forbiddenRoof = {...saved.payload,entities:[{...saved.payload.entities[0],kind:"roof-plane",
+    geometry:{vertices:[{x:0,y:0},{x:1000,y:0},{x:1000,y:1000}]},attributes:{pitchDegrees:30,material:"Dachówka"}}]};
+  expect((await request.post("/api/cad/drawings",{data:forbiddenRoof,headers:{Authorization:`Bearer ${await tokenFor(owner.email)}`}})).status()).toBe(400);
+  expect((await request.post("/api/cad/drawings",{data:{...forbiddenRoof,entities:forbiddenRoof.entities.map((entity) => ({
+    ...entity,derivedFrom:{documentId:randomUUID(),entityId:randomUUID(),revision:1},
+  }))},headers:{Authorization:`Bearer ${await tokenFor(owner.email)}`}})).status()).toBe(400);
+  await page.getByRole("button", {name:"Przejdź dalej",exact:true}).click();
+  await expect(editor.getByRole("heading", {name:"Przekroje fundamentów i poziomy posadowienia",exact:true})).toBeVisible();
+  await expect(editor.getByRole("button", {name:"Obrys / płyta",exact:true})).toHaveCount(0);
+  await page.getByRole("tab", {name:"Parter",exact:true}).click();
+  await expect(canvas).toBeVisible();
+  await editor.getByText("Wykorzystaj wcześniejszy rysunek", {exact:true}).click();
+  await editor.getByLabel("Rysunek źródłowy", {exact:true}).selectOption("foundation-drawing-0");
+  await editor.getByRole("button", {name:"Dodaj kopię geometrii",exact:true}).click();
+  await expect(canvas.locator("[data-entity-id].cad-entity")).toHaveCount(2);
+  await expect(editor.getByRole("status")).toContainText("Rysunek zapisany automatycznie");
+  await editor.locator(".cad-element-list button").first().click();
+  await draw("Otwór w ścianie",{x:2200,y:1000},{x:3400,y:1000});
+  await expect(canvas.locator("[data-entity-id].cad-entity")).toHaveCount(3);
+  await expect(editor.getByRole("status")).toContainText("Rysunek zapisany automatycznie");
+  await page.getByRole("tab", {name:"Przekroje oraz zestawienie ścian",exact:true}).click();
+  await expect(canvas).toBeVisible();
+  await editor.getByText("Wykorzystaj wcześniejszy rysunek", {exact:true}).click();
+  await editor.getByLabel("Rysunek źródłowy", {exact:true}).selectOption("storey-0-drawing-0");
+  await editor.getByRole("button", {name:"Rozwiń ściany z otworami",exact:true}).click();
+  await expect(canvas.locator("[data-entity-id].cad-entity")).toHaveCount(3);
+  await expect(editor.getByRole("status")).toContainText("Rysunek zapisany automatycznie");
+  await page.getByRole("tab", {name:"Rzut stropu, detale konstrukcyjne i zbrojenie",exact:true}).click();
+  await expect(canvas).toBeVisible();
+  await editor.getByText("Kreator zbrojenia belki / płyty", {exact:true}).click();
+  for (const [label,value] of [
+    ["Początek X (mm)","0"],["Początek Y (mm)","0"],["Długość układu (mm)","4000"],["Szerokość układu (mm)","400"],
+    ["Otulina układu (mm)","40"],["Średnica prętów podłużnych (mm)","12"],
+    ["Średnica prętów poprzecznych / strzemion (mm)","8"],["Rozstaw poprzeczny (mm)","200"],
+    ["Liczba prętów podłużnych","4"],["Stal według projektu","B500"],["Numer rysunku konstrukcyjnego","K-03"],
+  ]) await editor.getByLabel(label,{exact:true}).fill(value);
+  await editor.getByRole("button", {name:"Narysuj układ zbrojenia",exact:true}).click();
+  await expect(canvas.locator("[data-entity-id].cad-entity")).toHaveCount(27);
+  await expect(editor.getByRole("status")).toContainText("Rysunek zapisany automatycznie");
+  const steps = page.getByRole("navigation", {name:"Kroki budowy"});
+  await steps.getByRole("button", {name:"Materiały i technologia",exact:false}).click();
+  await expect(page.getByRole("tab", {name:"Materiały i technologia",exact:true})).toHaveAttribute("aria-selected","true");
+  await page.getByRole("button", {name:"Przejdź dalej",exact:true}).click();
+  await page.getByRole("tab", {name:"Rzut stropu, detale konstrukcyjne i zbrojenie",exact:true}).click();
+  await expect(canvas.locator("[data-entity-id].cad-entity")).toHaveCount(27);
+  await page.reload();
+  await page.getByRole("button", {name:"Edytuj",exact:true}).click();
+  await page.getByRole("button", {name:"Przejdź dalej",exact:true}).click();
+  await page.getByRole("tab", {name:"Rzut stropu, detale konstrukcyjne i zbrojenie",exact:true}).click();
+  await expect(canvas.locator("[data-entity-id].cad-entity")).toHaveCount(27);
+  await expect(progress.locator('button[data-completion="saved"]')).toHaveCount(4);
+  await page.screenshot({path:test.info().outputPath("specialized-cad-desktop.png"),fullPage:true});
+  await page.setViewportSize({width:390,height:844});
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
+  await page.screenshot({path:test.info().outputPath("specialized-cad-mobile.png"),fullPage:true});
 });
 for (const kind of ["contractor", "store"]) {
   test(`${kind} profile, owner-only employee provisioning and mandatory password change`, async ({ page, request }) => {

@@ -24,8 +24,14 @@ export function getCadApprovalIssues(value: CadDocument): CadReviewIssue[] {
     if (entity.kind === "trace-line" || entity.kind === "trace-area") {
       issues.push({ code: "review", entityId: entity.id, message: "Rozpoznany obrys wymaga klasyfikacji i parametrów elementu przed przedmiarem." });
     }
+    if (entity.derivedFrom) {
+      issues.push({ code: "review", entityId: entity.id, message: "Kopia jest podkładem odniesienia, nie dodatkową pozycją przedmiaru." });
+    }
     if ((entity.kind === "rebar-annotation" || entity.kind === "rebar-line") && !entity.attributes.specialistVerified) {
       issues.push({ code: "structural-review", entityId: entity.id, message: "Zbrojenie wymaga kontroli uprawnionego specjalisty." });
+    }
+    if (entity.kind === "rebar-line" && entity.attributes.representation === "projection") {
+      issues.push({ code: "structural-review", entityId: entity.id, message: "Rzut strzemienia nie określa długości gięcia; wymagane pełne rozwinięcie z projektu." });
     }
   }
   const imported = document.entities.some(({ source }) => source.documentId !== null || source.origin !== "manual");
