@@ -346,3 +346,76 @@ Supabase ani nie uruchamiać hostingu.
 
 Praca pozostaje lokalna. Wznowienie: uruchom Docker Desktop, sprawdź `pnpm db:status`, przeczytaj tę sekcję,
 zbuduj Web i kontynuuj od pierwszego niewdrożonego punktu. Nie resetuj bazy i nie konfiguruj hostingu.
+
+## Sesja 10 — 12 października 2026
+
+### Zrobione
+
+1. Przebudowano formularz „Dane ogólne budowy”:
+   - mapa Google jest teraz osadzona bezpośrednio w kafelku i aktualizuje się automatycznie po zmianie
+     kodu pocztowego, miejscowości i adresu/numeru działki;
+   - gdy pola lokalizacji są puste, podgląd domyślnie pokazuje Warszawę;
+   - usunięto ręczne pole współrzędnych i przycisk „Pokaż na mapie”.
+2. Wymagalność pól:
+   - kod pocztowy (`00-000`) jest obowiązkowy;
+   - planowany termin jest obowiązkowy;
+   - dach nie jest zbierany w danych ogólnych;
+   - usunięto pole powierzchni istniejącego budynku dla rozbudowy.
+3. Dodano etap „Plan realizacji i etapy wniosku” zależny od rodzaju prac (dom/rozbudowa/remont/inne) z:
+   - wymaganiami szczegółowymi,
+   - kryteriami odbioru,
+   - wskazówkami kroków adekwatnymi do typu prac.
+4. Przy zapisie zlecenia generowany jest pełny raport tekstowy (`report_summary`) i zapisywany w bazie.
+5. Opublikowane zlecenia klientów są widoczne w panelu Wykonawcy i Sklepu (w tym dla pracownika po aktywacji hasła),
+   razem z terminem i raportem.
+6. Dodano migracje i testy:
+   - nowe kolumny raportu i wymagań;
+   - aktualizacje walidacji/triggerów (w tym bezpieczne aktualizacje statusu starszych rekordów);
+   - politykę odczytu rynku zleceń dla kont contractor/store;
+   - testy pgTAP oraz E2E dla mapy, wymaganych pól, zdjęć, raportu i widoczności rynku.
+
+### Weryfikacja
+
+- `pnpm exec supabase migration up --local` — **PASS**
+- `pnpm db:test` — **PASS** (82 asercje)
+- `pnpm exec supabase db lint --local --schema public --fail-on error` — **PASS**
+- `pnpm --filter @asystent/schemas test` — **PASS** (10/10)
+- `pnpm --filter web build`, `pnpm --filter web lint` — **PASS**
+- `pnpm test:e2e` — **PASS** (4 scenariusze, w tym nowy przebieg mapa+raport+market)
+- `pnpm typecheck` — **PASS**
+- `GET http://127.0.0.1:3010/` — **PASS** (HTTP 200)
+
+### Kontynuacja — następne kroki
+
+1. Rozbudować „wniosek” do pełnej wieloetapowej struktury domenowej (nie tylko plan realizacji, ale też podsekcje
+   technologiczne i formalne per rodzaj prac) oraz wersjonowanie raportu.
+2. Dodać filtrowanie i ranking zleceń w panelu Wykonawcy/Sklepu (obszar, termin, budżet, specjalizacja).
+3. ETAP 4+: oferty, negocjacje, terminy zamknięcia i audyt zmian ofert.
+4. ETAP 5+: katalog sklepu, RFQ i zamówienia.
+
+Wznowienie: uruchom Docker, `pnpm db:status`, potem `pnpm --filter web build` i `pnpm --filter web exec next start --hostname 127.0.0.1 --port 3010`.
+
+## Sesja 11 — 12 października 2026
+
+### Zrobione
+
+1. Sprawdzono zgłoszenie o polach szerokości/długości zamiast mapy. Po pełnym przeładowaniu lokalnej strony
+   `http://127.0.0.1:3010/` aktualny formularz nie zawiera tych pól ani przycisku „Pokaż na mapie”; mapa jest
+   osadzona bezpośrednio w sekcji lokalizacji.
+2. Potwierdzono, że pusty formularz kieruje iframe na podgląd Warszawy, a kod pocztowy i termin są wymagane.
+3. Rozszerzono E2E o jawne kontrole braku starych pól i przycisku mapy oraz wymagalności kodu pocztowego i terminu.
+
+### Weryfikacja
+
+- `pnpm test:e2e` — **PASS** (4 scenariusze).
+- Kontrola formularza po przeładowaniu w przeglądarce — **PASS** (brak pól współrzędnych/przycisku, iframe
+  z lokalizacją domyślną Warszawa).
+- `git diff --check` — **PASS**.
+- Zrzut ekranu mapy w narzędziu przeglądarkowym nie dostarczył wiarygodnego obrazu — **BLOCKED** jako kontrola
+  wizualna. Potwierdzono obecność i adres iframe, nie poświadczono wyglądu kafelków mapy na zrzucie.
+
+### Kontynuacja
+
+Jeśli w otwartej karcie nadal widać starą wersję, wykonać twarde odświeżenie `Ctrl+F5` pod
+`http://127.0.0.1:3010/`. Dalsza praca pozostaje lokalna; pełny kreator, filtrowanie rynku i ofertowanie są nadal
+do wykonania zgodnie z sesją 10.

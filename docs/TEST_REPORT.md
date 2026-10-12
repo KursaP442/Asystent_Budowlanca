@@ -52,6 +52,42 @@ ma 18 × 18 px; E2E sprawdza obie krawędzie ≤ 20 px i brak przepełnienia mob
 Pełny rynek ofert, katalog/RFQ,
 CAD/import, AI i scenariusze Mobile — **NOT RUN**; pozostają następnymi etapami, nie częścią deklarowanego MVP.
 
+## Sesja 10 — 12 października 2026
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm exec supabase migration up --local` | migracje szczegółów wniosku i rynku | PASS | zastosowano migracje: `...114000` (raport+market) oraz `...115000` (bezpieczna walidacja aktualizacji statusu) |
+| `pnpm db:test` | lokalny Supabase | PASS | 82 asercje, w tym mapa/raport/market/legacy-status |
+| `pnpm exec supabase db lint --local --schema public --fail-on error` | schemat aplikacji | PASS | brak błędów |
+| `pnpm --filter @asystent/schemas test` | walidacja nowego formularza budowy | PASS | 10/10 testów schemas |
+| `pnpm --filter web build` | produkcyjny build Web | PASS | nowe pola i raport bez błędów TS |
+| `pnpm --filter web lint` | lint Web + E2E | PASS | selektory i a11y po zmianach mapy/formularza |
+| `pnpm test:e2e` | lokalny build Web na 3011, Microsoft Edge | PASS | 4 scenariusze |
+| `pnpm typecheck` | wszystkie workspace | PASS | 11 zadań turbo |
+| `GET http://127.0.0.1:3010/` | lokalny podgląd | PASS | HTTP 200 |
+
+Scenariusze E2E sesji 10:
+
+- **PASS:** formularz budowy ma osadzoną mapę i domyślnie pokazuje Warszawę; po wpisaniu kodu/miejscowości/adresu
+  aktualizuje źródło iframe.
+- **PASS:** kod pocztowy i planowany termin są wymagane; dach nie występuje; rozbudowa nie wymaga ani nie pokazuje
+  pola powierzchni istniejącego budynku.
+- **PASS:** zdjęcia mają limity typ/rozmiar/ilość; awaria uploadu nie duplikuje zlecenia, a ponowienie kończy zapis.
+- **PASS:** raport zlecenia zapisuje się i opublikowane zlecenie jest widoczne w panelu Wykonawcy i Sklepu
+  (owner oraz aktywowany employee).
+
+## Sesja 11 — 12 października 2026
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm test:e2e` | lokalny build Web na 3011, Microsoft Edge | PASS | 4 scenariusze; test mapy dodatkowo wyklucza pola współrzędnych i przycisk „Pokaż na mapie” oraz sprawdza wymagane pola |
+| Kontrola formularza po pełnym przeładowaniu | `http://127.0.0.1:3010/`, istniejąca sesja przeglądarki | PASS | iframe ma adres Warszawy; brak pól szerokości/długości i starego przycisku |
+| Zrzut obrazu mapy | wbudowane narzędzie przeglądarkowe | BLOCKED | narzędzie zwróciło pusty obraz, więc nie zaliczono go jako wizualnego potwierdzenia renderu kafelków |
+| `git diff --check` | zmienione pliki | PASS | brak błędów whitespace |
+
+Wskazówka dla starej karty przeglądarki: wymusić przeładowanie przez `Ctrl+F5`. Nie zmieniano konfiguracji
+hostingu ani usług chmurowych.
+
 ## Sesja 7 — 11 października 2026
 
 | Komenda / kontrola | Kontekst | Wynik | Uwagi |

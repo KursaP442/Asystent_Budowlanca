@@ -10,11 +10,21 @@ export type ConstructionJob = {
   description: string;
   building_type: "house" | "extension" | "renovation" | "other";
   area_m2: number;
-  floors: number;
-  basement: boolean;
+  floors: number | null;
+  basement: boolean | null;
+  postal_code: string;
+  plot_area_m2: number | null;
+  rooms: string;
+  existing_condition: string;
+  work_category: string;
+  site_access: string;
+  utilities: string;
+  requirements: string;
+  acceptance_criteria: string;
+  report_summary: string;
   roof: "pitched" | "flat" | "other";
   materials: string;
-  start_date: string | null;
+  start_date: string;
   budget_pln: number | null;
   status: "draft" | "open" | "cancelled";
   created_at: string;
@@ -45,7 +55,8 @@ export interface Database {
     Tables: {
       construction_jobs: {
         Row: ConstructionJob;
-        Insert: Omit<ConstructionJob, "id" | "client_id" | "created_at" | "status"> & {
+        Insert: Omit<ConstructionJob, "id" | "client_id" | "created_at" | "status" | "roof"> & {
+          roof?: ConstructionJob["roof"];
           id?: string; client_id?: string; created_at?: string; status?: ConstructionJob["status"];
         };
         Update: Partial<ConstructionJob>;

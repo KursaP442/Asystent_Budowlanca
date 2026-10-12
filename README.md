@@ -46,8 +46,13 @@ Po pierwszym zalogowaniu aplikacja prosi o wybór typu konta: Zleceniodawca, Wyk
 zapisywany w profilu w lokalnej bazie:
 
 - Zleceniodawca trafia do formularza pierwszej budowy; po jej zapisaniu kolejne logowania otwierają panel Klienta.
-  Panel obsługuje kolejne zlecenia, edycję i zapis statusu publikacji. Feed dla wykonawców jest następnym etapem.
+  Panel obsługuje kolejne zlecenia, edycję i zapis statusu publikacji.
+  W formularzu budowy mapa Google jest osadzona bezpośrednio w kafelku i aktualizuje się na podstawie kodu
+  pocztowego, miejscowości i adresu/numeru działki (domyślnie Warszawa, gdy pola są puste).
+  Kod pocztowy i planowany termin są obowiązkowe.
+  Formularz ma etap „Plan realizacji” zależny od rodzaju prac i generuje raport zapisywany przy zleceniu.
 - Wykonawca i Sklep zapisują dane działalności, branżę i obszar działania, a potem trafiają do swojego panelu.
+  W panelu widzą listę opublikowanych zleceń klientów wraz z raportem wygenerowanym ze zlecenia.
 - Właściciel dodaje pracownika przez e-mail i imię/nazwisko. Hasło tymczasowe pokazuje się jednorazowo do
   przekazania pracownikowi. Pracownik ustawia własne hasło przed dostępem do danych; nie zarządza innymi kontami.
 - Nie ma formularza tworzenia „organizacji”. Techniczne członkostwa nadal zapewniają izolację firmy/sklepu.

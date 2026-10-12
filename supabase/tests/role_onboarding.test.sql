@@ -15,23 +15,23 @@ update public.profiles set account_type = 'store' where id = '10000000-0000-4000
 set local role authenticated;
 select set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000001',true);
 select lives_ok(
- $$insert into public.construction_jobs(title,city,address,description,building_type,area_m2,floors,basement,roof)
- values('First house','Krakow','Plot 1','Build a house','house',120,2,false,'pitched')$$,
+ $$insert into public.construction_jobs(title,city,address,postal_code,description,building_type,area_m2,floors,basement,requirements,acceptance_criteria,report_summary,start_date)
+ values('First house','Krakow','Plot 1','30-001','Build a house','house',120,2,false,'Scope','Acceptance','Report','2026-12-01')$$,
  'Client creates the first construction without an organization'
 );
 select is((select count(*)::integer from public.organizations),0,'Client onboarding does not create an organization');
 select is((select count(*)::integer from public.construction_jobs),1,'Client reads their first construction');
 select lives_ok(
- $$insert into public.construction_jobs(title,city,address,description,building_type,area_m2,floors,basement,roof)
- values('Second house','Krakow','Plot 2','Another house','house',90,1,false,'flat')$$,
+ $$insert into public.construction_jobs(title,city,address,postal_code,description,building_type,area_m2,floors,basement,requirements,acceptance_criteria,report_summary,start_date)
+ values('Second house','Krakow','Plot 2','30-001','Another house','house',90,1,false,'Scope','Acceptance','Report','2026-12-15')$$,
  'Client adds subsequent construction'
 );
 select is((select count(*)::integer from public.construction_jobs),2,'Subsequent client login has saved jobs');
 select lives_ok($$update public.construction_jobs set status='open' where title='First house'$$,'Client publishes a saved job');
 select is((select status from public.construction_jobs where title='First house'),'open','Published status persists');
 select throws_ok(
- $$insert into public.construction_jobs(title,city,address,description,building_type,area_m2,floors,basement,roof)
- values('Invalid','Krakow','Plot','House','house',-1,1,false,'flat')$$,
+ $$insert into public.construction_jobs(title,city,address,postal_code,description,building_type,area_m2,floors,basement,requirements,acceptance_criteria,report_summary,start_date)
+ values('Invalid','Krakow','Plot','30-001','House','house',-1,1,false,'Scope','Acceptance','Report','2026-12-01')$$,
  '23514',null,'Database rejects invalid construction measurements'
 );
 select throws_ok(
@@ -50,6 +50,7 @@ select lives_ok(
  $$select public.complete_business_profile('Builder','5260250995','Krakow','Street 1','30-001','123456789','Building houses','Malopolskie',50,'Local builder')$$,
  'Contractor completes business onboarding'
 );
+select is((select count(*)::integer from public.construction_jobs where status='open'),1,'Contractor can read published client jobs in market view');
 select is((select count(*)::integer from public.business_profiles),1,'Contractor profile is visible to owner');
 select is((select role::text from public.memberships where user_id=auth.uid()),'owner','Business creator becomes owner internally');
 select is((select service_area from public.business_profiles),'Malopolskie','Service area persists');
@@ -59,8 +60,8 @@ select lives_ok(
 );
 select is((select count(*)::integer from public.business_profiles),1,'Repeated onboarding remains idempotent');
 select throws_ok(
- $$insert into public.construction_jobs(title,city,address,description,building_type,area_m2,floors,basement,roof)
- values('Wrong','Krakow','Plot','House','house',120,1,false,'flat')$$,
+ $$insert into public.construction_jobs(title,city,address,postal_code,description,building_type,area_m2,floors,basement,requirements,acceptance_criteria,report_summary,start_date)
+ values('Wrong','Krakow','Plot','30-001','House','house',120,1,false,'Scope','Acceptance','Report','2026-12-01')$$,
  '42501',null,'Contractor cannot create client construction'
 );
 select throws_ok(
@@ -104,8 +105,8 @@ select throws_ok(
  '42501',null,'Employee cannot use business owner onboarding'
 );
 select throws_ok(
- $$insert into public.construction_jobs(title,city,address,description,building_type,area_m2,floors,basement,roof)
- values('Employee shortcut','Krakow','Plot','House','house',120,1,false,'flat')$$,
+ $$insert into public.construction_jobs(title,city,address,postal_code,description,building_type,area_m2,floors,basement,requirements,acceptance_criteria,report_summary,start_date)
+ values('Employee shortcut','Krakow','Plot','30-001','House','house',120,1,false,'Scope','Acceptance','Report','2026-12-01')$$,
  '42501',null,'Employee cannot create a client job'
 );
 
@@ -128,6 +129,7 @@ select lives_ok(
  $$select public.complete_business_profile('Store','5260250274','Warszawa','Shop 1','00-001','123456789','Materials','Mazowieckie',100,'Local store')$$,
  'Store completes separate business profile'
 );
+select is((select count(*)::integer from public.construction_jobs where status='open'),1,'Store can read published client jobs in market view');
 select is((select count(*)::integer from public.business_profiles),1,'Store is isolated from contractor data');
 select is((select count(*)::integer from public.employee_accounts),0,'Store cannot read another business employees');
 select throws_ok(

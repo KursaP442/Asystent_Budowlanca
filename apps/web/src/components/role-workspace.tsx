@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import type { Session } from "@supabase/supabase-js";
 import type { BusinessProfile, ConstructionJob, EmployeeAccount, MembershipRole, OrganizationKind } from "@asystent/api-client";
-import { BusinessInputSchema, ConstructionInputSchema, EmployeeInputSchema, EmployeePasswordSchema } from "@asystent/schemas";
+import { BusinessInputSchema, EmployeeInputSchema, EmployeePasswordSchema } from "@asystent/schemas";
 import { getSupabaseClient } from "@/lib/supabase";
+import { ConstructionForm } from "./construction-form";
 
 type Business = { id: string; name: string; nip: string | null; kind: OrganizationKind; role: MembershipRole; profile: BusinessProfile | null };
-type WorkspaceData = { jobs: ConstructionJob[]; businesses: Business[]; employee: EmployeeAccount | null };
+type WorkspaceData = { jobs: ConstructionJob[]; marketJobs: ConstructionJob[]; businesses: Business[]; employee: EmployeeAccount | null };
 const titles = { client: "Panel Klienta", contractor: "Panel Wykonawcy", store: "Panel Sklepu" };
 const statusLabels = { draft: "Szkic", open: "Opublikowane", cancelled: "Anulowane" };
 
@@ -19,24 +20,26 @@ async function loadWorkspace(userId: string, kind: OrganizationKind): Promise<Wo
   const db = getSupabaseClient();
   const { data: employee, error: employeeError } = await db.from("employee_accounts").select("*").eq("user_id", userId).maybeSingle();
   if (employeeError) throw employeeError;
-  if (employee?.password_change_required) return { jobs: [], businesses: [], employee };
+  if (employee?.password_change_required) return { jobs: [], marketJobs: [], businesses: [], employee };
   if (kind === "client" && !employee) {
     const { data, error } = await db.from("construction_jobs").select("*").eq("client_id", userId).order("created_at", { ascending: false });
     if (error) throw error;
-    return { jobs: data, businesses: [], employee: null };
+    return { jobs: data, marketJobs: [], businesses: [], employee: null };
   }
   const { data: memberships, error: membershipError } = await db.from("memberships")
     .select("organization_id,role").eq("user_id", userId).order("created_at");
   if (membershipError) throw membershipError;
-  if (!memberships.length) return { jobs: [], businesses: [], employee };
+  if (!memberships.length) return { jobs: [], marketJobs: [], businesses: [], employee };
   const ids = memberships.map((item) => item.organization_id);
-  const [{ data: businesses, error: businessError }, { data: profiles, error: profileError }] = await Promise.all([
+  const [{ data: businesses, error: businessError }, { data: profiles, error: profileError }, { data: marketJobs, error: jobsError }] = await Promise.all([
     db.from("organizations").select("id,name,nip,kind").in("id", ids).eq("kind", kind).order("created_at"),
     db.from("business_profiles").select("*").in("organization_id", ids),
+    db.from("construction_jobs").select("*").eq("status", "open").order("created_at", { ascending: false }).limit(30),
   ]);
   if (businessError) throw businessError;
   if (profileError) throw profileError;
-  return { jobs: [], employee, businesses: businesses.map((business) => {
+  if (jobsError) throw jobsError;
+  return { jobs: [], marketJobs, employee, businesses: businesses.map((business) => {
     const membership = memberships.find((item) => item.organization_id === business.id);
     if (!membership) throw new Error("Brakuje uprawnień do profilu działalności.");
     return { ...business, role: membership.role, profile: profiles.find((p) => p.organization_id === business.id) ?? null };
@@ -83,28 +86,6 @@ export function RoleWorkspace({ session, kind, onChangeType }: {
   }, [session.user.id, kind, revision]);
 
   function reload() { setData(null); setRevision((value) => value + 1); }
-
-  async function saveJob(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const parsed = ConstructionInputSchema.safeParse({
-      title: form.get("title"), city: form.get("city"), address: form.get("address"), description: form.get("description"),
-      building_type: form.get("building_type"), area_m2: Number(form.get("area_m2")), floors: Number(form.get("floors")),
-      basement: form.get("basement") === "on", roof: form.get("roof"), materials: form.get("materials"),
-      start_date: form.get("start_date") || null, budget_pln: form.get("budget_pln") ? Number(form.get("budget_pln")) : null,
-    });
-    if (!parsed.success) { setError(parsed.error.issues.map((issue) => issue.message).join(" ")); return; }
-    setBusy(true); setError(""); setNotice("");
-    try {
-      const db = getSupabaseClient();
-      const query = editingJob && editingJob !== "new"
-        ? db.from("construction_jobs").update(parsed.data).eq("id", editingJob.id).select("id").single()
-        : db.from("construction_jobs").insert(parsed.data).select("id").single();
-      const { error: saveError } = await query;
-      if (saveError) throw saveError;
-      setEditingJob(null); setNotice("Budowa została zapisana jako zlecenie. Możesz je edytować i opublikować."); reload();
-    } catch (cause) { setError(message(cause)); } finally { setBusy(false); }
-  }
 
   async function changeStatus(job: ConstructionJob, status: ConstructionJob["status"]) {
     setBusy(true); setError("");
@@ -172,27 +153,9 @@ export function RoleWorkspace({ session, kind, onChangeType }: {
         <p>Zapisz zakres prac. W panelu klienta wrócisz do danych budowy i przygotujesz kolejne zlecenia.</p>
         <ol><li>Lokalizacja inwestycji</li><li>Parametry budynku</li><li>Zakres i termin</li></ol>
         <small>Zapis nie wysyła danych do wykonawców. Publikację wybierzesz osobno.</small></aside>
-      <form className="panel workflow-form form-stack" onSubmit={saveJob} key={job?.id ?? "new"}>
-        <fieldset disabled={busy}>
-          <legend>Dane ogólne budowy</legend>
-          <div className="form-grid">
-            <label className="span-two">Nazwa budowy<input name="title" required maxLength={120} defaultValue={job?.title} placeholder="np. Dom jednorodzinny pod Krakowem" /></label>
-            <label>Miejscowość<input name="city" required maxLength={120} defaultValue={job?.city} autoComplete="address-level2" /></label>
-            <label>Adres lub numer działki<input name="address" required maxLength={240} defaultValue={job?.address} /></label>
-            <label>Rodzaj prac<select name="building_type" defaultValue={job?.building_type ?? "house"}><option value="house">Budowa domu</option><option value="extension">Rozbudowa</option><option value="renovation">Remont</option><option value="other">Inne prace</option></select></label>
-            <label>Powierzchnia (m²)<input name="area_m2" type="number" required min="0.01" max={100000} step="0.01" defaultValue={job?.area_m2} /></label>
-            <label>Liczba kondygnacji<input name="floors" type="number" required min={1} max={100} defaultValue={job?.floors ?? 1} /></label>
-            <label>Dach<select name="roof" defaultValue={job?.roof ?? "pitched"}><option value="pitched">Spadzisty</option><option value="flat">Płaski</option><option value="other">Inny / nie dotyczy</option></select></label>
-            <label className="checkbox-field span-two"><input name="basement" type="checkbox" defaultChecked={job?.basement} /> Budynek z piwnicą</label>
-            <label className="span-two">Zakres prac<textarea name="description" required maxLength={4000} rows={4} defaultValue={job?.description} placeholder="Opisz fundamenty, kondygnacje i dach oraz prace, które chcesz zlecić." /></label>
-            <label className="span-two">Materiały i technologia (opcjonalnie)<textarea name="materials" maxLength={2000} rows={2} defaultValue={job?.materials} /></label>
-            <label>Planowany termin (opcjonalnie)<input name="start_date" type="date" defaultValue={job?.start_date ?? ""} /></label>
-            <label>Budżet w PLN (opcjonalnie)<input name="budget_pln" type="number" min="0.01" max={1000000000} step="0.01" defaultValue={job?.budget_pln ?? ""} /></label>
-          </div>
-        </fieldset>
-        <div className="form-actions">{data.jobs.length > 0 && <button className="quiet-button" disabled={busy} type="button" onClick={() => setEditingJob(null)}>Wróć do panelu</button>}
-          <button className="primary-button" disabled={busy}>{busy ? "Zapisywanie…" : "Zapisz budowę i przejdź do panelu"} <span aria-hidden="true">→</span></button></div>
-      </form>
+      <ConstructionForm key={job?.id ?? "new"} job={job} userId={session.user.id}
+        onCancel={data.jobs.length > 0 ? () => setEditingJob(null) : undefined}
+        onSaved={() => { setEditingJob(null); setNotice("Dane zlecenia i zdjęcia zostały zapisane."); reload(); }} />
     </div> : showBusinessForm ? <div className="workflow-layout">
       <aside className="workflow-guide"><p className="eyebrow light">{kind === "store" ? "TWÓJ SKLEP" : "TWOJA FIRMA"}</p><h2>Przedstaw swoją<br />działalność.</h2>
         <p>Uzupełnij dane kontaktowe, branżę i obszar obsługi. Po zapisaniu profilu dodasz pracowników w swoim panelu.</p>
@@ -219,7 +182,13 @@ export function RoleWorkspace({ session, kind, onChangeType }: {
       <div className="job-grid">{data.jobs.map((item) => <article className="panel job-card" key={item.id}>
         <div className="panel-heading"><p className="eyebrow">BUDOWA · {item.city}</p><span className={`status-badge status-${item.status}`}>{statusLabels[item.status]}</span></div>
         <h2>{item.title}</h2><p className="job-address">{item.address}</p><p>{item.description}</p>
-        <div className="job-metrics"><span>{item.area_m2} m²</span><span>{item.floors} kondygn.</span><span>{item.basement ? "Z piwnicą" : "Bez piwnicy"}</span></div>
+        <p className="job-address"><strong>Termin:</strong> {item.start_date}</p>
+        <p className="job-address"><strong>Kod pocztowy:</strong> {item.postal_code}</p>
+        <details><summary>Raport wygenerowany ze zlecenia</summary><p>{item.report_summary}</p></details>
+        <div className="job-metrics"><span>{item.area_m2} m²</span>
+          {(item.building_type === "house" || item.building_type === "extension")
+            ? <><span>{item.floors} kondygn.</span><span>{item.basement ? "Z piwnicą" : "Bez piwnicy"}</span></>
+            : <span>{item.building_type === "renovation" ? item.rooms || "Remont" : item.work_category || "Inne prace"}</span>}</div>
         <div className="job-actions"><button className="quiet-button" disabled={busy} onClick={() => { setEditingJob(item); setError(""); }}>Edytuj</button>
           {item.status === "draft" && <button className="primary-button" disabled={busy} onClick={() => void changeStatus(item, "open")}>Opublikuj</button>}
           {item.status === "open" && <button className="quiet-button" disabled={busy} onClick={() => void changeStatus(item, "cancelled")}>Anuluj publikację</button>}
@@ -234,6 +203,14 @@ export function RoleWorkspace({ session, kind, onChangeType }: {
         <article className="panel business-summary"><p className="eyebrow">{data.employee ? "TWOJE MIEJSCE PRACY" : "PROFIL DZIAŁALNOŚCI"}</p><h2>{business.name}</h2>
           <p>{business.profile.description}</p><dl><dt>Branża</dt><dd>{business.profile.industry}</dd><dt>Adres</dt><dd>{business.profile.address}, {business.profile.postal_code} {business.profile.city}</dd><dt>Obszar działania</dt><dd>{business.profile.service_area} · do {business.profile.radius_km} km</dd><dt>Telefon</dt><dd>{business.profile.phone}</dd></dl>
           {business.role === "owner" && !data.employee && <button className="quiet-button" onClick={() => setEditingBusiness(true)}>Edytuj dane {kind === "store" ? "sklepu" : "firmy"}</button>}
+          <section className="market-jobs">
+            <h3>Otwarte zlecenia klientów</h3>
+            {data.marketJobs.length === 0 ? <p>Brak opublikowanych zleceń.</p> : <ul>{data.marketJobs.map((item) => <li key={item.id}>
+              <strong>{item.title}</strong> · {item.city}, {item.postal_code}
+              <span>Termin startu: {item.start_date}</span>
+              <span>{item.report_summary}</span>
+            </li>)}</ul>}
+          </section>
         </article><aside className="workflow-guide"><p className="eyebrow light">{data.employee ? "PANEL PRACOWNIKA" : "ZESPÓŁ"}</p><h2>{data.employee ? "Pracuj razem ze swoim zespołem." : "Zbuduj swój zespół."}</h2>
           <p>{data.employee ? "Masz dostęp do profilu swojego pracodawcy. Zarządzanie kontami pracowników jest dostępne wyłącznie dla właściciela." : "Dodaj pracownika, podając jego e-mail. Otrzymasz hasło tymczasowe do przekazania tej osobie."}</p>
           {!data.employee && business.role === "owner" && <button className="primary-button" onClick={() => setTab("employees")}>Dodaj pracownika <span aria-hidden="true">→</span></button>}
