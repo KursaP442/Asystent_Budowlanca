@@ -155,16 +155,37 @@ przyjmuje zdjęcie albo wybraną stronę PDF; propozycja OpenAI staje się edyto
 Nie pokazujemy pozornych, niewdrożonych funkcji 3D. Skala skanu wymaga dwóch punktów o znanej odległości.
 
 Doprecyzowanie edytora: dane budowy, technologie i dokumentacja mają wspólną przestrzeń roboczą.
-Rysunki są numerowanymi, klikalnymi krokami. Zielony oznacza zapisaną niepustą geometrię, czerwony pusty
-rysunek; nie jest to zatwierdzenie konstrukcyjne ani potwierdzenie kompletności przedmiaru.
+Numerowane kroki oznaczają etapy, np. „1 Fundamenty”; rysunki są ich podpunktami.
+Zielony etap wymaga zapisanej niepustej geometrii wszystkich podpunktów, czerwony oznacza brakujące rysunki;
+nie jest to zatwierdzenie konstrukcyjne ani potwierdzenie kompletności przedmiaru.
 Płótno ma zoom kółkiem wokół kursora, osie, linijki, odczyt X/Y w mm i regulowane przyciąganie.
 Narzędzia zależą od rodzaju i funkcji rysunku: fundamenty rozróżniają ławy, stopy, ściany i słupy;
 strop, dach, zbrojenie, elewacje, nawierzchnie, wykończenia oraz ogrodzenia mają odrębne profile.
+Narożniki mają ciągły podgląd ruchu bez kwantyzacji siatki; jeden gest to jedna operacja cofania.
+Wymiary odnoszą się do zewnętrznych krawędzi rdzenia, a grubości izolacji są wymiarowane oddzielnie.
+Stopy i słupy są prostokątami rysowanymi przeciągnięciem, z edytowalną długością i szerokością.
 Ściany mają połączone narożniki i wymiarowanie z liniami pomocniczymi. Materiały i grubości warstw
 przypisuje się do elementów; preferencje ankiety nie mogą zastąpić danych projektu.
 Rzuty mogą być wykorzystane jako wersjonowane podkłady kolejnych rysunków z zachowaniem otworów.
 Automatyczne rozwinięcia ścian bazują na jawnych wysokościach, parapetach i otworach; nie generują
-domyślnie projektu konstrukcyjnego przekroju. Kreator zbrojenia wymaga danych z projektu.
+domyślnie projektu konstrukcyjnego przekroju.
+
+Ściana fundamentowa otrzymuje podparcie wybrane z technologii budowy. Przy mieszanym posadowieniu
+użytkownik wybiera je przed rysowaniem ściany. Automatyczna ława zachowuje relację ze ścianą; szerokość,
+wysokość, materiał i odniesienie do projektu wpisuje użytkownik. Płyta powstaje po zamknięciu nierozgałęzionego
+obwodu ścian, z jawnym wysunięciem poza lico; ściany wewnętrzne nie wyznaczają obwodu.
+Automatyczne podparcie aktualizuje się przy edycji ścian. Stopy, pale, posadowienie istniejące i nietypowe
+wymagają ręcznego przeniesienia rozwiązania konstrukcyjnego — nie zgadujemy ich rozstawu ani nośności.
+Ocieplenie i hydroizolację wybrane w ankiecie oznacza się na ścianie z projektową grubością i stroną.
+Rzut ma wymiary elementów i gabarytów oraz legendę materiałów. Fundamenty obejmują także osobny rysunek
+detali izolacji, odwodnienia i przejść. Lista referencji obejmuje rzut, przekroje/rzędne, zbrojenie, izolacje,
+geotechnikę, opis materiałów i przejścia branżowe; numer referencji nie oznacza weryfikacji jej treści.
+
+Graficzny kreator zbrojenia w osobnym oknie rozróżnia geometrię, parametry prętów/strzemion i położenie.
+Przekrój można zmieniać uchwytem lub liczbowo; podgląd pokazuje otulinę, strzemiona i pręty górne/dolne.
+Zapisuje również detal przekroju na canvas. Układ można przypisać do ściany, ławy lub belki bieżącego rysunku
+albo wersjonowanego podkładu. Podąża za przesunięciem/obrotem podparcia; zmiana długości wymaga ponownego
+sprawdzenia, bez automatycznego rozciągania prętów. Kreator wymaga danych z projektu.
 Rzut strzemion nie jest długością prętów do przedmiaru. Pełne odwzorowanie dowolnej dokumentacji 1:1,
 przekroje konstrukcyjne i rozwinięcia gięcia są wymaganiami docelowymi, nie ukończoną funkcją.
 

@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { classifyCadTrace, copyCadGeometry, createCadElement, createReinforcementLayout, entityPoints, getCadApprovalIssues, moveCadJunction,
-  projectCadWallElevations, snapCadEndpoint, translateConnectedCadEntity } from "../dist/index.js";
-import { CadDocumentSchema, cadDrawingTools, getCadDrawingTools, projectDocumentationCatalog } from "@asystent/schemas";
+  projectCadWallElevations, resizeCadRectangle, resizeCadStrip, snapCadEndpoint, translateConnectedCadEntity } from "../dist/index.js";
+import { CadDocumentSchema, cadDrawingTools, emptyConstructionTechnologySelections, getCadDrawingTools, projectDocumentationCatalog } from "@asystent/schemas";
 
 const common = () => ({ id: randomUUID(), layerId: "wall", units: "mm", reviewStatus: "draft",
   source: { origin: "manual", documentId: null, page: null, confidence: null } });
@@ -120,4 +120,25 @@ test("material layers retain real thickness and reject empty material or zero th
   a.buildUp = [{ purpose: "thermal", material: "XPS", thicknessMm: 150, side: "left" }];
   assert.equal(document([a]).entities[0].buildUp[0].thicknessMm, 150);
   assert.throws(() => document([{ ...a, buildUp: [{ ...a.buildUp[0], thicknessMm: 0 }] }]));
+});
+test("foundation slab follows saved technology; pad dimensions update actual geometry", () => {
+  const technology = structuredClone(emptyConstructionTechnologySelections);
+  technology.foundationType = ["strip-footings"];
+  assert.ok(!getCadDrawingTools("foundation", "Rzut fundamentów", technology).includes("slab"));
+  technology.foundationType.push("foundation-slab");
+  assert.ok(getCadDrawingTools("foundation", "Rzut fundamentów", technology).includes("slab"));
+  technology.foundationType = [];
+  technology.otherFoundationType = ["according-to-project"];
+  assert.ok(getCadDrawingTools("foundation", "Rzut fundamentów", technology).includes("slab"));
+  technology.otherFoundationType = ["other-foundation-slab"];
+  assert.ok(getCadDrawingTools("foundation", "Rzut fundamentów", technology).includes("slab"));
+  const pad = createCadElement("pad", [{ x: 0, y: 0 }, { x: 2000, y: 0 }, { x: 2000, y: 1000 }, { x: 0, y: 1000 }], { id: randomUUID() });
+  const resized = resizeCadRectangle(pad, 2500, 1500);
+  assert.deepEqual(resized.geometry.vertices[2], { x: 2500, y: 1500 });
+  assert.deepEqual(pad.geometry.vertices[2], { x: 2000, y: 1000 });
+  assert.throws(() => resizeCadRectangle(pad, 0, 10));
+  const footing = createCadElement("footing", [{ x: 0, y: 0 }, { x: 5000, y: 0 }], { id: randomUUID() });
+  const adjusted = resizeCadStrip(footing, 6000);
+  assert.equal(adjusted.geometry.end.x + adjusted.attributes.widthMm, 6000);
+  assert.throws(() => resizeCadStrip(footing, footing.attributes.widthMm));
 });

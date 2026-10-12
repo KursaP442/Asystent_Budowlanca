@@ -1,5 +1,33 @@
 import { CadDocumentSchema, CadEntitySchema, type CadDocument, type CadEntity, type CadPoint } from "@asystent/schemas";
-import { calibrationScale } from "@asystent/geometry";
+import { calibrationScale, rectangleFromCorners } from "@asystent/geometry";
+
+export function resizeCadRectangle(entity: CadEntity, lengthMm: number, widthMm: number): CadEntity {
+  if (!("vertices" in entity.geometry) || entity.geometry.vertices.length !== 4
+    || ![lengthMm, widthMm].every((value) => Number.isFinite(value) && value > 0 && value <= 1000000)) {
+    throw new Error("Podaj dodatnie wymiary prostokąta, maksymalnie 1 000 000 mm.");
+  }
+
+  const xs = entity.geometry.vertices.map((point) => point.x), ys = entity.geometry.vertices.map((point) => point.y);
+  const x = Math.min(...xs), y = Math.min(...ys);
+  const corners = new Set(entity.geometry.vertices.map((point) => `${point.x},${point.y}`));
+  if (corners.size !== 4 || xs.some((value) => value !== x && value !== Math.max(...xs))
+    || ys.some((value) => value !== y && value !== Math.max(...ys))) throw new Error("Element nie jest prostokątem osiowym.");
+  return CadEntitySchema.parse({ ...entity, reviewStatus: "draft",
+    geometry: { vertices: rectangleFromCorners({ x, y }, { x: x + lengthMm, y: y + widthMm }) } });
+}
+
+export function resizeCadStrip(entity: CadEntity, exteriorLengthMm: number): CadEntity {
+  if (entity.kind !== "wall" && entity.kind !== "footing" && entity.kind !== "construction-line") throw new Error("Element nie ma prostokątnego przekroju w rzucie.");
+  const width = entity.kind === "wall" ? entity.attributes.thicknessMm : entity.attributes.widthMm;
+  const { start, end } = entity.geometry;
+  const centerLength = Math.hypot(end.x - start.x, end.y - start.y);
+  if (!width || !centerLength || !Number.isFinite(exteriorLengthMm) || exteriorLengthMm <= width || exteriorLengthMm > 1000000) {
+    throw new Error("Długość zewnętrzna musi być większa od szerokości elementu i nie większa niż 1 000 000 mm.");
+  }
+  const scale = (exteriorLengthMm - width) / centerLength;
+  return CadEntitySchema.parse({ ...entity, reviewStatus: "draft",
+    geometry: { start, end: { x: start.x + (end.x - start.x) * scale, y: start.y + (end.y - start.y) * scale } } });
+}
 
 function samePoint(a: CadPoint, b: CadPoint) { return Math.hypot(a.x - b.x, a.y - b.y) < 0.001; }
 export function hasCadJunctions(entity: CadEntity): boolean {
@@ -68,12 +96,17 @@ export function copyCadGeometry(source: CadDocument, target: CadDocument, create
   if (from.sourceImage && !from.calibration) throw new Error("Najpierw skalibruj źródłowy skan.");
   if (!from.entities.length) throw new Error("Rysunek źródłowy jest pusty.");
   const ids = new Map(from.entities.map((entity) => [entity.id, createId()]));
+  const groups = new Map(from.entities.flatMap((entity) => entity.placement ? [[entity.placement.groupId, createId()] as const] : []));
   const entities = from.entities.map((entity) => CadEntitySchema.parse({
     ...entity, id: ids.get(entity.id), reviewStatus: "draft",
     derivedFrom: { documentId: from.id, entityId: entity.id, revision: from.revision },
     ...(entity.kind === "opening" ? { attributes: { ...entity.attributes, wallId: ids.get(entity.attributes.wallId) } } : {}),
+    ...(entity.supportFor ? { supportFor: entity.supportFor.map((id) => ids.get(id)) } : {}),
+    ...(entity.placement ? { placement: { ...entity.placement, hostId: ids.get(entity.placement.hostId),
+      groupId: groups.get(entity.placement.groupId) } } : {}),
   }));
-  return CadDocumentSchema.parse({ ...to, status: "draft", entities: [...to.entities, ...entities] });
+  return CadDocumentSchema.parse({ ...to, status: "draft", entities: [...to.entities, ...entities],
+    ...((from.documentReferences || to.documentReferences) ? { documentReferences: { ...from.documentReferences, ...to.documentReferences } } : {}) });
 }
 
 export function projectCadWallElevations(source: CadDocument, target: CadDocument, createId: () => string): CadDocument {

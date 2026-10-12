@@ -111,29 +111,27 @@ export function ProjectDocumentationQuestionnaire({ jobId, scope, onBack, onSave
       {error && <button type="button" className="quiet-button" onClick={() => setLoadAttempt((value) => value + 1)}>Ponów wczytywanie dokumentacji</button>}
       <button type="button" className="quiet-button" onClick={() => onBack("details")}>Wróć do danych budowy</button></>
       : current && <>
-        <nav className="cad-drawing-progress" aria-label="Postęp rysunków">
-          {drawingSteps.map((item, i) => <button type="button" key={item.id} disabled={busy || cadPending || !completionLoaded}
-            aria-current={item.id === currentDrawingId ? "step" : undefined}
-            data-completion={(completion[item.id] ?? 0) > 0 ? "saved" : "empty"}
-            title={(completion[item.id] ?? 0) > 0 ? "Zapisany szkic — nie oznacza zatwierdzenia" : "Brak obiektów na rysunku"}
-            onClick={() => navigateDrawing(i)}><b>{(completion[item.id] ?? 0) > 0 ? "✓" : i + 1}</b><span>{item.label}</span></button>)}
+        <nav className="cad-drawing-progress" aria-label="Etapy projektu">
+          {requirements.map((item, i) => {
+            const complete = item.drawings.every((_, j) => (completion[`${item.id}-drawing-${j}`] ?? 0) > 0);
+            return <button type="button" key={item.id} disabled={busy || cadPending || !completionLoaded}
+              aria-current={item.id === current.id ? "step" : undefined}
+              data-completion={complete ? "saved" : "empty"}
+              title={complete ? "Wszystkie rysunki zapisane — nie oznacza zatwierdzenia" : "Etap ma puste rysunki"}
+              onClick={() => void save({ ...draft, step: item.id })}><b>{complete ? "✓" : i + 1}</b><span>{item.label}</span>
+              <small>{item.drawings.filter((_, j) => (completion[`${item.id}-drawing-${j}`] ?? 0) > 0).length}/{item.drawings.length} rysunków</small>
+            </button>;
+          })}
         </nav>
-        <div className="cad-stage-picker"><label htmlFor="documentation-step">Etap dokumentacji</label><select id="documentation-step" disabled={busy || cadPending} value={draft.step}
-          onChange={(event) => void save({ ...draft, step: event.target.value })}>
-          {requirements.map(({ id, label }) => <option key={id} value={id}>{label}</option>)}
-        </select></div>
-        <div className="cad-stage-tabs" role="tablist" aria-label="Etapy projektu">
-          {requirements.map(({ id, label, drawings }) => <button key={id} type="button" role="tab" aria-selected={draft.step === id}
-            data-completion={drawings.every((_, i) => (completion[`${id}-drawing-${i}`] ?? 0) > 0) ? "saved" : "empty"}
-            disabled={busy || cadPending} onClick={() => void save({ ...draft, step: id })}>{label}</button>)}
-        </div>
         <div className="cad-stage-tabs cad-drawing-tabs" role="tablist" aria-label="Rysunki etapu">
-          {current.drawings.map((label, i) => <button key={label} type="button" role="tab" aria-selected={drawingIndex === i}
+          {current.drawings.map((label, i) => <button key={label} type="button" role="tab" aria-label={label} aria-selected={drawingIndex === i}
             data-completion={(completion[`${current.id}-drawing-${i}`] ?? 0) > 0 ? "saved" : "empty"}
-            disabled={busy || cadPending} onClick={() => navigateDrawing(drawingSteps.findIndex((item) => item.id === `${current.id}-drawing-${i}`))}>{label}</button>)}
+            disabled={busy || cadPending} onClick={() => navigateDrawing(drawingSteps.findIndex((item) => item.id === `${current.id}-drawing-${i}`))}>
+            <span aria-hidden="true">{i + 1}. </span>{label}</button>)}
         </div>
         <StageCadEditor key={`${current.id}-drawing-${drawingIndex}`} jobId={jobId}
           requirementId={currentDrawingId} title={current.drawings[drawingIndex]} kind={current.kind}
+          technology={scope.technology}
           technologyHints={getCadTechnologyHints(current.kind, scope.workType, scope.technology)}
           sources={drawingSteps.filter((item) => (completion[item.id] ?? 0) > 0)} onPendingChange={onCadPending} onSavedDrawing={onSavedDrawing} />
         <p className="cad-disclaimer">Zielony: zapisano obiekty. Czerwony: pusty rysunek. Kolory nie oznaczają zatwierdzenia ani kompletności przedmiaru.</p>

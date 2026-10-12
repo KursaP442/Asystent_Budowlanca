@@ -3,6 +3,16 @@ import type { ProjectDocumentationKind } from "./construction-documentation.js";
 import { constructionTechnologyCatalog, getConstructionTechnologyStages, type ConstructionTechnologySelections,
   type ConstructionTechnologyKey, type ConstructionWorkType } from "./construction-technology.js";
 
+  export const foundationDocumentChecklist = {
+    plan: "Rzut konstrukcyjny fundamentów: osie, wymiary i oznaczenia elementów",
+    sections: "Przekroje, rzędne posadowienia i odniesienie do poziomu ±0,00",
+    reinforcement: "Detale zbrojenia, zakotwienia, zakłady i zestawienie prętów",
+    isolation: "Detale hydroizolacji, ocieplenia i połączenia z podłogą",
+    geotechnics: "Opinia / dokumentacja geotechniczna i warunki gruntowo-wodne",
+    concrete: "Opis konstrukcji: klasy betonu i stali, otulina, podbeton i zasypki",
+    penetrations: "Przejścia instalacyjne, uziom i odwodnienie — jeżeli przewidziano",
+  } as const;
+
 export const cadDrawingTools = [
   { id: "footing", label: "Ława fundamentowa", geometry: "line" },
   { id: "foundation-wall", label: "Ściana fundamentowa", geometry: "line" },
@@ -38,6 +48,18 @@ export const cadDrawingTools = [
 ] as const;
 export type CadDrawingTool = typeof cadDrawingTools[number]["id"];
 
+export function getFoundationSupportOptions(technology: ConstructionTechnologySelections) {
+  const selected = [...technology.foundationType, ...technology.otherFoundationType];
+  const options: { value: "strip" | "slab" | "manual"; label: string }[] = [];
+  if (selected.some((v) => ["strip-footings", "combined-footing", "other-foundation-strip"].includes(v))) options.push({ value: "strip", label: "Ława pod ścianą" });
+  if (selected.some((v) => ["foundation-slab", "other-foundation-slab"].includes(v)) || technology.foundationWalls === "foundation-slab-only") {
+    options.push({ value: "slab", label: "Płyta — z zamkniętego obwodu ścian" });
+  }
+  if (!options.length || selected.some((v) => !["strip-footings", "combined-footing", "other-foundation-strip",
+    "foundation-slab", "other-foundation-slab"].includes(v))) options.push({ value: "manual", label: "Podparcie istniejące / inne — z rysunku projektu" });
+  return options;
+}
+
 const structural: CadDrawingTool[] = ["wall", "opening", "column", "beam", "lintel", "ring-beam", "slab", "void"];
 const profiles: Record<ProjectDocumentationKind, CadDrawingTool[]> = {
   foundation: ["footing", "foundation-wall", "wall", "pad", "column", "slab", "void"],
@@ -62,15 +84,23 @@ const profiles: Record<ProjectDocumentationKind, CadDrawingTool[]> = {
   specialist: ["wall", "slab", "section", "equipment", "pipe", "terrain"],
 };
 
-export function getCadDrawingTools(kind: ProjectDocumentationKind, drawingTitle: string): CadDrawingTool[] {
+export function getCadDrawingTools(kind: ProjectDocumentationKind, drawingTitle: string,
+  technology?: ConstructionTechnologySelections): CadDrawingTool[] {
   const reinforcement = /zbrojeni|prętów/i.test(drawingTitle) && !/rzut stropu/i.test(drawingTitle) && kind !== "roofStructure";
   const section = /przekro|profile|rozwinięcia|schemat/i.test(drawingTitle);
-  const specific = reinforcement ? ["rebar-line", "section", "dimension", "annotation"] as CadDrawingTool[]
+  const specific = kind === "foundation" && /Detale izolacji/i.test(drawingTitle) ? ["section", "foundation-wall", "footing", "drain", "pipe", "void"] as CadDrawingTool[]
+    : reinforcement ? ["rebar-line", "section", "dimension", "annotation"] as CadDrawingTool[]
     : /rzut stropu/i.test(drawingTitle) ? ["slab", "void", "beam", "column", "ring-beam", "rebar-line"] as CadDrawingTool[]
       : section ? [...profiles[kind].filter((tool) => !["roof-plane", "slab", "paving", "terrain"].includes(tool)), "section" as const]
       : profiles[kind];
-  return [...new Set([...specific, ...(/strop.*zbrojen/i.test(drawingTitle) ? ["rebar-line" as const] : []),
+  const result = [...new Set([...specific, ...(/strop.*zbrojen/i.test(drawingTitle) ? ["rebar-line" as const] : []),
     "axis", "section-cut", "dimension", "annotation"] as CadDrawingTool[])];
+  if (kind === "foundation" && technology && !technology.foundationType.includes("foundation-slab")
+    && !technology.otherFoundationType.includes("other-foundation-slab")
+    && technology.foundationWalls !== "foundation-slab-only"
+    && !technology.foundationType.includes("according-to-project")
+    && !technology.otherFoundationType.includes("according-to-project")) return result.filter((tool) => tool !== "slab");
+  return result;
 }
 
 export function cadEntityTool(entity: CadEntity): CadDrawingTool | null {

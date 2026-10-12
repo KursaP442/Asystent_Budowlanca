@@ -1,4 +1,6 @@
-import { CadDocumentSchema, cadEntityTool, getCadDrawingTools } from "@asystent/schemas";
+import { CadDocumentSchema, ConstructionTechnologySchema, cadEntityTool, getCadDrawingTools, getFoundationSupportOptions } from "@asystent/schemas";
+import { FoundationAssemblyError, synchronizeFoundationSupports } from "@asystent/domain";
+import { OutlineGeometryError } from "@asystent/geometry";
 import { apiError, createAdminClient } from "@/lib/server-supabase";
 import { findDrawingRequirement, requireCadOwner } from "@/lib/cad-api";
 
@@ -17,7 +19,17 @@ export async function POST(request: Request) {
     if (access.response) return access.response;
     const drawingRequirement = findDrawingRequirement(access.job, document.requirementId);
     if (!drawingRequirement) return apiError("Etap nie należy do zakresu budowy.", 400);
-    const allowed = getCadDrawingTools(drawingRequirement.requirement.kind, drawingRequirement.requirement.drawings[drawingRequirement.index]);
+    const technology = ConstructionTechnologySchema.parse(JSON.parse(access.job.materials));
+    const allowed = getCadDrawingTools(drawingRequirement.requirement.kind, drawingRequirement.requirement.drawings[drawingRequirement.index], technology);
+    const supportOptions = getFoundationSupportOptions(technology);
+    if (document.entities.some((e) => e.foundationBase && !e.derivedFrom && !supportOptions.some((option) => option.value === e.foundationBase?.type))) {
+      return apiError("Podparcie ściany nie odpowiada sposobowi posadowienia w danych budowy.", 400);
+    }
+    const expectedSupports = synchronizeFoundationSupports(document, () => crypto.randomUUID()).entities.filter((e) => e.supportFor && !e.derivedFrom);
+    const actualSupports = document.entities.filter((e) => e.supportFor && !e.derivedFrom);
+    if (expectedSupports.length !== actualSupports.length || expectedSupports.some((expected) =>
+      !actualSupports.some((actual) => actual.id === expected.id && JSON.stringify(actual.geometry) === JSON.stringify(expected.geometry)
+        && JSON.stringify(actual.attributes) === JSON.stringify(expected.attributes)))) return apiError("Podparcia muszą odpowiadać geometrii i parametrom ścian.", 400);
     if (document.entities.some((entity) => {
       const tool = cadEntityTool(entity);
       return tool && !entity.derivedFrom && !allowed.includes(tool);
@@ -51,6 +63,7 @@ export async function POST(request: Request) {
     }
     return Response.json({ revision: data }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
+    if (error instanceof FoundationAssemblyError || error instanceof OutlineGeometryError) return apiError(error.message, 400);
     if (error instanceof SyntaxError) return apiError("Nieprawidłowe dane rysunku.", 400);
     console.error("CAD save failed", { type: error instanceof Error ? error.name : "DatabaseError" });
     return apiError("Nie udało się zapisać rysunku. Ponów zapis.", 500);

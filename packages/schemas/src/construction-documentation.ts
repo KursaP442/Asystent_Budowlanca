@@ -9,7 +9,8 @@ import {
 export const projectDocumentationCatalog = {
   foundation: {
     label: "Fundamenty",
-    drawings: ["Rzut fundamentów z osiami i wymiarami", "Przekroje fundamentów i poziomy posadowienia", "Detale zbrojenia i zestawienie prętów"],
+    drawings: ["Rzut fundamentów z osiami i wymiarami", "Przekroje fundamentów i poziomy posadowienia", "Detale zbrojenia i zestawienie prętów",
+      "Detale izolacji, odwodnienia i przejść instalacyjnych"],
     measurements: ["Wymiary i rzędne ław, stóp, płyty oraz ścian fundamentowych", "Warstwy podłoża, hydroizolacji i izolacji cieplnej", "Klasa betonu, stal i zbrojenie wyłącznie z projektu konstrukcyjnego"],
   },
   basement: {

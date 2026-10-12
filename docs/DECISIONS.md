@@ -382,3 +382,33 @@ nie mogą przejść zatwierdzania jako fizyczne pręty. Zbrojenie nadal wymaga k
 Usunięto UI pomiarów opisowych, zachowując starsze dane. Obecny zestaw jest rozszerzonym szkicem CAD,
 nie pełnym zamiennikiem branżowego CAD 1:1. Nie ma jeszcze pełnych przekrojów konstrukcyjnych,
 kształtów gięcia z łukami/hakami, kompletnej topologii otworów powierzchniowych ani zweryfikowanego przedmiaru.
+
+## ADR-023: Zależne podparcia fundamentów i graficzne układy zbrojenia
+
+**Kontekst:** Użytkownik wymaga prostych etapów z podpunktami, ciągłej edycji narożników, wymiarów
+zewnętrznych, automatycznych fundamentów pod ścianami oraz graficznego kreatora belki z miejscem ułożenia.
+Potwierdził wybór podparcia przy rysowaniu każdej ściany, gdy technologia obejmuje kilka rozwiązań.
+
+**Decyzja:** Podgląd gestu jest oddzielony od utrwalonego dokumentu; po zwolnieniu wskaźnika zapisuje się
+jedno polecenie. Ruch wykorzystuje różnicę współrzędnych, bez snapu i bez skoku do środka uchwytu.
+Wymiary rdzenia wynikają z jego obrysu, nie z osi. Dla istniejącego modelu odcinka z kwadratowymi końcami
+długość zewnętrzna to długość osi plus szerokość. Izolacje mają osobne wymiary i legendę.
+
+Opcjonalne `foundationBase` ściany zapisuje projektowe parametry ławy/płyty albo ręcznego posadowienia.
+`supportFor` wskazuje ściany generujące ławę lub płytę. Synchronizacja w domain jest wspólna dla commit,
+podglądu i kontroli API. Zamknięty nierozgałęziony obwód płyty wyznacza odsunięty wielokąt; otwarty obwód
+jest celowo szkicem bez wygenerowanej płyty. Rozgałęzienia i sprzeczne parametry dają jawny błąd.
+Płyta bez ścian może być rysowana ręcznie, gdy technologia na nią pozwala. Pozostałe typy posadowienia
+nie otrzymują wymyślonego rozstawu podpór.
+
+Kreator zbrojenia jest dialogiem z trzema krokami: geometria, pręty, umiejscowienie. Nowy detal przekroju
+jest opcjonalną strukturą `section` w adnotacji zbrojenia; starsze układy pozostają czytelne.
+Pręty górne/dolne mają osobne warstwy. `placement` przechowuje ID podparcia, grupę i ramę początkową:
+przesunięcie/obrót przenosi układ sztywno, zmiana długości ustawia `needsReview`, zamiast rozciągać pręty.
+Kopia rysunku przepisuje relacje podpór i grup oraz zachowuje referencje dokumentów.
+
+**Konsekwencje:** Etap jest zielony dopiero po zapisaniu geometrii każdego podpunktu. Dodatkowy rysunek
+fundamentów ma indeks 3; wcześniejsze indeksy i stare dokumenty zachowano. Rozszerzenia JSON są opcjonalne;
+nie zmieniają tabel ani nie wymagają migracji. Strzemiona nadal są projekcją, bez długości gięcia.
+Nie rozwiązano doboru konstrukcyjnego, pełnej topologii powierzchni, układów gięcia ani zatwierdzonego
+przedmiaru. Rysunki oraz referencje dokumentów nie są dowodem kompletności projektu 1:1.

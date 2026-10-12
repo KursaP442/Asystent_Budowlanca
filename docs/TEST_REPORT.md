@@ -3,6 +3,31 @@
 Zasada: zapisujemy **dokładne komendy**, **datę**, **środowisko** i **rzeczywisty wynik** (PASS/FAIL/BLOCKED/NOT RUN).
 Nigdy nie wpisujemy ogólnego „działa” bez dowodu z uruchomienia.
 
+## Sesja 26 — 12 października 2026
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|---|
+| `pnpm --filter @asystent/domain test`, `pnpm --filter web build` | pierwsze iteracje helperów/profilu podpór | FAIL | poprawiono położenie eksportu, rozróżnienie thickness/width i guard typów hosta |
+| `pnpm --filter web lint` | pierwsza wersja pól prostokąta | FAIL | handler wewnątrz map wywoływał fałszywy alarm refs; pola uproszczono |
+| `pnpm --filter web exec playwright test --grep 'CAD workspace\|stage canvas\|work-specific'` | zmiana nawigacji | FAIL | stary test używał nieaktualnej nazwy etapu; poprawiono i ponowiono |
+| `pnpm --filter web exec playwright test --grep 'CAD smooth'` | iteracje nowego scenariusza | FAIL | poprawiono rzeczywisty flow helpera, nazwy narzędzi i listy; różnica ruchu zachowuje offset uchwytu |
+| `pnpm --filter @asystent/domain test` | pierwsza asercja płyty | FAIL | dokładna równość float nie reprezentuje tolerancji modelu; sprawdzono 0,000001 mm dla każdego wierzchołka |
+| `pnpm --filter web exec playwright test --grep 'foundation wall generates'` | pierwsza asercja wymiarów | FAIL | locator miał dwa elementy; poprawiono asercję obu grup wymiarowych |
+| `pnpm --filter @asystent/geometry test` | obrysy, wymiary zewnętrzne, odsunięcia i viewport | PASS | 13/13 |
+| `pnpm --filter @asystent/schemas test` | zgodność kontraktów i wszystkich konfiguracji zakresu | PASS | 32/32 |
+| `pnpm --filter @asystent/domain test` | zależne fundamenty, relacje kopii i zbrojenie | PASS | 23/23; ława/płyta, niezamknięty obwód, sprzeczne parametry, relacje i zmiany długości hosta |
+| `pnpm typecheck` | cały workspace | PASS | 13 zadań Turbo |
+| `pnpm lint` | istniejące linters workspace | PASS | 7 zadań Turbo |
+| `pnpm --filter web build` | końcowy produkcyjny Web | PASS | TypeScript, bundle i worker PDF |
+| `pnpm --filter web exec playwright test` | końcowa pełna regresja Edge | PASS | 10/10; zapis, refresh, izolacja kont, import mock, ciągły ruch 1 px, dokładne wymiary, podpory, izolacje, graficzny dialog i położenie belki |
+| `pnpm --filter web build`, `pnpm --filter web lint`, `pnpm --filter web exec playwright test --grep 'foundation wall generates'` | końcowa kontrola skali uchwytu przekroju | PASS | 1/1; test porównuje dokładną zmianę obu wymiarów z przesunięciem 5 px i rzeczywistą skalą SVG, również z letterboxing |
+| Dialog/screenshoty desktop i mobile | graficzny kreator | PASS | geometryczny uchwyt przed wpisaniem prętów; top/bottom, otulina i rzut; 390 px bez poziomego overflow |
+| HTTP aplikacji i PDF worker na `127.0.0.1:3010` | restart końcowego builda | PASS | 200/200; nie odświeżano formularza użytkownika |
+| `git diff --check` | pliki tej sesji | PASS | brak błędów whitespace |
+| pgTAP / migracje | brak zmian bazy | NOT RUN | API/RLS objęte regresją E2E; brak resetu danych |
+| Pełna wierność CAD 1:1, pionowe przekroje warstw/rzędnych, fizyczne gięcie i przedmiar | wymagania docelowe | NOT RUN | nie deklarujemy ukończenia na podstawie rzutów/projekcji |
+| Rzeczywiste OpenAI | klucz i zgoda użytkownika | BLOCKED | bez płatnego wywołania |
+
 ## Sesja 25 — 12 października 2026
 
 | Komenda / kontrola | Kontekst | Wynik | Uwagi |

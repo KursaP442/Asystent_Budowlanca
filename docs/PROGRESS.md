@@ -15,6 +15,8 @@ i od czego zacząć kolejną sesję. **To jest pierwszy plik, który agent powin
   ma **PASS**. Analiza rzeczywistym OpenAI — **BLOCKED** do konfiguracji klucza i szyfrowania.
   Dodano profile narzędzi etapu, warstwy materiałowe, węzły ścian, zoom/linijki, krokowy status rysunków,
   kopiowanie rzutów, rozwinięcia ścian i kreator rzutów zbrojenia. Nie oznacza to pełnego CAD 1:1.
+  Etapy mają podpunkty, narożniki ciągły podgląd, a fundamenty zależne ławy/płyty i izolacje.
+  Graficzny kreator przekroju belki zapisuje położenie na podparciu; po zmianie długości wymaga sprawdzenia.
   MCP, 3D, korekcja perspektywy i pełny zweryfikowany przedmiar pozostają niezakończone.
 - **Tryb pracy:** wyłącznie lokalny (bez hostingu/wdrożenia). Repozytorium Git istnieje tylko lokalnie
   (`C:\Users\Patryk\Desktop\Aplikacja_Budowa`), bez zdalnego remote na GitHub.
@@ -910,3 +912,60 @@ Istniejąca publikacja zlecenia nadal publikuje bazowy raport, nie zatwierdzony 
 - Rzeczywiste AI — **BLOCKED** do konfiguracji BYOK/szyfrowania i zgody na płatny test.
 - Następny krok: model poziomów i przekrojów, powiązania otworów powierzchniowych, rozwinięcia prętów
   i obliczenia na potwierdzonych parametrach; test odwzorowania na niesensytywnym projekcie referencyjnym.
+
+## Sesja 26 — 12 października 2026
+
+### Zrobione
+
+1. Uproszczono nawigację: jeden numerowany etap z podpunktami rysunków. Usunięto „Etap dokumentacji”
+   oraz powtórzony pasek etapów. Czerwony etap ma brakujące rysunki; zielony wymaga zapisania wszystkich.
+2. Ruch narożnika i elementu ma podgląd podczas gestu, bez snapu do siatki i początkowego skoku do uchwytu.
+   Zwolnienie myszy dodaje jedną operację undo; anulowanie usuwa podgląd. Nawigacja jest blokowana podczas
+   gestu i niezakończonego zapisu; podgląd nie trafia do autosave.
+3. Zewnętrzny obrys rdzenia ściany/ławy ma wymiary długości i szerokości. Dodano gabaryty rzutu fundamentów.
+   Stopy i słupy rysuje się narożnik–narożnik; długość/szerokość zmienia rzeczywiste wierzchołki prostokąta.
+   Dostępność płyty odpowiada zapisanej technologii także w API.
+4. Dla ściany fundamentowej wybiera się podparcie spośród technologii budowy i przepisuje parametry z projektu.
+   Ława jest tworzona automatycznie i aktualizuje się razem ze ścianą. Płyta powstaje po zamknięciu obwodu,
+   z projektową grubością i wysunięciem poza zewnętrzne lico. Rozgałęzienia i sprzeczne parametry są odrzucane.
+5. Ocieplenie i hydroizolację z ankiety przypisuje się ścianie po podaniu projektowej grubości i strony.
+   Canvas pokazuje oznaczenie warstwy, grubość i legendę zamiast powielania długich nazw na każdej ścianie.
+6. Przejrzano MASTER_SPEC i aneks importu. Fundamenty mają czwarty podpunkt detali izolacji, odwodnienia
+   i przejść oraz zapisywane referencje: rzut, przekroje/rzędne, zbrojenie, izolacje, geotechnika, materiały,
+   instalacje. Nie są to automatycznie zatwierdzone ani wygenerowane dokumenty projektanta.
+7. Kreator zbrojenia jest osobnym, responsywnym dialogiem: graficzny przekrój z uchwytem i wymiarami,
+   pręty górne/dolne, strzemiona, otulina, stal i miejsce ułożenia. Zapisuje rzut i detal na głównym canvas.
+   Układ może należeć do ściany/ławy/belki bieżącego rysunku lub skopiowanego podkładu.
+   Ruch/obrót podparcia przenosi układ; zmiana długości ustawia ostrzeżenie, bez rozciągania prętów.
+8. API odrzuca podparcie niezgodne z ankietą lub geometrią ściany. Kopie przepisują ID zależnych podpór,
+   podparć zbrojenia i grup. Izolacja użytkowników, autosave/retry, skan i kalibracja pozostają pokryte regresją.
+9. Zrestartowano lokalny podgląd na porcie 3010 z końcowego builda, bez przeładowywania formularza użytkownika.
+
+### Weryfikacja
+
+- Geometry/schemas/domain — **PASS**: 13 + 32 + 23 = 68 testów w zmienianych pakietach.
+- Produkcyjny Web build, `pnpm typecheck`, `pnpm lint`, `git diff --check` — **PASS**.
+- Pełny Playwright Edge — **PASS**: 10/10; ruch widoczny przed mouseup co 1 px (bez skoku 100 mm),
+  pojedyncze undo/redo, zewnętrzne 5240/240 mm, zmiana stopy do 1800×1200 mm, trwałość po reload.
+  Nowy scenariusz obejmuje zależną ławę, automatyczną płytę, izolacje, odrzucenie rozjechanej ławy przez API,
+  graficzny kreator, przypisanie do podkładu, zapis przekroju i ostrzeżenie po zmianie długości podparcia.
+- Dialog desktop/mobile i screenshoty — **PASS**; przy 390 px dialog nie ma poziomego overflow.
+  Po końcowej kontroli proporcji SVG ponowiono build/lint i scenariusz fundamentów — **PASS** (1/1);
+  przesunięcie uchwytu przekroju o 5 px daje dokładnie oczekiwaną zmianę mm w obu kierunkach.
+- Podgląd aplikacji i PDF worker — **PASS**: HTTP 200.
+- Pierwsze iteracje — **FAIL**: poprawiono typ grubości rdzenia, położenie eksportu helpera i narrowing listy
+  podpór; poprawiono lint handlera oraz nieaktualne etykiety/selektory nowego testu.
+  Test współrzędnych odsuniętej płyty stosuje tolerancję 0,000001 mm, nie ścisłą równość float.
+- pgTAP — **NOT RUN**: brak zmian SQL; nowe relacje sprawdzają testy domain i API/E2E.
+- Rzeczywiste OpenAI — **BLOCKED**; brak płatnego wywołania.
+
+### Kontynuacja i ograniczenia
+
+- Pełny CAD projektu 1:1, fizyczne kształty gięcia z hakami/łukami i zweryfikowany przedmiar — **NOT RUN**.
+- Ławy/płyta są szkicem odtworzonym z jawnych parametrów, nie doborem nośności.
+  Dla stóp, pali i nietypowego/istniejącego posadowienia układ podpór przenosi się ręcznie z projektu.
+- Brakuje pełnych przekrojów z poziomami, warstwami w pionie i automatycznej kontroli kolizji/zestawień.
+- Wymiary rdzenia i gabaryty nie zastępują wszystkich łańcuchów wymiarowych dowolnego projektu.
+  Połączone pasy nie są jeszcze ujednoliconą bryłą do obliczenia objętości bez podwójnych przecięć.
+- Źródłowe podkłady nadal nie synchronizują się z wcześniejszym dokumentem; związany układ śledzi tylko
+  podparcie w bieżącym rysunku. Zmiana długości wymaga odtworzenia układu z projektu.

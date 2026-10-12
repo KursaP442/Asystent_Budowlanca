@@ -15,6 +15,15 @@ const polygon = z.object({
 }).strict();
 const positiveMm = z.number().finite().positive().max(1_000_000);
 const positiveCount = z.number().int().min(1).max(100_000);
+export const FoundationBaseSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("strip"), widthMm: positiveMm, depthMm: positiveMm,
+    designReference: z.string().trim().min(1).max(240) }).strict(),
+  z.object({ type: z.literal("slab"), thicknessMm: positiveMm, overhangMm: z.number().finite().min(0).max(10000),
+    boundary: z.boolean(), material: z.string().trim().min(1).max(160),
+    designReference: z.string().trim().min(1).max(240) }).strict(),
+  z.object({ type: z.literal("manual"), designReference: z.string().trim().min(1).max(240) }).strict(),
+]);
+export type FoundationBase = z.infer<typeof FoundationBaseSchema>;
 const common = {
   id: z.uuid(),
   layerId: z.string().trim().min(1).max(80),
@@ -33,6 +42,10 @@ const common = {
     side: z.enum(["left", "right", "both"]),
   }).strict()).max(20).optional(),
   derivedFrom: z.object({ documentId: z.uuid(), entityId: z.uuid(), revision: z.number().int().min(0) }).strict().optional(),
+  foundationBase: FoundationBaseSchema.optional(),
+  supportFor: z.array(z.uuid()).min(1).max(1000).optional(),
+  placement: z.object({ hostId: z.uuid(), groupId: z.uuid(), start: CadPointSchema, end: CadPointSchema,
+    needsReview: z.boolean() }).strict().optional(),
 };
 
 export const CadEntitySchema = z.discriminatedUnion("kind", [
@@ -103,6 +116,8 @@ export const CadEntitySchema = z.discriminatedUnion("kind", [
       designReference: z.string().trim().min(1).max(240),
       diameterMm: positiveMm.nullable(), lengthMm: positiveMm.nullable(), count: positiveCount.nullable(),
       specialistVerified: z.boolean(),
+      section: z.object({ widthMm: positiveMm, heightMm: positiveMm, coverMm: positiveMm,
+        topCount: positiveCount, bottomCount: positiveCount, stirrupDiameterMm: positiveMm }).strict().optional(),
     }).strict(),
   }).strict(),
   z.object({
@@ -146,17 +161,32 @@ export const CadDocumentSchema = z.object({
     page: z.number().int().min(1).max(1000).optional(),
   }).strict().nullable().optional(),
   importWarnings: z.array(z.string().min(1).max(1000)).max(40).optional(),
+  documentReferences: z.partialRecord(z.enum(["plan", "sections", "reinforcement", "isolation", "geotechnics", "concrete", "penetrations"]),
+    z.string().trim().max(240)).optional(),
   entities: z.array(CadEntitySchema).max(5000),
 }).strict().superRefine((document, ctx) => {
   const ids = new Set(document.entities.map(({ id }) => id));
   if (ids.size !== document.entities.length) ctx.addIssue({ code: "custom", path: ["entities"], message: "Identyfikatory obiektów CAD muszą być unikalne." });
   const walls = new Set(document.entities.filter(({ kind }) => kind === "wall").map(({ id }) => id));
   for (const [index, entity] of document.entities.entries()) {
+    if (entity.foundationBase && (entity.kind !== "construction-line" || entity.attributes.role !== "foundation-wall")) {
+      ctx.addIssue({ code: "custom", path: ["entities", index], message: "Podparcie przypisuje się do ściany fundamentowej." });
+    }
+    if (entity.supportFor && ((entity.kind !== "footing" && entity.kind !== "slab") || entity.supportFor.some((id) =>
+      !document.entities.some((host) => host.id === id && host.kind === "construction-line" && host.attributes.role === "foundation-wall")))) {
+      ctx.addIssue({ code: "custom", path: ["entities", index], message: "Podparcie musi należeć do ścian fundamentowych tego rysunku." });
+    }
+    if (entity.placement && (!ids.has(entity.placement.hostId) || entity.placement.hostId === entity.id)) {
+      ctx.addIssue({ code: "custom", path: ["entities", index], message: "Zbrojenie musi wskazywać element podparcia w tym rysunku." });
+    }
     if (entity.kind === "opening" && !walls.has(entity.attributes.wallId)) {
       ctx.addIssue({ code: "custom", path: ["entities", index], message: "Otwór musi należeć do ściany w tym dokumencie." });
     }
   }
   if (document.status === "approved") {
+    if (document.entities.some((e) => e.placement?.needsReview)) {
+      ctx.addIssue({ code: "custom", path: ["status"], message: "Sprawdź położenie zbrojenia po zmianie podparcia." });
+    }
     if (!document.entities.length || document.entities.some(({ reviewStatus }) => reviewStatus !== "verified")) {
       ctx.addIssue({ code: "custom", path: ["status"], message: "Zatwierdzenie wymaga niepustej i zweryfikowanej geometrii." });
     }
