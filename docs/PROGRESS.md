@@ -5,8 +5,9 @@ i od czego zacząć kolejną sesję. **To jest pierwszy plik, który agent powin
 
 ## Stan ogólny
 
-- **Aktualny etap:** ETAP 2 (Auth, organizacje, role, RLS) — lokalny Auth, onboarding typu konta, organizacje,
-  członkostwa właściciela i izolacja RLS wdrożone; pgTAP **PASS**. Zaproszenia i automatyczne E2E pozostają do wykonania.
+- **Aktualny etap:** ETAP 2 — podstawowy Auth, trzy ścieżki onboardingu, konta pracowników i izolacja RLS
+  zweryfikowane lokalnie; pgTAP i Playwright **PASS**. ETAP 3 — podstawowe zlecenia i panel klienta wdrożone,
+  pełny kreator i rynek ofert pozostają do wykonania. Nie ma kroku tworzenia organizacji w UI.
   Ograniczenia usług pomocniczych Supabase opisano w `docs/TEST_REPORT.md`.
 - **Tryb pracy:** wyłącznie lokalny (bez hostingu/wdrożenia). Repozytorium Git istnieje tylko lokalnie
   (`C:\Users\Patryk\Desktop\Aplikacja_Budowa`), bez zdalnego remote na GitHub.
@@ -128,7 +129,7 @@ działanie infrastrukturalne: zapewnić Docker Desktop i zweryfikować Supabase 
 2. Sprawdź `docs/TEST_REPORT.md`, aby zobaczyć ostatnie wyniki testów/budowy.
 3. Sprawdź `git log` / `git status` w katalogu repo — jeśli brak commitów, zrób pierwszy commit z aktualnym stanem
    przed dalszą pracą.
-4. Kontynuuj od pierwszego niewykonanego punktu w sekcji „Kontynuacja” sesji 3.
+4. Kontynuuj od sekcji „Kontynuacja” ostatniej sesji, nie od historycznych blokad Dockera z sesji 1–3.
 
 ## Sesja 4 — 11 października 2026
 
@@ -267,3 +268,81 @@ bezpośrednio z przeglądarki. Nie łączyć Supabase Cloud ani nie konfigurowa�
 
 Następnie dodać automatyczny lokalny E2E nowego onboardingu oraz przepływ zaproszeń i bezpiecznego dołączania
 członków. Zmiany zapisać wyłącznie lokalnie; nie konfigurować hostingu ani Supabase Cloud.
+
+## Sesja 8 — 11 października 2026
+
+### Zrobione
+
+1. Przeprojektowano wybór typu konta, dopasowując typografię, paletę, obramowania i stany interakcji do ekranu
+   logowania.
+2. Trzy opcje są teraz pełnowymiarowymi przyciskami-kafelkami: cały kafelek można kliknąć, także klawiaturą;
+   przyciski CTA są wyłącznie wizualnym elementem karty.
+3. Na komputerze kafelki są prezentowane w jednym rzędzie. Na telefonie zachowano trzy kolumny, z mniejszymi
+   ilustracjami i typografią dostosowanymi do szerokości ekranu.
+4. Zrestartowano lokalny serwer Web, aby wymusić wczytanie nowego arkusza CSS zamiast poprzedniego builda.
+
+### Weryfikacja
+
+- `pnpm build`, `pnpm typecheck`, `pnpm lint`, `pnpm test` — **PASS**.
+- Podgląd lokalnej strony w przeglądarce desktop — trzy równe karty obok siebie, zgodne kolorystycznie z ekranem
+  logowania — **PASS**.
+- Semantyka dostępności — trzy elementy `button`, każdy zawiera całą kartę — **PASS**.
+- Weryfikacja mobilna przy 390 px — trzy kolumny po 114 px, bez poziomego przewijania — **PASS**.
+- W ramach kontroli użyto istniejącego lokalnego konta, przywracając jego typ do poprzedniej wartości
+  `client` po sprawdzeniu kafelka — **PASS**.
+- `git diff --check` — **PASS**.
+
+### Kontynuacja
+
+Kontynuować od automatycznych testów E2E onboardingu i przepływu zaproszeń. Nie zmieniać lokalnej konfiguracji
+Supabase ani nie uruchamiać hostingu.
+
+## Sesja 9 — 12 października 2026
+
+### Zrobione
+
+1. Wznowiono niezacommitowane prace graficzne z sesji 8. Zachowano trzy duże przyciski-kafle w jednym rzędzie
+   i stylistykę logowania; poprawiono semantykę przycisków i sprawdzono desktop oraz szerokości 390/320 px.
+2. Uwzględniono najnowszą zmianę wymagań: w UI nie ma „organizacji”. Pierwszy klient trafia bezpośrednio do
+   formularza budowy; po zapisaniu zlecenia i kolejnym logowaniu otwiera się panel Klienta.
+3. Dodano zapisywane w lokalnej bazie budowy: lokalizacja, zakres, rodzaj prac, powierzchnia, kondygnacje,
+   piwnica, dach, materiały, opcjonalny termin i budżet. Panel umożliwia kolejne zlecenia, edycję oraz zmianę
+   statusu szkic/opublikowane/anulowane. Publikacja na razie zapisuje status; feed ofertowania pozostaje do budowy.
+4. Wykonawca/sklep uzupełnia NIP, adres, telefon, branżę, obszar i promień obsługi oraz opis. Atomowy RPC zapisuje
+   profil oraz techniczne uprawnienia w jednej transakcji. Starsze dane i członkostwa nie zostały usunięte.
+5. W panelu firmy/sklepu właściciel tworzy konto pracownika po podaniu e-maila i nazwy. Serwer generuje losowe
+   hasło tymczasowe, przypina nowe konto jako `member` i zwraca hasło jednorazowo. Istniejące konta nie są przejmowane.
+6. Pracownik loguje się przekazanymi danymi, musi ustawić własne hasło i dopiero wtedy widzi panel pracownika.
+   Blokada danych przed zmianą hasła oraz uprawnienia owner/member są egzekwowane w RLS.
+7. Dodano wspólne schematy walidacji i 4 testy jednostkowe, migracje biznesu/zleceń/pracowników oraz pgTAP.
+8. Dodano trwały runner Playwright i 3 scenariusze E2E, obejmujące klienta oraz właściciela/pracownika firmy i sklepu.
+   Pobrany Chromium był blokowany przez Windows (`spawn UNKNOWN`); runner korzysta ze zainstalowanego Microsoft Edge.
+9. Skonfigurowano lokalny klucz serwerowy w ignorowanym `apps/web/.env.local`; nie umieszczono go w kodzie, Git
+   ani zmiennych `NEXT_PUBLIC_*`. Sprawdzenie assetów klienta nie wykryło klucza serwisowego.
+10. Testy tworzyły i usuwały wyłącznie własne tymczasowe konta/dane. Nie usuwano istniejących danych użytkownika.
+
+### Weryfikacja
+
+- `pnpm install --frozen-lockfile`, `pnpm build`, `pnpm typecheck`, `pnpm lint`, `pnpm test` — **PASS** (19 testów jednostkowych).
+- `pnpm db:test` — **PASS** (64 asercje); lint schematu `public` — **PASS**.
+- `pnpm test:e2e` — **PASS** (3 scenariusze: klient, wykonawca/pracownik, sklep/pracownik).
+- Równe kafelki w jednym rzędzie przy 1440/390/320 px, bez poziomego przepełnienia — **PASS**.
+- Podgląd screenshotów formularzy w desktop/mobile — **PASS**; poprawiono rozmiar checkboxa i ograniczono
+  pomocniczy panel na telefonie, aby formularz pojawiał się szybciej.
+- Klucz serwerowy w assetach przeglądarki — **PASS** (nieobecny); środowisko lokalne ignorowane w Git.
+- Lokalny Web na `http://127.0.0.1:3010/` — **PASS** (HTTP 200). Ponowne uruchomienie po zamknięciu sesji:
+  `pnpm --filter web exec next start --hostname 127.0.0.1 --port 3010` (po `pnpm --filter web build`).
+
+### Kontynuacja — produkt nadal w budowie
+
+1. Rozwinąć ETAP 3: wielokrokowy zakres budowy (fundamenty → kondygnacje → dach → materiały), autosave i wersjonowanie
+   danych zlecenia, termin składania ofert i spójne zasady publikacji.
+2. ETAP 4: feed zleceń dla wykonawcy, filtry obszaru/specjalizacji, oferty netto/brutto/VAT, terminy i audyt.
+3. ETAP 5: katalog sklepu, oddziały, RFQ, zamówienia i dostawy.
+4. Następnie ETAPY 6–10 zgodnie z MASTER_SPEC: przedmiary, CAD, import, AI/BYOK, mobile i beta. Te funkcje
+   pozostają **NOT RUN** i nie są deklarowane jako gotowe.
+5. Rozbudować zarządzanie personelem (dezaktywacja, reset hasła, zaproszenie istniejącego konta) i testy awarii
+   infrastruktury. Aktualne tworzenie nowych kont i pierwsze logowanie są zweryfikowane.
+
+Praca pozostaje lokalna. Wznowienie: uruchom Docker Desktop, sprawdź `pnpm db:status`, przeczytaj tę sekcję,
+zbuduj Web i kontynuuj od pierwszego niewdrożonego punktu. Nie resetuj bazy i nie konfiguruj hostingu.

@@ -34,15 +34,42 @@ Aby uruchomić Web z lokalnym logowaniem, ustaw w `apps/web/.env.local`:
 ```dotenv
 NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<ANON_KEY z lokalnego pnpm db:status>
+SUPABASE_SERVICE_ROLE_KEY=<SERVICE_ROLE_KEY z lokalnego pnpm db:status — tylko serwer>
 ```
 
-`ANON_KEY` jest kluczem publicznym do klienta przeglądarkowego; nie używaj tu `SECRET_KEY` ani
-`SERVICE_ROLE_KEY`. Lokalne wiadomości potwierdzające e-mail możesz podejrzeć w Mailpit pod adresem
+`ANON_KEY` jest kluczem publicznym do klienta przeglądarkowego. `SUPABASE_SERVICE_ROLE_KEY` jest wymagany tylko
+przez serwer tworzący konta pracowników; nigdy nie dodawaj go do zmiennych `NEXT_PUBLIC_*`, kodu ani Git.
+Lokalne wiadomości potwierdzające e-mail możesz podejrzeć w Mailpit pod adresem
 `http://127.0.0.1:54324`.
 
 Po pierwszym zalogowaniu aplikacja prosi o wybór typu konta: Zleceniodawca, Wykonawca lub Sklep. Wybór jest
-zapisywany w profilu w lokalnej bazie, a następnie otwiera formularz utworzenia organizacji tego typu. Kolejne
-logowania zachowują zapisany wybór.
+zapisywany w profilu w lokalnej bazie:
+
+- Zleceniodawca trafia do formularza pierwszej budowy; po jej zapisaniu kolejne logowania otwierają panel Klienta.
+  Panel obsługuje kolejne zlecenia, edycję i zapis statusu publikacji. Feed dla wykonawców jest następnym etapem.
+- Wykonawca i Sklep zapisują dane działalności, branżę i obszar działania, a potem trafiają do swojego panelu.
+- Właściciel dodaje pracownika przez e-mail i imię/nazwisko. Hasło tymczasowe pokazuje się jednorazowo do
+  przekazania pracownikowi. Pracownik ustawia własne hasło przed dostępem do danych; nie zarządza innymi kontami.
+- Nie ma formularza tworzenia „organizacji”. Techniczne członkostwa nadal zapewniają izolację firmy/sklepu.
+
+Po dodaniu migracji zastosuj je bez resetowania danych:
+
+```bash
+pnpm exec supabase migration up --local
+pnpm build
+pnpm --filter web exec next start --hostname 127.0.0.1 --port 3010
+```
+
+## Lokalne testy E2E
+
+`pnpm test:e2e` uruchamia Playwright w zainstalowanym Microsoft Edge i lokalny build Web na porcie 3011. Najpierw
+uruchom Docker/Supabase, skonfiguruj `apps/web/.env.local` i wykonaj `pnpm build`. Runner odmawia pracy z Supabase
+w chmurze. Testy tworzą tylko własne tymczasowe konta/dane i usuwają je po sprawdzeniu.
+
+```bash
+pnpm db:test
+pnpm test:e2e
+```
 
 ## Struktura
 

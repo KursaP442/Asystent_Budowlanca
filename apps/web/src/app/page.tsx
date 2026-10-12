@@ -1,23 +1,11 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { Session } from "@supabase/supabase-js";
+import type { OrganizationKind } from "@asystent/api-client";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase";
-
-type Organization = {
-  id: string;
-  name: string;
-  kind: "client" | "contractor" | "store";
-  nip: string | null;
-  role: "owner" | "admin" | "member";
-};
-
-const organizationKinds = [
-  { value: "client", label: "Zleceniodawca" },
-  { value: "contractor", label: "Wykonawca" },
-  { value: "store", label: "Sklep" },
-] as const;
+import { RoleWorkspace } from "@/components/role-workspace";
 
 const accountTypes = [
   {
@@ -43,7 +31,7 @@ const accountTypes = [
 function AccountTypeIllustration({
   kind,
 }: {
-  kind: Organization["kind"];
+  kind: OrganizationKind;
 }) {
   if (kind === "client") {
     return (
@@ -73,62 +61,23 @@ function AccountTypeIllustration({
   );
 }
 
-async function loadOrganizations(): Promise<Organization[]> {
-  const supabase = getSupabaseClient();
-  const { data: memberships, error: membershipError } = await supabase
-    .from("memberships")
-    .select("organization_id, role")
-    .order("created_at");
-  if (membershipError) throw membershipError;
-  if (!memberships?.length) return [];
-
-  const { data: organizations, error: organizationsError } = await supabase
-    .from("organizations")
-    .select("id, name, kind, nip")
-    .in(
-      "id",
-      memberships.map((membership) => membership.organization_id),
-    );
-  if (organizationsError) throw organizationsError;
-
-  const rolesByOrganization = new Map(
-    memberships.map((membership) => [
-      membership.organization_id,
-      membership.role,
-    ]),
-  );
-  return (organizations ?? []).flatMap((organization) => {
-    const role = rolesByOrganization.get(organization.id);
-    if (!role) return [];
-    return [{
-      id: organization.id,
-      name: organization.name,
-      kind: organization.kind,
-      nip: organization.nip,
-      role,
-    }];
-  });
-}
-
 export default function Home() {
   const configured = isSupabaseConfigured();
   const [session, setSession] = useState<Session | null>(null);
-  const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [profileAccountType, setProfileAccountType] =
-    useState<Organization["kind"] | null>(null);
+    useState<OrganizationKind | null>(null);
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
-  const [organizationName, setOrganizationName] = useState("");
-  const [organizationKind, setOrganizationKind] =
-    useState<Organization["kind"]>("client");
-  const [nip, setNip] = useState("");
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [loadingOrganizations, setLoadingOrganizations] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(false);
+  const [profileFailed, setProfileFailed] = useState(false);
+  const [profileRevision, setProfileRevision] = useState(0);
+  const authUserId = useRef<string | null>(null);
+  const userId = session?.user.id;
 
   useEffect(() => {
     if (!configured) return;
@@ -141,7 +90,7 @@ export default function Home() {
       }
       setSession(data.session);
       if (data.session) {
-        setLoadingOrganizations(true);
+        authUserId.current = data.session.user.id;
         setLoadingProfile(true);
       }
     });
@@ -150,12 +99,13 @@ export default function Home() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
-      if (nextSession) {
-        setLoadingOrganizations(true);
+      const changedUser = nextSession?.user.id !== authUserId.current;
+      authUserId.current = nextSession?.user.id ?? null;
+      if (nextSession && changedUser) {
         setLoadingProfile(true);
-      } else {
-        setOrganizations([]);
-        setLoadingOrganizations(false);
+        setProfileFailed(false);
+        setProfileAccountType(null);
+      } else if (!nextSession) {
         setProfileAccountType(null);
         setLoadingProfile(false);
         setAuthMode("signin");
@@ -170,26 +120,28 @@ export default function Home() {
   }, [configured]);
 
   useEffect(() => {
-    if (!session) return;
+    if (!userId) return;
     let active = true;
     void (async () => {
       try {
         const { data, error: profileError } = await getSupabaseClient()
           .from("profiles")
           .select("account_type")
-          .eq("id", session.user.id)
+          .eq("id", userId)
           .single();
         if (!active) return;
         setLoadingProfile(false);
         if (profileError) {
+          setProfileFailed(true);
           setError(`Nie udało się pobrać profilu: ${profileError.message}`);
           return;
         }
         setProfileAccountType(data.account_type);
-        if (data.account_type) setOrganizationKind(data.account_type);
+        setProfileFailed(false);
       } catch (profileError) {
         if (!active) return;
         setLoadingProfile(false);
+        setProfileFailed(true);
         setError(
           `Nie udało się pobrać profilu: ${
             profileError instanceof Error ? profileError.message : "nieznany błąd"
@@ -201,31 +153,7 @@ export default function Home() {
     return () => {
       active = false;
     };
-  }, [session]);
-
-  useEffect(() => {
-    if (!session) return;
-    let active = true;
-    void loadOrganizations()
-      .then((loadedOrganizations) => {
-        if (!active) return;
-        setLoadingOrganizations(false);
-        setOrganizations(loadedOrganizations);
-      })
-      .catch((queryError: unknown) => {
-        if (!active) return;
-        setLoadingOrganizations(false);
-        setError(
-          `Nie udało się pobrać organizacji: ${
-            queryError instanceof Error ? queryError.message : "nieznany błąd"
-          }`,
-        );
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [session]);
+  }, [userId, profileRevision]);
 
   async function handleAuthSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -247,7 +175,7 @@ export default function Home() {
             "Konto utworzone. Otwórz wiadomość w lokalnym Mailpit i potwierdź adres e-mail, aby się zalogować.",
           );
         } else {
-          setNotice("Konto utworzone. Możesz teraz skonfigurować organizację.");
+          setNotice("Konto utworzone. Wybierz, jak chcesz korzystać z aplikacji.");
         }
       } else {
         const { error: signInError } = await supabase.auth.signInWithPassword({
@@ -267,38 +195,7 @@ export default function Home() {
     }
   }
 
-  async function handleOrganizationSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError("");
-    setNotice("");
-    setBusy(true);
-
-    const normalizedNip = nip.replace(/[\s-]/g, "");
-    try {
-      const { error: insertError } = await getSupabaseClient()
-        .from("organizations")
-        .insert({
-          name: organizationName.trim(),
-          kind: organizationKind,
-          nip: organizationKind === "client" ? normalizedNip || null : normalizedNip,
-        });
-      if (insertError) throw insertError;
-      setOrganizationName("");
-      setNip("");
-      setNotice("Organizacja została utworzona. Otrzymujesz rolę właściciela.");
-      setOrganizations(await loadOrganizations());
-    } catch (submitError) {
-      setError(
-        submitError instanceof Error
-          ? submitError.message
-          : "Nie udało się utworzyć organizacji. Sprawdź dane i spróbuj ponownie.",
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleAccountTypeSelect(kind: Organization["kind"]) {
+  async function handleAccountTypeSelect(kind: OrganizationKind) {
     if (!session) return;
     setBusy(true);
     setError("");
@@ -315,7 +212,6 @@ export default function Home() {
         throw new Error("Nie udało się zapisać wybranego typu konta.");
       }
       setProfileAccountType(data.account_type);
-      setOrganizationKind(data.account_type);
     } catch (selectError) {
       setError(
         selectError instanceof Error
@@ -338,7 +234,6 @@ export default function Home() {
         .eq("id", session.user.id);
       if (updateError) throw updateError;
       setProfileAccountType(null);
-      setOrganizationKind("client");
     } catch (updateError) {
       setError(
         updateError instanceof Error
@@ -357,7 +252,6 @@ export default function Home() {
       setError(signOutError.message);
       return;
     }
-    setOrganizations([]);
     setProfileAccountType(null);
     setAuthMode("signin");
     setEmail("");
@@ -398,174 +292,63 @@ export default function Home() {
             Wartości dla środowiska lokalnego wyświetla polecenie <strong>pnpm db:status</strong>.
           </p>
         </section>
-      ) : session && (loadingProfile || loadingOrganizations) ? (
+      ) : session && loadingProfile ? (
         <section className="workspace-loading" role="status">
           <span className="loading-spinner" aria-hidden="true" />
           <p>Przygotowujemy Twoje miejsce pracy…</p>
         </section>
-      ) : session && !profileAccountType && organizations.length === 0 ? (
+      ) : session && profileFailed ? (
+        <section className="workspace">
+          <div className="alert alert-error" role="alert">{error}</div>
+          <button className="quiet-button" onClick={() => { setLoadingProfile(true); setProfileRevision((value) => value + 1); }}>
+            Spróbuj ponownie
+          </button>
+        </section>
+      ) : session && !profileAccountType ? (
         <section className="account-type-page">
           <div className="account-type-heading">
             <p className="eyebrow">KROK 1 Z 2 · PERSONALIZACJA</p>
             <h1>Jak chcesz korzystać z aplikacji?</h1>
-            <p>Wybierz swoją główną rolę. Zapiszemy ją na Twoim koncie — później możesz dołączyć do innych organizacji.</p>
+            <p>Wybierz swój panel. Zleć budowę, rozwijaj firmę wykonawczą lub zaprezentuj ofertę sklepu.</p>
           </div>
           {error && <div className="alert alert-error" role="alert">{error}</div>}
           <div className="account-type-grid">
             {accountTypes.map((accountType) => (
-              <article className={`account-type-card type-${accountType.value}`} key={accountType.value}>
-                <div className="account-type-art">
+              <button
+                className={`account-type-card type-${accountType.value}`}
+                disabled={busy}
+                key={accountType.value}
+                onClick={() => void handleAccountTypeSelect(accountType.value)}
+                type="button"
+              >
+                <span className="account-type-art">
                   <AccountTypeIllustration kind={accountType.value} />
                   <span className="account-type-step">0{accountTypes.indexOf(accountType) + 1}</span>
-                </div>
-                <div className="account-type-content">
-                  <p className="eyebrow">{accountType.value === "client" ? "INWESTOR" : accountType.value === "contractor" ? "FIRMA WYKONAWCZA" : "MATERIAŁY BUDOWLANE"}</p>
-                  <h2>{accountType.title}</h2>
-                  <p>{accountType.description}</p>
-                  <button
-                    className="account-type-button"
-                    disabled={busy}
-                    onClick={() => void handleAccountTypeSelect(accountType.value)}
-                    type="button"
-                  >
+                </span>
+                <span className="account-type-content">
+                  <span className="eyebrow">{accountType.value === "client" ? "INWESTOR" : accountType.value === "contractor" ? "FIRMA WYKONAWCZA" : "MATERIAŁY BUDOWLANE"}</span>
+                  <span className="account-type-title">{accountType.title}</span>
+                  <span className="account-type-description">{accountType.description}</span>
+                  <span className="account-type-action">
                     {busy ? "Zapisywanie…" : accountType.action}
                     <span aria-hidden="true">→</span>
-                  </button>
-                </div>
-              </article>
+                  </span>
+                </span>
+              </button>
             ))}
           </div>
           <p className="account-type-note">Każdy typ konta korzysta z tego samego bezpiecznego logowania.</p>
         </section>
-      ) : session ? (
-        <section className="workspace">
-          <div className="welcome-row">
-            <div>
-              <p className="eyebrow">
-                {profileAccountType && organizations.length === 0 ? "KROK 2 Z 2 · TWOJA ORGANIZACJA" : "TWOJE MIEJSCE PRACY"}
-              </p>
-              <h1>Witaj{session.user.user_metadata.display_name ? `, ${session.user.user_metadata.display_name}` : ""}.</h1>
-              <p className="lead">
-                {profileAccountType && organizations.length === 0
-                  ? "Podaj nazwę, aby przygotować swoje miejsce pracy."
-                  : "Wybierz organizację albo utwórz nowe miejsce pracy."}
-              </p>
-            </div>
-            <div className="account-chip">
-              <span className="avatar">{session.user.email?.slice(0, 1).toUpperCase()}</span>
-              <span>{session.user.email}</span>
-            </div>
-          </div>
-
-          {error && <div className="alert alert-error" role="alert">{error}</div>}
-          {notice && <div className="alert alert-success" role="status">{notice}</div>}
-
-          <div className="workspace-grid">
-            <section className="panel organizations-panel">
-              <div className="panel-heading">
-                <div>
-                  <p className="eyebrow">KONTA I DOSTĘPY</p>
-                  <h2>Twoje organizacje</h2>
-                </div>
-                <span className="count-badge">{organizations.length}</span>
-              </div>
-              {loadingOrganizations ? (
-                <p className="empty-state">Wczytywanie organizacji…</p>
-              ) : organizations.length ? (
-                <div className="organization-list">
-                  {organizations.map((organization) => (
-                    <article className="organization-card" key={organization.id}>
-                      <span className={`organization-icon kind-${organization.kind}`} aria-hidden="true">
-                        {organization.kind === "client" ? "I" : organization.kind === "contractor" ? "W" : "S"}
-                      </span>
-                      <div className="organization-info">
-                        <h3>{organization.name}</h3>
-                        <p>{organizationKinds.find((kind) => kind.value === organization.kind)?.label}</p>
-                      </div>
-                      <span className="role-badge">{organization.role === "owner" ? "Właściciel" : organization.role}</span>
-                    </article>
-                  ))}
-                </div>
-              ) : (
-                <div className="empty-state">
-                  <span aria-hidden="true" className="empty-symbol">+</span>
-                  <h3>Jeszcze bez organizacji</h3>
-                  <p>Utwórz organizację, aby rozpocząć pracę nad projektami i zleceniami.</p>
-                </div>
-              )}
-              <div className="panel-footnote">
-                <span className="secure-dot" />
-                Organizacje i role są chronione przez reguły dostępu bazy danych.
-              </div>
-            </section>
-
-            <section className="panel create-panel">
-              <p className="eyebrow">NOWE MIEJSCE PRACY</p>
-              <h2>Utwórz organizację</h2>
-              <p className="panel-intro">Możesz później należeć do wielu organizacji i przełączać swoje role.</p>
-              {profileAccountType && organizations.length === 0 && (
-                <div className="selected-account-type">
-                  <span className={`organization-icon kind-${profileAccountType}`} aria-hidden="true">
-                    <AccountTypeIllustration kind={profileAccountType} />
-                  </span>
-                  <span>
-                    <small>WYBRANY TYP KONTA</small>
-                    <strong>{accountTypes.find((item) => item.value === profileAccountType)?.title}</strong>
-                  </span>
-                  <button disabled={busy} onClick={() => void handleChangeAccountType()} type="button">
-                    Zmień
-                  </button>
-                </div>
-              )}
-              <form className="form-stack" onSubmit={handleOrganizationSubmit}>
-                <label>
-                  Nazwa organizacji
-                  <input
-                    autoComplete="organization"
-                    maxLength={120}
-                    minLength={1}
-                    onChange={(event) => setOrganizationName(event.target.value)}
-                    placeholder="np. Budowa domu Nowak"
-                    required
-                    value={organizationName}
-                  />
-                </label>
-                {(!profileAccountType || organizations.length > 0) && (
-                  <label>
-                    Typ organizacji
-                    <select
-                      onChange={(event) => setOrganizationKind(event.target.value as Organization["kind"])}
-                      value={organizationKind}
-                    >
-                      {organizationKinds.map((kind) => (
-                        <option key={kind.value} value={kind.value}>{kind.label}</option>
-                      ))}
-                    </select>
-                  </label>
-                )}
-                {organizationKind !== "client" && (
-                  <label>
-                    NIP
-                    <input
-                      autoComplete="off"
-                      inputMode="numeric"
-                      maxLength={13}
-                      onChange={(event) => setNip(event.target.value)}
-                      placeholder="000-000-00-00"
-                      required
-                      value={nip}
-                    />
-                    <span className="field-hint">Numer zostanie sprawdzony przed zapisaniem.</span>
-                  </label>
-                )}
-                <button className="primary-button" disabled={busy} type="submit">
-                  {busy ? "Zapisywanie…" : "Utwórz organizację"}
-                  <span aria-hidden="true">→</span>
-                </button>
-              </form>
-            </section>
-          </div>
-        </section>
+      ) : session && profileAccountType ? (
+        <>
+        {error && <div className="workspace"><div className="alert alert-error" role="alert">{error}</div></div>}
+        <RoleWorkspace
+          key={`${session.user.id}:${profileAccountType}`}
+          session={session}
+          kind={profileAccountType}
+          onChangeType={handleChangeAccountType}
+        />
+        </>
       ) : (
         <section className="auth-layout">
           <div className="hero-panel">

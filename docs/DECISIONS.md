@@ -90,3 +90,25 @@ przy członkostwach. Użytkownik może zmienić wybór przed utworzeniem pierwsz
 
 **Konsekwencje:** Wymagana jest wersjonowana migracja i test izolacji zapisu profilu. Onboarding jest lokalny i
 nie uzależnia dalszego hostingu ani usługi chmurowej.
+
+## ADR-008: Panele bez organizacji w interfejsie i zarządzane konta pracowników
+
+**Kontekst:** Użytkownik zmienił przepływ 12 października: klient opisuje pierwszą budowę, firma/sklep zapisują dane
+działalności; później właściciel sam tworzy konta pracowników z hasłem do przekazania. Nie ma kroku „organizacja”.
+
+**Decyzja:** Klient zapisuje `construction_jobs` bez tworzenia organizacji. Po pierwszym zleceniu wraca do panelu.
+Firma/sklep zapisuje `business_profiles` atomowym RPC razem z technicznym kontekstem RLS i członkostwem właściciela.
+Nie usuwamy starszych organizacji ani członkostw. `account_type` wybiera panel, nie nadaje uprawnień właściciela.
+
+Konto pracownika tworzy serwer Web po weryfikacji tokena Auth i uprawnień właściciela; losowe hasło jest zwracane
+jednorazowo, nie jest zapisywane w tabelach aplikacji ani logach. Istniejący e-mail nie może zostać przejęty ani
+mieć zresetowanego hasła. Serwer atomowo przypina nowe konto jako `member`; błąd przypięcia powoduje usunięcie
+wyłącznie nowo utworzonego konta, a błąd wycofania jest jawnie raportowany.
+
+Przed dostępem do danych pracownik zmienia hasło tymczasowe na własne. Wymóg jest egzekwowany w bazie, nie tylko
+w UI. Klucz serwisowy jest wyłącznie w ignorowanym środowisku serwera, nigdy w zmiennej `NEXT_PUBLIC_*`.
+To zastępuje ADR-006 dla kont tworzonych przez właściciela; zaproszenia istniejących kont to odrębny, niewdrożony
+przepływ. ADR-007 nadal obowiązuje dla wyboru panelu, ale nie dla kroku utworzenia organizacji.
+
+**Konsekwencje:** Dodano lokalne pgTAP i Playwright E2E wszystkich trzech przepływów. Pełne CAD, marketplace,
+ofertowanie i mobile pozostają osobnymi etapami; nie są deklarowane jako ukończone.

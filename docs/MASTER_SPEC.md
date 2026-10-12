@@ -22,6 +22,22 @@ zakończenia etapu bez dowodów z testów (PASS/FAIL/BLOCKED/NOT RUN).
 Użytkownik może należeć do wielu organizacji i pełnić wiele ról (rola = kontekst członkostwa w organizacji).
 MVP: rynek polski, PLN, polskie adresy, jednostki SI.
 
+### Doprecyzowanie użytkownika — 12 października 2026
+
+W interfejsie nie ma pojęcia „organizacji” ani osobnego kroku jej tworzenia.
+
+- Zleceniodawca po wyborze konta i przed zapisaniem pierwszej budowy trafia bezpośrednio do formularza budowy.
+  Po zapisaniu pierwszego zlecenia kolejne logowania prowadzą do panelu Klienta, z możliwością dodania następnych.
+- Wykonawca uzupełnia dane firmy (NIP, adres, kontakt, branża, specjalizacja i obszar działania).
+- Sklep uzupełnia analogiczne dane sklepu i obszar obsługi/dostawy.
+- Dopiero po zapisaniu danych właściciel firmy/sklepu dodaje pracowników w swoim panelu: e-mail, imię i nazwisko,
+  wygenerowane hasło tymczasowe. Właściciel przekazuje dane pracownikowi, który loguje się nimi i ustawia własne
+  hasło przed wejściem do panelu pracownika. Pracownik nie otrzymuje uprawnień właściciela.
+- Historyczne tabele `organizations`/`memberships` pozostają wyłącznie technicznym mechanizmem izolacji firmy
+  i uprawnień. Nie wymagamy ich od klienta i nie usuwamy istniejących danych.
+
+To doprecyzowanie zastępuje opis widocznego w UI tworzenia organizacji w pierwotnej specyfikacji.
+
 ## 3. Architektura docelowa
 
 | Warstwa | Rekomendacja | Zasada |

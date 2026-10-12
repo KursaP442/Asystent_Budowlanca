@@ -14,6 +14,44 @@ Nigdy nie wpisujemy ogólnego „działa” bez dowodu z uruchomienia.
 - WSL: 3.0.1.0; CLI Supabase: 2.120.0 (lokalna zależność projektu)
 - Python: niedostępny (nie jest wymagany przez stack projektu)
 
+## Sesja 9 — 12 października 2026
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm install --frozen-lockfile` | root monorepo | PASS | lockfile uwzględnia współdzielone schemas i lokalny Playwright |
+| `pnpm build` | root monorepo | PASS | Web, eksport Android JS i pakiety |
+| `pnpm typecheck` | root monorepo | PASS | wszystkie workspace |
+| `pnpm lint` | root monorepo | PASS | Web, API, testy E2E i Mobile |
+| `pnpm test` | root monorepo | PASS | 19 testów jednostkowych; schemas 8, pozostałe pakiety 11 |
+| `pnpm exec supabase migration up --local` | 3 migracje ról/onboardingu/pracowników | PASS | bez resetu i bez usuwania istniejących danych |
+| `$env:PATH='C:\Program Files\Docker\Docker\resources\bin;'+$env:PATH; pnpm db:test` | lokalny Supabase | PASS | 64 asercje w 2 plikach pgTAP |
+| `pnpm exec supabase db lint --local --schema public --fail-on error` | schemat aplikacji | PASS | brak błędów |
+| `pnpm test:e2e` | lokalny produkcyjny build Web na 3011, Microsoft Edge | PASS | 3 pełne scenariusze, opis poniżej |
+| `pnpm --filter @asystent/schemas test` | końcowa walidacja i polskie komunikaty NIP | PASS | 8/8 testów schemas |
+| `pnpm --filter web build` oraz `pnpm --filter web lint` | końcowe zmiany UI | PASS | TypeScript, produkcyjny CSS i lint |
+| Porównanie klucza serwerowego z assetami `.next/static` | klient Web | PASS | brak klucza service-role w przeglądarkowym bundle |
+| `git check-ignore apps\web\.env.local` | lokalne sekrety | PASS | plik ignorowany |
+| `git diff --check` | zmienione pliki | PASS | brak błędów whitespace |
+| `GET http://127.0.0.1:3010/` | końcowy lokalny Web | PASS | HTTP 200; produkcyjny build uruchomiony lokalnie |
+
+Scenariusze E2E:
+
+- **PASS:** pierwszy klient → trzy klikalne kafelki obok siebie (1440/390/320 px) → formularz budowy bez organizacji
+  → zapis → edycja → publikacja statusu → wylogowanie/logowanie do panelu → kolejne zlecenie.
+- **PASS:** firma → dane z branżą/obszarem → trwały panel → tworzenie pracownika → hasło jednorazowe → odmowa
+  przejęcia istniejącego e-maila → logowanie pracownika → obowiązkowa zmiana hasła → panel pracownika i ponowne logowanie.
+- **PASS:** sklep → analogiczny profil i przepływ pracownika.
+- **PASS:** odmowa endpointu dla niezalogowanego (401), obcego użytkownika i pracownika (403). RLS blokuje
+  zmianę danych innego klienta, eskalację ról i dostęp przed zmianą hasła tymczasowego.
+
+Pobrany Chromium nie uruchomił się z powodu polityki Windows (`spawn UNKNOWN`) — **BLOCKED** dla tego binarium.
+Zainstalowany Microsoft Edge uruchamia testy — **PASS**. Nie wyłączano ochrony Windows.
+
+Kontrola screenshotów formularza klienta i profili firmy/sklepu — **PASS**. Po naprawie CSS checkbox piwnicy
+ma 18 × 18 px; E2E sprawdza obie krawędzie ≤ 20 px i brak przepełnienia mobilnego — **PASS**.
+Pełny rynek ofert, katalog/RFQ,
+CAD/import, AI i scenariusze Mobile — **NOT RUN**; pozostają następnymi etapami, nie częścią deklarowanego MVP.
+
 ## Sesja 7 — 11 października 2026
 
 | Komenda / kontrola | Kontekst | Wynik | Uwagi |
@@ -29,6 +67,20 @@ Nigdy nie wpisujemy ogólnego „działa” bez dowodu z uruchomienia.
 | Web `GET http://127.0.0.1:3010/` | lokalny smoke test | PASS | HTTP 200 |
 | Podgląd strony w przeglądarce | konto zalogowane w istniejącej sesji | PASS | trzy kafelki widoczne; zapis wyboru na koncie — NOT RUN |
 | Playwright E2E onboardingu | rejestracja → wybór → ponowne logowanie | NOT RUN | runner E2E nie jest skonfigurowany |
+| `git diff --check` | zmienione pliki | PASS | brak błędów whitespace |
+
+## Sesja 8 — 11 października 2026
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm build` | root monorepo | PASS | build Web i pozostałych workspace |
+| `pnpm typecheck` | root monorepo | PASS | wszystkie workspace |
+| `pnpm lint` | root monorepo | PASS | Web i Mobile |
+| `pnpm test` | root monorepo | PASS | testy jednostkowe workspace |
+| Podgląd Web w przeglądarce przy szerokości desktop | zalogowany stan onboardingu | PASS | trzy klikalne karty wyświetlane w jednym rzędzie |
+| Kontrola struktury DOM | kafelki wyboru | PASS | każdy kafelek jest jednym elementem `button` |
+| Kontrola widoku mobilnego | szerokość 390 px | PASS | trzy kolumny po 114 px, zero poziomego przepełnienia |
+| Przywrócenie stanu lokalnego konta | po weryfikacji kafelka | PASS | typ konta przywrócony do poprzedniej wartości `client` |
 | `git diff --check` | zmienione pliki | PASS | brak błędów whitespace |
 
 ## Sesja 1 — 11 października 2026
