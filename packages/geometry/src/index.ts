@@ -6,6 +6,7 @@ export interface Point2D {
 
 export * from "./calibration.js";
 export * from "./polygon-validation.js";
+export * from "./editor.js";
 
 export function distanceBetweenPoints(start: Point2D, end: Point2D): number {
   assertFinitePoint(start);

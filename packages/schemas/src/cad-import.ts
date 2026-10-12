@@ -30,6 +30,21 @@ const common = {
 
 export const CadEntitySchema = z.discriminatedUnion("kind", [
   z.object({
+    ...common, kind: z.literal("rebar-line"), geometry: segment,
+    attributes: z.object({
+      diameterMm: positiveMm, count: positiveCount, steelGrade: z.string().min(1).max(160),
+      coverMm: positiveMm, designReference: z.string().min(1).max(240), specialistVerified: z.boolean(),
+    }).strict(),
+  }).strict(),
+  z.object({
+    ...common, kind: z.literal("trace-line"), geometry: segment,
+    attributes: z.object({ label: z.string().trim().min(1).max(160) }).strict(),
+  }).strict(),
+  z.object({
+    ...common, kind: z.literal("trace-area"), geometry: polygon,
+    attributes: z.object({ label: z.string().trim().min(1).max(160) }).strict(),
+  }).strict(),
+  z.object({
     ...common, kind: z.literal("wall"), geometry: segment,
     attributes: z.object({ thicknessMm: positiveMm, heightMm: positiveMm, material: z.string().trim().min(1).max(160) }).strict(),
   }).strict(),
@@ -97,6 +112,16 @@ export const CadDocumentSchema = z.object({
   revision: z.number().int().min(0),
   status: z.enum(["draft", "approved"]),
   calibration: CalibrationSchema.nullable(),
+  sourceImage: z.object({
+    id: z.uuid(),
+    storagePath: z.string().min(1).max(500),
+    widthPx: z.number().int().positive().max(10000),
+    heightPx: z.number().int().positive().max(10000),
+    mmPerPixel: z.number().finite().positive().max(100000),
+    originalPath: z.string().min(1).max(500).optional(),
+    page: z.number().int().min(1).max(1000).optional(),
+  }).strict().nullable().optional(),
+  importWarnings: z.array(z.string().min(1).max(1000)).max(40).optional(),
   entities: z.array(CadEntitySchema).max(5000),
 }).strict().superRefine((document, ctx) => {
   const ids = new Set(document.entities.map(({ id }) => id));
@@ -115,12 +140,34 @@ export const CadDocumentSchema = z.object({
       && (!document.calibration || document.calibration.references.some(({ confirmedByUser }) => !confirmedByUser))) {
       ctx.addIssue({ code: "custom", path: ["calibration"], message: "Import wymaga skali potwierdzonej przez użytkownika." });
     }
-    if (document.entities.some((entity) => entity.kind === "rebar-annotation" && !entity.attributes.specialistVerified)) {
+    if (document.entities.some((entity) => (entity.kind === "rebar-annotation" || entity.kind === "rebar-line") && !entity.attributes.specialistVerified)) {
       ctx.addIssue({ code: "custom", path: ["entities"], message: "Zbrojenie wymaga sprawdzenia przez uprawnionego specjalistę." });
     }
   }
 });
 export type CadDocument = z.infer<typeof CadDocumentSchema>;
+
+const recognitionPoint = z.object({
+  x: z.number().min(0).max(10000), y: z.number().min(0).max(10000),
+}).strict();
+export const PlanRecognitionSchema = z.object({
+  elements: z.array(z.object({
+    type: z.enum(["line", "area", "text"]),
+    points: z.array(recognitionPoint).min(1).max(100),
+    label: z.string().min(1).max(160),
+    confidence: z.number().min(0).max(1),
+  }).strict()).max(300),
+  warnings: z.array(z.string().min(1).max(1000)).max(30),
+}).strict();
+export type PlanRecognition = z.infer<typeof PlanRecognitionSchema>;
+export const PlanScanRequestSchema = z.object({
+  projectId: z.uuid(),
+  requirementId: z.string().regex(/^[a-zA-Z][a-zA-Z0-9-]{0,119}$/),
+  sourceId: z.uuid(),
+  consent: z.literal(true),
+  page: z.number().int().min(1).max(1000).default(1),
+  originalExtension: z.enum(["png", "jpg", "webp", "pdf"]).optional(),
+}).strict();
 
 export const CadProposalSchema = z.object({
   schemaVersion: z.literal(1),
@@ -135,7 +182,7 @@ export const CadProposalSchema = z.object({
     ctx.addIssue({ code: "custom", path: ["entities"], message: "Propozycja zawiera zduplikowane obiekty." });
   }
   for (const [index, entity] of proposal.entities.entries()) {
-    if (entity.reviewStatus !== "draft" || entity.kind === "rebar-annotation" && entity.attributes.specialistVerified) {
+    if (entity.reviewStatus !== "draft" || (entity.kind === "rebar-annotation" || entity.kind === "rebar-line") && entity.attributes.specialistVerified) {
       ctx.addIssue({ code: "custom", path: ["entities", index], message: "Propozycja AI nie może zatwierdzać obiektów ani zbrojenia." });
     }
     if (entity.source.origin === "openai" && (!entity.source.documentId || entity.source.page === null || entity.source.confidence === null)) {

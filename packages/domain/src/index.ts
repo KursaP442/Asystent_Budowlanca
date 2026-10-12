@@ -1,6 +1,8 @@
 import type { Membership } from "@asystent/schemas";
 
 export * from "./cad-review.js";
+export * from "./plan-recognition.js";
+export * from "./cad-edit.js";
 
 export class MembershipAccessError extends Error {
   constructor(userId: string, organizationId: string) {

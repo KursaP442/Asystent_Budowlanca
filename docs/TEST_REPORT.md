@@ -3,6 +3,31 @@
 Zasada: zapisujemy **dokładne komendy**, **datę**, **środowisko** i **rzeczywisty wynik** (PASS/FAIL/BLOCKED/NOT RUN).
 Nigdy nie wpisujemy ogólnego „działa” bez dowodu z uruchomienia.
 
+## Sesja 24 — 12 października 2026
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|---|
+| `pnpm view pdfjs-dist version license` | wybór rasteryzatora PDF | PASS | 6.4.299, Apache-2.0; używamy wersji browser, nie natywnego canvas |
+| `pnpm --filter web add '@asystent/domain@workspace:*' '@asystent/geometry@workspace:*' pdfjs-dist` | manifest i lockfile | PASS | domena/geometry współdzielone; worker PDF kopiowany przez skrypt build/dev |
+| `pnpm exec supabase migration up --local` | CAD, skany, BYOK i limit prób | PASS | trzy migracje bez resetu danych |
+| `pnpm --filter web build` | pierwsza kompilacja PDF.js | FAIL | API PDF.js 6 nie ma `isEvalSupported` i `PDFDocumentProxy.destroy`; dostosowano do zainstalowanych typów |
+| `pnpm --filter web lint` | pierwsza iteracja | FAIL | lint objął wygenerowany minifikowany worker; dodano ignorowanie wyłącznie artefaktu zależności |
+| `pnpm --filter @asystent/geometry test`, `pnpm --filter @asystent/domain test` | model edytora i import | PASS | viewport, bounds, przesunięcia, kalibracja, provenance, odrzucenie wadliwej propozycji |
+| `pnpm exec supabase test db supabase\tests\cad_drawings.test.sql --local` | CAD/RLS/BYOK/limit | PASS | 15 nowych asercji |
+| `pnpm --filter web exec playwright test --grep 'stage canvas'` | iteracje nowego scenariusza | FAIL | poprawiono rejestrację testu poza innym testem, niedekodowalny fixture PNG oraz tolerancję próbkowania ekranowego |
+| `pnpm test:e2e` | pierwsza pełna regresja obrysów | FAIL | wykryto zbyt małą wysokość widoku pojedynczego odcinka przed montażem SVG; poprawiono proporcje, fit i resize; uwzględniono zwiniętą sekcję opisów |
+| `pnpm --filter web build`, `pnpm test:e2e` | końcowe poprawki edytora | PASS | 7/7 scenariuszy Edge; rysowanie, cztery różne narożniki, edycja, autosave/retry, refresh, import PNG/PDF, kalibracja, eksport, mobile |
+| `pnpm build` | pełny workspace przed końcową korektą viewportu | PASS | 8 zadań; końcowa korekta następnie pokryta buildem Web |
+| `pnpm test` | pełny workspace | PASS | 57 testów Node, 13 zadań Turbo |
+| `pnpm typecheck`, `pnpm lint` | końcowy edytor | PASS | 13 / 7 zadań Turbo |
+| `pnpm install --frozen-lockfile` | powtarzalność instalacji | PASS | lockfile aktualny |
+| `pnpm db:test` | pełna regresja bazy | PASS | 108 asercji w 5 plikach |
+| `pnpm exec supabase db lint --local --schema public --fail-on error` | schemat public | PASS | brak błędów |
+| Screenshoty edytora desktop i mobile | fixture projektu, mock OpenAI | PASS | płótno i inspector, brak poziomego overflow; nie są dowodem realnego rozpoznawania |
+| `GET http://127.0.0.1:3010/` i `/pdf.worker.min.mjs` | podgląd po restarcie aktualnego builda | PASS | HTTP 200 dla aplikacji i dopasowanego workera PDF |
+| Rozpoznawanie rzeczywistym OpenAI | konto użytkownika i niesensytywny projekt | BLOCKED | wymagane BYOK, szyfrowanie serwera i zgoda na płatny test; brak wywołań w tej sesji |
+| Korekcja perspektywy, 3D, MCP i dokładność ilościowa realnych skanów | pełna specyfikacja | NOT RUN | poza zweryfikowaną funkcją ręcznego edytora i adaptera importu |
+
 ## Sesja 23 — 12 października 2026
 
 | Komenda / kontrola | Kontekst | Wynik | Uwagi |

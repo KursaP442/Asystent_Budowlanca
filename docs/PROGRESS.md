@@ -10,9 +10,10 @@ i od czego zacząć kolejną sesję. **To jest pierwszy plik, który agent powin
   materiałów/technologii, raportem i panelem klienta zweryfikowano lokalnie. Rozbudowany rynek, składanie ofert,
   RFQ/katalog oraz dalsze etapy specyfikacji pozostają do wykonania. Nie ma kroku tworzenia organizacji w UI.
   Ograniczenia usług pomocniczych Supabase opisano w `docs/TEST_REPORT.md`.
-- **Rozszerzenie w toku:** adaptacyjna dokumentacja po „Przejdź dalej” i wersjonowany zapis danych roboczych
-  są dostępne lokalnie. Model CAD, kalibracja i walidacja propozycji mają testy jednostkowe **PASS**, ale
-  edytor rysunków, import/skanowanie, OpenAI/BYOK i MCP nie są jeszcze podłączone. Całe nowe zadanie nie jest zakończone.
+- **Rozszerzenie w toku:** adaptacyjny edytor CAD po „Przejdź dalej”, autosave rysunków, PDF/zdjęcia,
+  ręczna kalibracja i adapter OpenAI/BYOK są zaimplementowane lokalnie. Scenariusz płótna/importu z mockiem AI
+  ma **PASS**. Analiza rzeczywistym OpenAI — **BLOCKED** do konfiguracji klucza i szyfrowania.
+  MCP, 3D, korekcja perspektywy i pełny zweryfikowany przedmiar pozostają niezakończone.
 - **Tryb pracy:** wyłącznie lokalny (bez hostingu/wdrożenia). Repozytorium Git istnieje tylko lokalnie
   (`C:\Users\Patryk\Desktop\Aplikacja_Budowa`), bez zdalnego remote na GitHub.
 - **Źródło specyfikacji:** `C:\Users\Patryk\Downloads\Asystent_Budowlanca_MASTER_PROMPT_MULTI_AI_BYOK_MCP.pdf`,
@@ -817,3 +818,47 @@ Nie oznaczać zadania jako zakończonego. Następny etap to rysowanie/import z p
 kalibracją i ręczną weryfikacją, następnie OpenAI/BYOK oraz uwierzytelnione MCP na wspólnych przypadkach użycia.
 Obecne pola pomiarów są opisami roboczymi, nie danymi nadającymi się automatycznie do kalkulacji.
 Istniejąca publikacja zlecenia nadal publikuje bazowy raport, nie zatwierdzony projekt CAD.
+
+## Sesja 24 — 12 października 2026
+
+### Zrobione
+
+1. Po korekcie użytkownika zastąpiono widok opisów przez pełnoszerokościowy edytor projektu z płótnem,
+   zakładkami etapów/rysunków, paskiem narzędzi, listą elementów i panelem właściwości. Opisy są dodatkiem
+   w zwijanej sekcji pod płótnem.
+2. Dodano rysowanie ław, ścian, płyt/obrysów, połaci, prętów, wymiarów i opisów, przesuwanie elementów,
+   edycję współrzędnych/parametrów, warstwy, pan/zoom/dopasowanie, undo/redo i eksport SVG.
+3. Każdy rysunek ma osobny szkic w `cad_drawings`. Automatyczny zapis z rewizją przeżywa odświeżenie.
+   Awaria zachowuje lokalne zmiany i blokuje przejście do czasu ponowienia. Konflikt innej karty nie nadpisuje danych.
+4. Dodano „Skanuj lub importuj projekt”: zdjęcie lub wybrana strona PDF, lokalny raster PDF.js, prywatny
+   oryginał oraz PNG strony, zgoda na transfer i koszty, konfiguracja/usuwanie szyfrowanego klucza per użytkownik.
+5. Adapter OpenAI Responses API analizuje wybrany etap, a domena waliduje rozpoznane odcinki, obrysy i opisy.
+   Propozycja trafia na to samo płótno jako edytowalna, niezatwierdzona geometria z pochodzeniem i confidence.
+   Nie wymyślamy przekrojów/stali ani ilości na podstawie samego obrysu.
+6. Ustawienie skali dwoma punktami reskaluje podkład i obiekty razem. Bez kalibracji UI ostrzega, że mm są
+   tymczasowe. Rozpoznane obrysy nie mogą stać się podstawą zatwierdzonego przedmiaru bez klasyfikacji i parametrów.
+7. Dodano trzy nieusuwające danych migracje, RLS, serwerowe RPC zapisu i atomowy limit 10 prób analizy/godzinę.
+8. Test prostego rysunku wykrył spłaszczenie widoku przy odczycie pojedynczego odcinka przed montażem SVG.
+   Poprawiono dopasowanie proporcji także przy zmianie rozmiaru płótna; test rysuje i sprawdza cztery różne narożniki.
+
+### Weryfikacja
+
+- `pnpm build`, `pnpm typecheck`, `pnpm lint`, `pnpm install --frozen-lockfile` — **PASS**.
+- `pnpm test` — **PASS**: 57 testów; schemas 32, domain 11, geometria 9, kalkulatory 3, tokeny 2.
+- `pnpm db:test` — **PASS**: 108 asercji w 5 plikach.
+- SQL lint — **PASS**; kontrola edytora VS Code — **PASS**.
+- `pnpm test:e2e` — **PASS**: 7 scenariuszy. Nowy test obejmuje odcinek, edycję, undo/redo, awarię/retry autosave,
+  odświeżenie, osobne rysunki zbrojenia, obrys, eksport SVG, uprawnienia API, szyfrowany zapis klucza,
+  propozycję AI z mocka, kalibrację z błędem ekranowym <0,01 mm, import PDF i brak overflow mobile.
+- Kontrola screenshotów desktop/mobile — **PASS**. Wynik na płótnie pochodzi z testowego mocka AI.
+
+### Ograniczenia / kontynuacja
+
+- Rzeczywiste rozpoznawanie OpenAI — **BLOCKED**: brak skonfigurowanego klucza użytkownika i szyfrowania serwera.
+  Nie wykonano płatnego wywołania ani transferu prywatnego projektu.
+- Dokładność AI na zestawie projektów referencyjnych — **NOT RUN**. Testy geometrii i mocka nie są tym dowodem.
+- Korekcja perspektywy, pełny asortyment narzędzi zbrojeniowych/3D, trwała historia wersji, MCP, audyt
+  i limit wydatków w PLN — **NOT RUN**; obecny limit dotyczy liczby prób, nie kwoty.
+- Ręcznie dodawane obiekty mają jawnie robocze parametry do uzupełnienia z projektu. Wszystkie rysunki są szkicami.
+- Podłączyć niesensytywny projekt referencyjny po konfiguracji BYOK i zgodzie na rozliczenia; sprawdzić
+  rzeczywistą jakość przed rozszerzaniem automatycznego przedmiaru lub przekazaniem projektu wykonawcom.

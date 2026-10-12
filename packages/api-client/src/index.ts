@@ -58,6 +58,18 @@ export type DocumentationDraftRow = {
 export interface Database {
   public: {
     Tables: {
+      cad_drawings: {
+        Row: { job_id: string; requirement_id: string; revision: number; payload: unknown };
+        Insert: { job_id: string; requirement_id: string; revision: number; payload: unknown };
+        Update: { revision?: number; payload?: unknown };
+        Relationships: [];
+      };
+      ai_user_credentials: {
+        Row: { user_id: string; encrypted_key: string };
+        Insert: { user_id: string; encrypted_key: string };
+        Update: { encrypted_key?: string };
+        Relationships: [];
+      };
       construction_documentation_drafts: {
         Row: DocumentationDraftRow;
         Insert: DocumentationDraftRow;
@@ -159,6 +171,11 @@ export interface Database {
     };
     Views: Record<string, never>;
     Functions: {
+      claim_plan_scan: { Args: { target_user_id: string }; Returns: undefined };
+      save_cad_drawing: {
+        Args: { owner_id: string; target_job_id: string; stage_id: string; expected_revision: number; document_payload: object };
+        Returns: number;
+      };
       save_documentation_draft: {
         Args: { target_job_id: string; expected_revision: number; draft_payload: object };
         Returns: number;

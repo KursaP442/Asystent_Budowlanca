@@ -7,6 +7,26 @@ const admin = createClient(url, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: {
 const userIds = [];
 const password = "Local-test-password-2026!";
 
+function planPdfFixture() {
+  const stream = "0 0 0 RG 3 w 100 100 500 400 re S\n";
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 1000 800] /Resources << >> /Contents 4 0 R >>",
+    `<< /Length ${Buffer.byteLength(stream)} >>\nstream\n${stream}endstream`,
+  ];
+  let pdf = "%PDF-1.4\n";
+  const offsets = [0];
+  for (const [i,object] of objects.entries()) {
+    offsets.push(Buffer.byteLength(pdf));
+    pdf += `${i+1} 0 obj\n${object}\nendobj\n`;
+  }
+  const xref = Buffer.byteLength(pdf);
+  pdf += `xref\n0 5\n0000000000 65535 f \n${offsets.slice(1).map((offset) => `${String(offset).padStart(10,"0")} 00000 n \n`).join("")}`;
+  pdf += `trailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+  return Buffer.from(pdf);
+}
+
 async function unusedNip() {
   for (;;) {
     const prefix = randomInt(100000000, 999999999).toString();
@@ -342,6 +362,13 @@ test.afterEach(async () => {
         const { error: removeError } = await admin.storage.from("job-photos").remove(objects.map((object) => `${prefix}/${object.name}`));
         if (removeError) throw removeError;
       }
+      const scans = admin.storage.from("project-scans");
+      const { data: scanObjects, error: scanListError } = await scans.list(prefix);
+      if (scanListError) throw scanListError;
+      if (scanObjects.length) {
+        const { error: scanCleanupError } = await scans.remove(scanObjects.map((object) => `${prefix}/${object.name}`));
+        if (scanCleanupError) throw scanCleanupError;
+      }
     }
     const { error: businessError } = await admin.from("organizations").delete().eq("created_by", id);
     if (businessError) throw businessError;
@@ -433,6 +460,7 @@ test("work-specific details, consent map, private photos and upload retry persis
   await page.unroute(uploadRoute);
   await page.getByRole("button", {name:"Przejdź dalej",exact:true}).click();
   await expect(page.getByRole("heading", {name:"Dokumentacja projektu",exact:true})).toBeVisible();
+  await page.locator(".cad-stage-notes summary").click();
   await page.getByLabel("Wymiary istniejących elementów", {exact:true}).fill("Ściana kuchni: 4200 mm długości, 2650 mm wysokości.");
   const draftRoute = "**/rest/v1/rpc/save_documentation_draft";
   await page.route(draftRoute, (route) => route.fulfill({
@@ -488,6 +516,7 @@ test("work-specific details, consent map, private photos and upload retry persis
     .toContainText("Blacha cynkowo-tytanowa");
   await expect(page.locator('[data-technology-stage="renovationKitchenFitout"]')).toHaveCount(0);
   await page.getByRole("button", {name:"Przejdź dalej",exact:true}).click();
+  await page.locator(".cad-stage-notes summary").click();
   await expect(page.getByLabel("Etap dokumentacji", {exact:true})).toHaveValue("interior");
   await expect(page.getByLabel("Źródło danych, uwagi i brakujące informacje", {exact:true}))
     .toHaveValue("Pomiar ręczny, brak projektu zmian instalacji.");
@@ -595,7 +624,7 @@ test("work-specific details, consent map, private photos and upload retry persis
   const steps = page.getByLabel("Etap dokumentacji", {exact:true});
   await expect(steps).toHaveValue("roof");
   await expect(steps.locator("option")).toHaveText(["Dach"]);
-  await expect(page.getByRole("list")).not.toContainText("fundamentów");
+  await expect(page.locator(".cad-stage-notes ul")).not.toContainText("fundamentów");
   await returnToPanelFromDocumentation(page);
 });
 
@@ -612,6 +641,7 @@ test("client goes straight to construction, dashboard on next login and adds ano
         nestedButtons: cards.some((card) => !!card.querySelector("button")),
       };
     });
+
     expect(result).toEqual({ sameRow: true, overflow: false, nestedButtons: false });
   }
   await page.setViewportSize({ width: 1440, height: 1000 });
@@ -663,6 +693,175 @@ test("client goes straight to construction, dashboard on next login and adds ano
   expect(data).toHaveLength(0);
 });
 
+test("stage canvas draws, edits, undoes, autosaves and imports AI proposal with calibration", async ({ page, request }) => {
+  const owner = await createAccount();
+  const outsider = await createAccount();
+  await page.setViewportSize({width:1440,height:1000});
+  await login(page, owner.email);
+  await page.locator(".account-type-card.type-client").click();
+  await fillConstruction(page, "Projekt CAD E2E");
+  await page.getByRole("button", {name:"Edytuj",exact:true}).click();
+  await page.getByRole("button", {name:"Przejdź dalej",exact:true}).click();
+  const editor = page.locator(".cad-editor");
+  const canvas = editor.getByRole("img", {name:/Płótno projektu/});
+  await expect(canvas).toBeVisible();
+  await editor.getByRole("button", {name:"Ława fundamentowa",exact:true}).click();
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("Brak płótna.");
+  await page.mouse.move(box.x + 80, box.y + 130);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 330, box.y + 130);
+  await page.mouse.up();
+  await expect(canvas.locator("[data-entity-id]")).toHaveCount(1);
+  await editor.getByRole("button", {name:"Cofnij",exact:true}).click();
+  await expect(canvas.locator("[data-entity-id]")).toHaveCount(0);
+  await editor.getByRole("button", {name:"Ponów",exact:true}).click();
+  await expect(canvas.locator("[data-entity-id]")).toHaveCount(1);
+  await editor.locator(".cad-element-list button").first().click();
+  await page.route("**/api/cad/drawings", (route) => route.fulfill({
+    status:503,contentType:"application/json",body:JSON.stringify({error:"Test CAD save failure"}),
+  }));
+  await editor.getByLabel("Szerokość (mm)", {exact:true}).fill("800");
+  await editor.getByLabel("Szerokość (mm)", {exact:true}).press("Tab");
+  await expect(editor.getByRole("alert")).toContainText("Test CAD save failure");
+  await expect(page.getByRole("tab", {name:"Detale zbrojenia i zestawienie prętów",exact:true})).toBeDisabled();
+  await page.unroute("**/api/cad/drawings");
+  await editor.getByRole("button", {name:"Ponów zapis rysunku",exact:true}).click();
+  await expect(editor.getByRole("status")).toContainText("Rysunek zapisany automatycznie");
+  const {data:jobs,error:jobError} = await admin.from("construction_jobs").select("*").eq("client_id",owner.id);
+  if (jobError) throw jobError;
+  const job = jobs[0];
+  const {data:stored,error:cadError} = await admin.from("cad_drawings").select("*").eq("job_id",job.id).single();
+  if (cadError) throw cadError;
+  expect(stored.payload.entities[0].attributes.widthMm).toBe(800);
+  const token = await tokenFor(owner.email);
+  const drawing = stored.payload;
+  const unauthorized = await request.post("/api/cad/drawings", {data:drawing});
+  expect(unauthorized.status()).toBe(401);
+  const foreign = await request.post("/api/cad/drawings", {data:drawing,headers:{Authorization:`Bearer ${await tokenFor(outsider.email)}`}});
+  expect(foreign.status()).toBe(403);
+  const stale = await request.post("/api/cad/drawings", {data:{...drawing,revision:0},headers:{Authorization:`Bearer ${token}`}});
+  expect(stale.status()).toBe(409);
+  const invalidStage = await request.post("/api/cad/drawings", {data:{...drawing,requirementId:"unknown-drawing-0"},headers:{Authorization:`Bearer ${token}`}});
+  expect(invalidStage.status()).toBe(400);
+  const scanInput = {projectId:job.id,requirementId:"foundation-drawing-0",sourceId:randomUUID(),consent:true};
+  expect((await request.post("/api/cad/scan", {data:scanInput})).status()).toBe(401);
+  expect((await request.post("/api/cad/scan", {data:scanInput,headers:{Authorization:`Bearer ${await tokenFor(outsider.email)}`}})).status()).toBe(403);
+  expect((await request.post("/api/cad/scan", {data:{...scanInput,consent:false},headers:{Authorization:`Bearer ${token}`}})).status()).toBe(400);
+  const keyResponse = await request.put("/api/ai/key", {data:{key:`sk-test-${"A".repeat(30)}`},headers:{Authorization:`Bearer ${token}`}});
+  expect(keyResponse.status()).toBe(200);
+  const {data:credential,error:keyError} = await admin.from("ai_user_credentials").select("*").eq("user_id",owner.id).single();
+  if (keyError) throw keyError;
+  expect(credential.encrypted_key).not.toContain("sk-test");
+  const ownClient = createClient(url,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,{auth:{persistSession:false}});
+  await ownClient.auth.signInWithPassword({email:owner.email,password});
+  const forbiddenKeyRead = await ownClient.from("ai_user_credentials").select("*");
+  expect(forbiddenKeyRead.error).toBeTruthy();
+
+  await page.reload();
+  await page.getByRole("button", {name:"Edytuj",exact:true}).click();
+  await page.getByRole("button", {name:"Przejdź dalej",exact:true}).click();
+  await expect(canvas.locator("[data-entity-id]")).toHaveCount(1);
+  await editor.locator(".cad-element-list button").first().click();
+  await expect(editor.getByLabel("Szerokość (mm)", {exact:true})).toHaveValue("800");
+  await editor.getByRole("button", {name:"Obrys / płyta",exact:true}).click();
+  const polygonBox = await canvas.boundingBox();
+  for (const [x,y] of [[70,260],[200,260],[200,360],[70,360]]) {
+    await page.mouse.click(polygonBox.x+x,polygonBox.y+y);
+  }
+  const polygonPoints = await canvas.locator("circle").evaluateAll((circles) => circles.map((circle) => ({
+    x:Number(circle.getAttribute("cx")),y:Number(circle.getAttribute("cy")),
+  })));
+  expect(polygonPoints).toHaveLength(4);
+  expect(polygonPoints[0].x).toBe(polygonPoints[3].x);
+  expect(polygonPoints[0].y).toBe(polygonPoints[1].y);
+  expect(polygonPoints[1].x).toBe(polygonPoints[2].x);
+  expect(polygonPoints[2].y).toBe(polygonPoints[3].y);
+  expect(polygonPoints[0].x).not.toBe(polygonPoints[1].x);
+  expect(polygonPoints[0].y).not.toBe(polygonPoints[3].y);
+  await editor.getByRole("button", {name:"Zamknij obrys (4)",exact:true}).click();
+  await expect(canvas.locator("[data-entity-id]")).toHaveCount(2);
+  await expect(editor.locator(".cad-inspector")).toContainText("Pole rzutu roboczego");
+  await expect(editor.getByRole("status")).toContainText("Rysunek zapisany automatycznie");
+  const download = page.waitForEvent("download");
+  await editor.getByRole("button", {name:"Eksport SVG",exact:true}).click();
+  expect((await download).suggestedFilename()).toBe("foundation-drawing-0.svg");
+  await page.getByRole("tab", {name:"Detale zbrojenia i zestawienie prętów",exact:true}).click();
+  await expect(canvas.locator("[data-entity-id]")).toHaveCount(0);
+  await editor.getByRole("button", {name:"Pręt zbrojeniowy",exact:true}).click();
+  const rebarBox = await canvas.boundingBox();
+  await page.mouse.move(rebarBox.x + 80,rebarBox.y + 200); await page.mouse.down();
+  await page.mouse.move(rebarBox.x + 300,rebarBox.y + 200); await page.mouse.up();
+  await expect(canvas.locator("[data-entity-id]")).toHaveCount(1);
+  await expect(editor.getByRole("status")).toContainText("Rysunek zapisany automatycznie");
+  await page.getByRole("tab", {name:"Rzut fundamentów z osiami i wymiarami",exact:true}).click();
+  await expect(canvas.locator("[data-entity-id]")).toHaveCount(2);
+  await expect(editor.getByRole("button", {name:/Skanuj lub importuj projekt/})).toBeEnabled();
+  await editor.getByRole("button", {name:/Skanuj lub importuj projekt/}).click();
+  const dialog = page.getByRole("dialog", {name:"Skanuj lub importuj projekt"});
+  await expect(dialog.getByRole("button", {name:"Skanuj i narysuj z AI"})).toBeDisabled();
+  const pixel = Buffer.from(await page.evaluate(() => {
+    const image = document.createElement("canvas"); image.width = 1000; image.height = 800;
+    const context = image.getContext("2d");
+    context.fillStyle="white"; context.fillRect(0,0,1000,800);
+    context.strokeStyle="#333"; context.lineWidth=3; context.strokeRect(100,100,500,400);
+    return image.toDataURL("image/png").split(",")[1];
+  }),"base64");
+  await dialog.getByLabel("Projekt PDF lub zdjęcie").setInputFiles({name:"plan.png",mimeType:"image/png",buffer:pixel});
+  await dialog.getByRole("checkbox").check();
+  await page.route("**/api/cad/scan", async (route) => {
+    const input = route.request().postDataJSON();
+    expect(input.consent).toBe(true);
+    expect(input.requirementId).toBe("foundation-drawing-0");
+    await route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({
+      sourceImage:{id:input.sourceId,storagePath:`${owner.id}/${job.id}/${input.sourceId}.png`,widthPx:1000,heightPx:800,mmPerPixel:1},
+      entities:[{id:randomUUID(),layerId:input.requirementId,units:"mm",reviewStatus:"draft",kind:"trace-line",
+        source:{documentId:input.sourceId,page:1,origin:"openai",confidence:0.85},
+        geometry:{start:{x:100,y:100},end:{x:600,y:100}},attributes:{label:"Obrys ławy"}}],
+      warnings:["Testowa propozycja, nie wynik rzeczywistej analizy AI."],
+    })});
+  });
+  await dialog.getByRole("button", {name:"Skanuj i narysuj z AI"}).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(canvas.locator("[data-entity-id]")).toHaveCount(1);
+  await expect(editor.getByRole("status")).toContainText("Skan bez skali");
+  await editor.locator(".cad-element-list button").click();
+  await expect(editor.locator(".cad-inspector")).toContainText("85% pewności");
+  await editor.getByRole("button", {name:"Ustaw skalę skanu",exact:true}).click();
+  const importedView = (await canvas.getAttribute("viewBox")).split(" ").map(Number);
+  const importedBox = await canvas.boundingBox();
+  const screen = (x,y) => ({x:importedBox.x+(x-importedView[0])/importedView[2]*importedBox.width,
+    y:importedBox.y+(y-importedView[1])/importedView[3]*importedBox.height});
+  const start=screen(100,100), end=screen(600,100);
+  await page.mouse.click(start.x,start.y); await page.mouse.click(end.x,end.y);
+  await editor.getByLabel("Znana odległość (mm)", {exact:true}).fill("5000");
+  await editor.getByRole("button", {name:"Zastosuj skalę",exact:true}).click();
+  await expect(editor.getByRole("status")).toContainText("Rysunek zapisany automatycznie");
+  await expect(editor.getByRole("status")).not.toContainText("Skan bez skali");
+  const {data:calibrated,error:calibrationError} = await admin.from("cad_drawings").select("*")
+    .eq("job_id",job.id).eq("requirement_id","foundation-drawing-0").single();
+  if (calibrationError) throw calibrationError;
+  expect(calibrated.payload.sourceImage.mmPerPixel).toBeCloseTo(10,5);
+  expect(Math.abs(calibrated.payload.entities[0].geometry.end.x-6000)).toBeLessThan(0.01);
+  expect(calibrated.payload.entities[0].reviewStatus).toBe("draft");
+  await page.screenshot({path:test.info().outputPath("stage-canvas-desktop.png"),fullPage:true});
+  await page.setViewportSize({width:390,height:844});
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
+  await page.screenshot({path:test.info().outputPath("stage-canvas-mobile.png"),fullPage:true});
+  await page.setViewportSize({width:1440,height:1000});
+  await editor.getByRole("button", {name:/Skanuj lub importuj projekt/}).click();
+  await dialog.getByLabel("Projekt PDF lub zdjęcie").setInputFiles({name:"foundation.pdf",mimeType:"application/pdf",buffer:planPdfFixture()});
+  await expect(dialog.getByLabel("Strona PDF", {exact:true})).toBeVisible();
+  await dialog.getByRole("checkbox").check();
+  await dialog.getByRole("button", {name:"Skanuj i narysuj z AI"}).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(editor.getByRole("status")).toContainText("Rysunek zapisany automatycznie");
+  await expect(editor.getByRole("status")).toContainText("Skan bez skali");
+  const {data:scanFiles,error:scanListError} = await admin.storage.from("project-scans").list(`${owner.id}/${job.id}`);
+  if (scanListError) throw scanListError;
+  expect(scanFiles.some(({name}) => name.endsWith("-original.pdf"))).toBe(true);
+  await returnToPanelFromDocumentation(page);
+});
 for (const kind of ["contractor", "store"]) {
   test(`${kind} profile, owner-only employee provisioning and mandatory password change`, async ({ page, request }) => {
     const marketTitle = await createPublishedMarketJob(`Rynek ${kind}`);

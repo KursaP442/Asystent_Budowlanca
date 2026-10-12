@@ -147,6 +147,12 @@ nie automatyzacją konta ChatGPT. MCP i API mają wywoływać te same przypadki 
 walidacja, jawne zatwierdzenie i wersjonowany zapis. Przedmiaru nie wolno liczyć z niezweryfikowanych propozycji.
 Lista wymaganych rysunków jest dopiero pierwszą warstwą wymagań, nie gotowym modułem skanowania lub CAD.
 
+Doprecyzowanie widoku: dalsza ankieta to pełnoszerokościowy edytor projektu wzorowany na ekranie użytkownika:
+zakładki etapów i rysunków, płótno wektorowe z siatką, narzędzia, panel właściwości, warstwy i cofanie zmian.
+Opisy pomiarów są dodatkiem schowanym pod edytorem, nie jego zamiennikiem. „Skanuj lub importuj projekt”
+przyjmuje zdjęcie albo wybraną stronę PDF; propozycja OpenAI staje się edytowalną geometrią na tym samym płótnie.
+Nie pokazujemy pozornych, niewdrożonych funkcji 3D. Skala skanu wymaga dwóch punktów o znanej odległości.
+
 **Firma wykonawcza:** rejestracja organizacji (NIP, specjalizacje, obszar działania), feed zleceń z filtrami, oferty
 (cena netto/brutto, VAT, zakres, harmonogram, ważność), licytacja z audytem, realizacja zleceń.
 

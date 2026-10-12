@@ -321,3 +321,32 @@ etapami zapisuje postęp. „Zapisz szkic i wróć do panelu” nie oznacza zatw
 **Konsekwencje:** Po przeładowaniu wchodzimy w „Edytuj” i „Przejdź dalej”; bieżący etap i zapisane odpowiedzi
 są przywracane. Niezapisane zmiany w bieżącym polu nie są autosave. Ta warstwa nie przechowuje jeszcze
 plików, geometrii ani zatwierdzeń i nie może służyć do automatycznego przedmiaru.
+
+## ADR-021: Etapowy edytor wektorowy i jawne rozpoznawanie skanu OpenAI
+
+**Kontekst:** Użytkownik wskazał, że formularz opisów nie zastępuje ekranu CAD. Wymaga płótna z narzędziami,
+zakładek rysunków i skanowania, które odtwarza bieżący etap bezpośrednio na płótnie.
+
+**Decyzja:** Płótno SVG odwzorowuje wspólny model mm (nie bitmapę jako projekt). Umożliwia ręczne rysowanie
+odcinków, obrysów, prętów, wymiarów i opisów, przesuwanie, edycję parametrów/współrzędnych, warstwy, pan/zoom,
+undo/redo i eksport SVG bez prywatnego podkładu. Każdy wymagany rysunek ma osobny dokument i rewizję w
+`cad_drawings`. Autosave jest serializowany; błąd blokuje przejście do innego rysunku do czasu ponowienia zapisu.
+API sprawdza właściciela, etap, schemat oraz status roboczy, a RPC dostępne tylko dla serwera egzekwuje rewizję.
+
+PDF jest renderowany lokalnie przez PDF.js (Apache-2.0), bez natywnych modułów w przeglądarce. Oryginał i PNG
+wybranej strony są zapisywane prywatnie w `project-scans`. OpenAI Responses API otrzymuje tylko PNG oraz nazwę
+etapu po zgodzie użytkownika na transfer i koszty. Klucz jest przypisany do użytkownika i szyfrowany AES-256-GCM
+z AAD identyfikatora użytkownika. Klucz szyfrujący jest wyłącznie konfiguracją serwera.
+
+Model zwraca odcinki, proste obrysy i opisy w pikselach źródła; adapter w domenie sprawdza granice, typy,
+topologię oraz zapisuje pochodzenie i confidence. Nie uzupełnia domyślnie wymiarów konstrukcyjnych.
+Rozpoznane obrysy pozostają `trace-line`/`trace-area`: wymagają klasyfikacji i parametrów przed przedmiarem.
+Kalibracja reskaluje geometrię oraz podkład razem. Początkowe 1 mm/piksel jest wyraźnie oznaczoną skalą
+tymczasową, nie odczytanym wymiarem. Zbrojenie pozostaje szkicem i nie otrzymuje zatwierdzenia specjalisty.
+
+**Konsekwencje:** Do rzeczywistego skanowania potrzebne są klucz API, szyfrowanie serwera i środki na koncie OpenAI.
+Domyślny model to `gpt-4.1`, `store:false`, limit 12 000 tokenów odpowiedzi i 10 prób na użytkownika/godzinę.
+Limit prób nie jest limitem kwotowym wydatków. Import zastępuje bieżący rysunek po jawnym ostrzeżeniu; undo
+może przywrócić poprzedni. Historia undo jest lokalna do karty; zapisywana jest bieżąca rewizja, nie archiwum zmian.
+Nie ma korekcji perspektywy, 3D, zatwierdzania konstrukcji ani MCP w tej zmianie. Testy mockowanego dostawcy
+nie dowodzą dokładności rzeczywistego rozpoznawania.

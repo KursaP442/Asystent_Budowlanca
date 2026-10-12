@@ -17,11 +17,14 @@ export function getCadApprovalIssues(value: CadDocument): CadReviewIssue[] {
   const issues: CadReviewIssue[] = [];
   if (!document.entities.length) issues.push({ code: "empty", message: "Dokument nie ma obiektów do zatwierdzenia." });
   for (const entity of document.entities) {
-    if ((entity.kind === "slab" || entity.kind === "roof-plane") && !isSimplePolygon(entity.geometry.vertices)) {
+    if ("vertices" in entity.geometry && !isSimplePolygon(entity.geometry.vertices)) {
       issues.push({ code: "polygon", entityId: entity.id, message: "Obrys jest zdegenerowany lub przecina sam siebie." });
     }
     if (entity.reviewStatus !== "verified") issues.push({ code: "review", entityId: entity.id, message: "Obiekt wymaga zatwierdzenia przez użytkownika." });
-    if (entity.kind === "rebar-annotation" && !entity.attributes.specialistVerified) {
+    if (entity.kind === "trace-line" || entity.kind === "trace-area") {
+      issues.push({ code: "review", entityId: entity.id, message: "Rozpoznany obrys wymaga klasyfikacji i parametrów elementu przed przedmiarem." });
+    }
+    if ((entity.kind === "rebar-annotation" || entity.kind === "rebar-line") && !entity.attributes.specialistVerified) {
       issues.push({ code: "structural-review", entityId: entity.id, message: "Zbrojenie wymaga kontroli uprawnionego specjalisty." });
     }
   }

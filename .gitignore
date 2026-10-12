@@ -8,3 +8,4 @@ dist
 .env.local
 coverage
 *.log
+apps/web/public/pdf.worker.min.mjs
