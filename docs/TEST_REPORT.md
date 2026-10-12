@@ -3,6 +3,25 @@
 Zasada: zapisujemy **dokładne komendy**, **datę**, **środowisko** i **rzeczywisty wynik** (PASS/FAIL/BLOCKED/NOT RUN).
 Nigdy nie wpisujemy ogólnego „działa” bez dowodu z uruchomienia.
 
+## Sesja 29 — 12 października 2026
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/schemas test` | opcjonalna rola piwnicy, zgodność kontraktów | PASS | 32/32 |
+| `pnpm --filter @asystent/domain test` | pola i wymiary w lokalnych osiach | PASS | 38/38; bez nadmiarowej grubości na X, piwnica/płyta z jednego obwodu, podpora poza końcem ściany |
+| `pnpm --filter web build` | końcowy Web | PASS | TypeScript i produkcyjny bundle |
+| `pnpm typecheck`, `pnpm lint` | workspace | PASS | 13/7 zadań |
+| `pnpm --filter web exec playwright test --grep 'CAD plan settings\|foundation slab without'` | nowe interakcje | PASS | 2/2; dwuklik w select i slab, Enter/Escape, 10× pattern, wszystkie dostępne tryby prawej myszy, reload piwnicy/płyty, clear/cancel/undo, API 400 bez piwnicy |
+| `pnpm --filter web exec playwright test --grep 'CAD plan settings\|stage canvas\|scoped CAD\|foundation wall generates'` | poprawione regresje | PASS | 4/4; blokada wejścia podczas zmiany arkusza |
+| `pnpm --filter web exec playwright test` | pełna regresja | PASS | 13/13 |
+| `pnpm --filter web exec playwright test --grep 'stage canvas'` | dodatkowa kontrola czyszczenia skanu | PASS | 1/1; podkład znika, zapisany JSON nie ma sourceImage/kalibracji, undo odtwarza skan i elementy |
+| Pierwsze iteracje domain / lint / E2E | zmienione zachowanie | FAIL | stare etykiety X/Y i komunikat; handler w render przeniesiony poza render; przechwytywanie pointer blokowało dwuklik; stare testy swobodnej płyty zmieniono na otwór; stary arkusz był aktywny podczas zapisu nawigacji — dodano inert |
+| Screenshot desktop / mobile | plan z piwnicą i wymiarami | PASS | oznaczenie pomieszczenia, opis i przycisk clear; brak overflow 390 px |
+| HTTP `127.0.0.1:3010` i `/pdf.worker.min.mjs` | zrestartowany podgląd produkcyjny | PASS | 200/200; bez odświeżania formularza użytkownika |
+| pgTAP / SQL | brak migracji | NOT RUN | bez resetu danych |
+| OpenAI rzeczywiste | brak klucza/zgody na koszt | BLOCKED | tylko mock importu |
+| Pełny CAD / zatwierdzony przedmiar | wymaganie docelowe | NOT RUN | oznaczenie piwnicy nie jest projektem konstrukcyjnym |
+
 ## Sesja 28 — 12 października 2026
 
 | Komenda / kontrola | Kontekst | Wynik | Uwagi |

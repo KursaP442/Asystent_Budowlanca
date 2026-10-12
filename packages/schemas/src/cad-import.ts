@@ -73,7 +73,7 @@ export const CadEntitySchema = z.discriminatedUnion("kind", [
   z.object({
     ...common, kind: z.literal("construction-area"), geometry: polygon,
     attributes: z.object({
-      role: z.enum(["column", "pad", "excavation", "section", "elevation", "paving", "finish", "ceiling", "terrain", "equipment", "void"]),
+      role: z.enum(["column", "pad", "basement-area", "excavation", "section", "elevation", "paving", "finish", "ceiling", "terrain", "equipment", "void"]),
       thicknessMm: positiveMm, heightMm: positiveMm, material: z.string().trim().min(1).max(160),
       designReference: z.string().trim().min(1).max(240),
     }).strict(),
@@ -203,8 +203,12 @@ export const CadDocumentSchema = z.object({
       || entity.attachment.hostId === entity.id)) {
       ctx.addIssue({ code: "custom", path: ["entities", index], message: "Przyczepiony element musi wskazywać odcinek tego rysunku." });
     }
-    if (entity.infillFor && (entity.kind !== "slab" || entity.infillFor.some((id) => !ids.has(id)))) {
-      ctx.addIssue({ code: "custom", path: ["entities", index], message: "Płyta denna musi wskazywać obwód tego rysunku." });
+    if (entity.infillFor && (!(entity.kind === "slab" || entity.kind === "construction-area"
+      && entity.attributes.role === "basement-area") || entity.infillFor.some((id) => !ids.has(id)))) {
+      ctx.addIssue({ code: "custom", path: ["entities", index], message: "Pole płyty lub piwnicy musi wskazywać obwód tego rysunku." });
+    }
+    if (entity.kind === "construction-area" && entity.attributes.role === "basement-area" && !entity.infillFor) {
+      ctx.addIssue({ code: "custom", path: ["entities", index], message: "Piwnicę zaznacza się w zamkniętym polu ław." });
     }
     if (entity.kind === "opening" && !walls.has(entity.attributes.wallId)) {
       ctx.addIssue({ code: "custom", path: ["entities", index], message: "Otwór musi należeć do ściany w tym dokumencie." });

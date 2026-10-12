@@ -15,6 +15,7 @@ test("CAD plan settings autosave, readable dimensions, insulation, attached colu
   await login(page,owner.email); await page.locator(".account-type-card.type-client").click();
   await fillConstruction(page,title);
   await page.getByRole("button",{name:"Edytuj",exact:true}).click();
+  await page.getByLabel("Budynek z piwnicą",{exact:true}).check();
   await page.getByRole("tab",{name:"Materiały i technologia",exact:true}).click();
   await selectTechnology(page,"foundationBottomSlab","bottom-slab-yes","Tak — płyta denna");
   await selectTechnology(page,"foundationInsulation","foundation-xps","Płyty XPS");
@@ -50,11 +51,17 @@ test("CAD plan settings autosave, readable dimensions, insulation, attached colu
   for(let i=0;i<4;i++)await segment(corners[i],corners[(i+1)%4]);
   await expect(canvas.locator(".cad-room-area")).toContainText("14.52 m²");
   await expect(canvas.locator(".cad-insulation-symbol")).toHaveCount(4);
+  const thermalPattern=canvas.locator('[data-purpose="thermal"] pattern').first();
+  expect(Number(await thermalPattern.getAttribute("width"))).toBe(Number(await thermalPattern.getAttribute("height"))*10);
   await expect(canvas.locator('[data-purpose="waterproofing"] polygon')).toHaveCount(8);
   await editor.getByRole("button",{name:"Dopasuj widok",exact:true}).click();
   await editor.getByRole("button",{name:"Płyta fundamentowa / denna",exact:true}).click();
   const middle=await screen({x:3500,y:3000}); await page.mouse.click(middle.x,middle.y);
   await expect(canvas.locator('.cad-entity[data-role="slab"]')).toHaveCount(1);
+  await editor.getByRole("button",{name:"Pomieszczenie z piwnicą",exact:true}).click();
+  await page.mouse.click(middle.x,middle.y);
+  await expect(canvas.locator('.cad-entity[data-role="basement-area"]')).toHaveCount(1);
+  await expect(canvas).toContainText("Piwnica");
   await editor.getByRole("button",{name:"Słup",exact:true}).click();
   await segment({x:3300,y:1300},{x:3700,y:1700});
   await expect(canvas.locator('.cad-entity[data-role="column"]')).toContainText("S1");
@@ -84,6 +91,18 @@ test("CAD plan settings autosave, readable dimensions, insulation, attached colu
   await expect(canvas.locator(".cad-annotation-leader")).toHaveCount(1);
   await editor.getByLabel("Opis na rysunku",{exact:true}).fill("Ściana SF1 według K-01");
   await editor.getByLabel("Czcionka opisu na arkuszu (mm)",{exact:true}).fill("3.5");
+  await canvas.locator('.cad-entity[data-role="annotation"] text').dblclick();
+  const inline=canvas.getByLabel("Edytuj opis na canvas",{exact:true});
+  await expect(inline).toBeFocused();
+  await inline.fill("Opis edytowany wewnątrz canvas"); await inline.press("Enter");
+  await expect(inline).toHaveCount(0);
+  await expect(canvas).toContainText("Opis edytowany wewnątrz canvas");
+  await canvas.locator('.cad-entity[data-role="annotation"] text').dblclick();
+  await inline.fill("Anulowana zmiana"); await inline.press("Escape");
+  await expect(canvas).not.toContainText("Anulowana zmiana");
+  await editor.getByRole("button",{name:"Płyta fundamentowa / denna",exact:true}).click();
+  await canvas.locator('.cad-entity[data-role="annotation"] text').dblclick();
+  await expect(inline).toBeFocused(); await inline.press("Escape");
   const zoomBeforeScale=await canvas.getAttribute("viewBox");
   await editor.getByLabel("Skala arkusza",{exact:true}).selectOption("50");
   await expect(canvas).toHaveAttribute("viewBox",zoomBeforeScale);
@@ -132,10 +151,27 @@ test("CAD plan settings autosave, readable dimensions, insulation, attached colu
   await expect(editor.getByLabel("Skala arkusza",{exact:true})).toHaveValue("50");
   await expect(canvas.locator('.cad-entity[data-role="slab"]')).toHaveCount(1);
   await expect(canvas.locator(".cad-annotation-leader")).toHaveCount(1);
-  await expect(canvas).toContainText("Ściana SF1 według K-01");
+  await expect(canvas).toContainText("Opis edytowany wewnątrz canvas");
+  await expect(canvas.locator('.cad-entity[data-role="basement-area"]')).toHaveCount(1);
+  const entityCount=await canvas.locator(".cad-entity").count();
+  const enabledTools=await editor.getByRole("toolbar",{name:"Narzędzia rysowania"}).getByRole("button").all();
+  for(const button of enabledTools){
+    if(await button.isDisabled())continue;
+    await button.click(); await canvas.scrollIntoViewIfNeeded();
+    const beforeView=await canvas.getAttribute("viewBox"),bounds=await canvas.boundingBox();
+    await page.mouse.move(bounds.x+bounds.width*.5,bounds.y+bounds.height*.5);
+    await page.mouse.down({button:"right"});
+    await page.mouse.move(bounds.x+bounds.width*.5+24,bounds.y+bounds.height*.5+16);
+    await page.mouse.up({button:"right"});
+    expect(await canvas.getAttribute("viewBox")).not.toBe(beforeView);
+    await expect(canvas.locator(".cad-entity")).toHaveCount(entityCount);
+    await editor.getByRole("button",{name:"Dopasuj widok",exact:true}).click();
+  }
   await page.getByRole("tab",{name:"Przekroje fundamentów i poziomy posadowienia",exact:true}).click();
+  await expect(canvas).toHaveAttribute("aria-label","Płótno projektu: Przekroje fundamentów i poziomy posadowienia");
   await expect(editor.getByLabel("Wysokość ściany fundamentowej (mm)",{exact:true})).toHaveValue("1000");
   await editor.getByRole("button",{name:"Ściana",exact:true}).click();
+  await expect(editor.getByRole("button",{name:"Ściana",exact:true})).toHaveAttribute("aria-pressed","true");
   await segment({x:1000,y:2500},{x:6000,y:2500});
   await segment({x:3500,y:1000},{x:3500,y:4000});
   await expect(canvas.locator('.cad-entity[data-role="wall"]')).toHaveCount(4);
@@ -153,8 +189,74 @@ test("CAD plan settings autosave, readable dimensions, insulation, attached colu
   expect(endpointCounts.get("3500.000,2500.000")).toBeUndefined();
   await page.mouse.up();
   await expect(editor.getByRole("status")).toContainText("Rysunek zapisany automatycznie");
+  const countBeforeClear=await canvas.locator(".cad-entity").count();
+  page.once("dialog",(dialog)=>dialog.dismiss());
+  await editor.getByRole("button",{name:"Wyczyść canvas",exact:true}).click();
+  await expect(canvas.locator(".cad-entity")).toHaveCount(countBeforeClear);
+  page.once("dialog",(dialog)=>dialog.accept());
+  await editor.getByRole("button",{name:"Wyczyść canvas",exact:true}).click();
+  await expect(canvas.locator(".cad-entity")).toHaveCount(0);
+  await editor.getByRole("button",{name:"Cofnij",exact:true}).click();
+  await expect(canvas.locator(".cad-entity")).toHaveCount(countBeforeClear);
+  page.once("dialog",(dialog)=>dialog.accept());
+  await editor.getByRole("button",{name:"Wyczyść canvas",exact:true}).click();
+  await expect(editor.getByRole("status")).toContainText("Rysunek zapisany automatycznie");
+  await page.reload(); await page.getByRole("button",{name:"Edytuj",exact:true}).click();
+  await page.getByRole("button",{name:"Przejdź dalej",exact:true}).click();
+  await page.getByRole("tab",{name:"Przekroje fundamentów i poziomy posadowienia",exact:true}).click();
+  await expect(canvas.locator(".cad-entity")).toHaveCount(0);
+  await expect(editor.getByLabel("Wysokość ściany fundamentowej (mm)",{exact:true})).toHaveValue("1000");
   await page.setViewportSize({width:390,height:844});
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+});
+
+test("foundation slab without bottom slab selects a closed footing field and basement is gated", async ({page,request}) => {
+  const owner=await createAccount(),title=`Płyta z pola ${randomUUID()}`;
+  await login(page,owner.email); await page.locator(".account-type-card.type-client").click();
+  await fillConstruction(page,title);
+  await page.getByRole("button",{name:"Edytuj",exact:true}).click();
+  await page.getByRole("tab",{name:"Materiały i technologia",exact:true}).click();
+  await selectTechnology(page,"foundationBottomSlab","bottom-slab-no","Nie — bez płyty");
+  await page.getByRole("button",{name:"Przejdź dalej",exact:true}).click();
+  const editor=page.locator(".cad-editor"),canvas=editor.getByRole("img",{name:/Płótno projektu/});
+  await expect(editor.getByRole("button",{name:"Pomieszczenie z piwnicą",exact:true})).toHaveCount(0);
+  const screen=async(p)=>{
+    await canvas.scrollIntoViewIfNeeded();
+    const r=await canvas.boundingBox(),v=(await canvas.getAttribute("viewBox")).split(" ").map(Number);
+    return {x:r.x+(p.x-v[0])/v[2]*r.width,y:r.y+(p.y-v[1])/v[3]*r.height};
+  };
+  await editor.getByRole("button",{name:"Płyta fundamentowa / denna",exact:true}).click();
+  await expect(editor.getByRole("button",{name:/Zamknij obrys/})).toHaveCount(0);
+  const empty=await screen({x:3000,y:3000}); await page.mouse.click(empty.x,empty.y);
+  await expect(editor.getByRole("alert")).toContainText("Kliknij zamknięte pole ław");
+  await expect(canvas.locator(".cad-entity")).toHaveCount(0);
+  await editor.getByRole("button",{name:"Ława fundamentowa",exact:true}).click();
+  const corners=[{x:1000,y:1500},{x:6500,y:1500},{x:6500,y:4500},{x:1000,y:4500}];
+  for(let i=0;i<4;i++){
+    const a=await screen(corners[i]),b=await screen(corners[(i+1)%4]);
+    await page.mouse.move(a.x,a.y); await page.mouse.down(); await page.mouse.move(b.x,b.y); await page.mouse.up();
+  }
+  await editor.getByLabel("Grubość płyty dennej (mm)",{exact:true}).fill("250");
+  await editor.getByLabel("Beton płyty dennej",{exact:true}).fill("C30/37");
+  await editor.getByRole("button",{name:"Płyta fundamentowa / denna",exact:true}).click();
+  const center=await screen({x:3000,y:3000}); await page.mouse.click(center.x,center.y);
+  await expect(canvas.locator('.cad-entity[data-role="slab"]')).toHaveCount(1);
+  await expect(editor.getByRole("status")).toContainText("Rysunek zapisany automatycznie");
+  const {data:job,error:jobError}=await admin.from("construction_jobs").select("id").eq("title",title).single();
+  if(jobError)throw jobError;
+  const {data:row,error:rowError}=await admin.from("cad_drawings").select("payload").eq("job_id",job.id).eq("requirement_id","foundation-drawing-0").single();
+  if(rowError)throw rowError;
+  const slab=row.payload.entities.find((e)=>e.kind==="slab");
+  expect(slab.infillFor).toHaveLength(4); expect(slab.attributes.thicknessMm).toBe(250);
+  const invalid=structuredClone(row.payload);
+  invalid.entities.push({...slab,id:randomUUID(),mark:undefined,kind:"construction-area",layerId:"basement-area",
+    attributes:{role:"basement-area",thicknessMm:200,heightMm:2800,material:"Z projektu",designReference:"K-01"}});
+  const token=await tokenFor(owner.email);
+  const response=await request.post("/api/cad/drawings",{data:invalid,headers:{Authorization:`Bearer ${token}`}});
+  expect(response.status()).toBe(400);
+  await page.reload(); await page.getByRole("button",{name:"Edytuj",exact:true}).click();
+  await page.getByRole("button",{name:"Przejdź dalej",exact:true}).click();
+  await expect(canvas.locator('.cad-entity[data-role="slab"]')).toHaveCount(1);
 });
 
 function planPdfFixture() {
@@ -929,7 +1031,7 @@ test("stage canvas draws, edits, undoes, autosaves and imports AI proposal with 
   await expect(canvas.locator("[data-entity-id]")).toHaveCount(1);
   await editor.locator(".cad-element-list button").first().click();
   await expect(editor.getByLabel("Szerokość (mm)", {exact:true})).toHaveValue("800");
-  await editor.getByRole("button", {name:"Płyta fundamentowa / denna",exact:true}).click();
+  await editor.getByRole("button", {name:"Otwór w płycie / polu",exact:true}).click();
   await canvas.scrollIntoViewIfNeeded();
   const polygonBox = await canvas.boundingBox();
   for (const [x,y] of [[70,260],[200,260],[200,360],[70,360]]) {
@@ -1037,6 +1139,21 @@ test("stage canvas draws, edits, undoes, autosaves and imports AI proposal with 
   const {data:scanFiles,error:scanListError} = await admin.storage.from("project-scans").list(`${owner.id}/${job.id}`);
   if (scanListError) throw scanListError;
   expect(scanFiles.some(({name}) => name.endsWith("-original.pdf"))).toBe(true);
+  await expect(canvas.locator("image")).toHaveCount(1);
+  page.once("dialog",(dialog)=>dialog.accept());
+  await editor.getByRole("button",{name:"Wyczyść canvas",exact:true}).click();
+  await expect(canvas.locator(".cad-entity")).toHaveCount(0);
+  await expect(canvas.locator("image")).toHaveCount(0);
+  await expect(editor.getByRole("status")).toContainText("Rysunek zapisany automatycznie");
+  const {data:cleared,error:clearError}=await admin.from("cad_drawings").select("payload")
+    .eq("job_id",job.id).eq("requirement_id","foundation-drawing-0").single();
+  if(clearError)throw clearError;
+  expect(cleared.payload.entities).toHaveLength(0);
+  expect(cleared.payload.sourceImage??null).toBeNull(); expect(cleared.payload.calibration).toBeNull();
+  await editor.getByRole("button",{name:"Cofnij",exact:true}).click();
+  await expect(canvas.locator(".cad-entity")).toHaveCount(1);
+  await expect(canvas.locator("image")).toHaveCount(1);
+  await expect(editor.getByRole("status")).toContainText("Rysunek zapisany automatycznie");
   await returnToPanelFromDocumentation(page);
 });
 test("scoped CAD workspace zooms, joins corners, shows layers, reuses plans and creates reinforcement", async ({ page, request }) => {

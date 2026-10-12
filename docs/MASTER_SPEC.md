@@ -200,8 +200,11 @@ Wymiary mają wspólny układ unikający kolizji etykiet, z białym tłem tekstu
 Ściany i samodzielne ławy dzielą się również przy przecięciu X; ruch węzła zmienia wszystkie cztery końce.
 Stopy i słupy dotykające ściany otrzymują relację położenia; podążają za jej przesunięciem i obrotem,
 zachowując rzeczywiste wymiary przekroju. Rozmiar X × X i oznaczenie (np. S1, ST1) są wewnątrz symbolu.
-Pozycję opisują wymiary od początku podparcia oraz współrzędne X/Y od zewnętrznego gabarytu rzutu;
-dotyczy to również podpór niezwiązanych ze ścianą. Usunięcie ściany odczepia symbol, zamiast go usuwać.
+Pozycję opisują dwa wymiary od lic ściany, z którą symbol jest związany, albo najbliższej ściany:
+wzdłuż jej kierunku i prostopadle do niej. Dotyczy to również podpór poza końcem ściany.
+Gabaryt X/Y jest odniesieniem tylko gdy rysunek nie ma ścian ani ław. Łańcuchy wymiarowe przy T/X
+kończą się we wspólnych węzłach, bez dodawania grubości zakończeń na wewnętrznych podziałach.
+Usunięcie ściany odczepia symbol, zamiast go usuwać.
 Ściany, ławy, stopy, słupy, płyty i belki mają trwałe, unikalne, edytowalne oznaczenia.
 Wykop rysuje się pasem jak ścianę, z własną szerokością, głębokością i kolorem; starsze obszary zachowano.
 
@@ -209,11 +212,20 @@ Zamknięte pola mają opis m² w świetle ścian, uwzględniający ściany dziel
 Nie odlicza on stóp, słupów ani otworów podłogowych i nie jest zatwierdzonym przedmiarem.
 „Płyta denna między ławami” jest oddzielnym wyborem ankiety, niezależnym od płyty fundamentowej jako
 posadowienia. Po wpisaniu grubości i betonu narzędzie płyty wstawia ją kliknięciem zamkniętego pola ław.
+Dotyczy to zarówno płyty fundamentowej, jak i dennej; to narzędzie nie rysuje swobodnego wielokąta.
+„Pomieszczenie z piwnicą” zaznacza podobne pole wyłącznie gdy budynek ma piwnicę. Oznaczenie
+jest niezależne od płyty, zapisuje się i podąża za ławami; nie generuje automatycznie konstrukcji piwnicy.
 Wewnętrzny obrys aktualizuje się przy ruchu podparć. Podział istniejącego pola wymaga usunięcia
 i ponownego wskazania płyty, bez zgadywania zmiany rozwiązania konstrukcyjnego.
 
 Opis tworzy się przeciągnięciem od opisywanego miejsca do tekstu. Treść i rozmiar czcionki można edytować
-przy canvas. Legenda w prawym dolnym rogu zawiera technologie, parametry i referencje dokumentów,
+przy canvas. Dwuklik na istniejącym opisie otwiera pole tekstowe wewnątrz canvas, także przy innym narzędziu.
+Enter lub opuszczenie pola zapisuje, Escape anuluje. Prawy przycisk myszy z przeciąganiem przesuwa
+widok w każdym trybie bez tworzenia geometrii. „Wyczyść canvas” wymaga potwierdzenia, czyści tylko
+bieżący rysunek i podkład, zachowuje ustawienia i prywatne pliki źródłowe oraz umożliwia cofnięcie.
+Rombowy symbol ocieplenia jest 10 razy dłuższy wzdłuż ściany, bez zmiany grubości modelu.
+Na czas przełączania rysunków edytor jest nieaktywny, aby gest nie zmienił poprzedniego arkusza.
+Legenda w prawym dolnym rogu zawiera technologie, parametry i referencje dokumentów,
 z możliwością ukrycia; dopasowanie widoku rezerwuje jej prawy pas. Przyciski historii i widoku są wyróżnione.
 Skala arkusza (np. 1:50, 1:100) zapisuje się osobno od zoomu i kalibracji. Eksport SVG ma fizyczne wymiary
 w mm według tej skali i tekst wymiarowy 2,5 mm na arkuszu. Płótno pozostaje modelem w mm.

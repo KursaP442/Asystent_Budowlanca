@@ -131,7 +131,7 @@ export function ProjectDocumentationQuestionnaire({ jobId, scope, onBack, onSave
         </div>
         <StageCadEditor key={`${current.id}-drawing-${drawingIndex}`} jobId={jobId}
           requirementId={currentDrawingId} title={current.drawings[drawingIndex]} kind={current.kind}
-          technology={scope.technology}
+          technology={scope.technology} basement={scope.basement === true} disabled={busy}
           technologyHints={getCadTechnologyHints(current.kind, scope.workType, scope.technology)}
           sources={drawingSteps.filter((item) => (completion[item.id] ?? 0) > 0)} onPendingChange={onCadPending} onSavedDrawing={onSavedDrawing} />
         <p className="cad-disclaimer">Zielony: zapisano obiekty. Czerwony: pusty rysunek. Kolory nie oznaczają zatwierdzenia ani kompletności przedmiaru.</p>

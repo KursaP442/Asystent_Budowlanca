@@ -101,7 +101,7 @@ test("infill clicks represent exact inner footing polygon and retain relation on
   assert.notDeepEqual(moved.entities.at(-1).geometry,slab.geometry);
   const copied=copyCadGeometry(original,doc([],original.projectId),randomUUID);
   assert.ok(copied.entities.at(-1).infillFor.every((id)=>copied.entities.some((e)=>e.id===id)));
-  assert.throws(()=>synchronizeCadInfill({...original,entities:original.entities.filter((e)=>e.id!==footings[0].id)}),/utraciła/);
+  assert.throws(()=>synchronizeCadInfill({...original,entities:original.entities.filter((e)=>e.id!==footings[0].id)}),/utraciło/);
 });
 
 test("identifiers remain stable and unique including copies and regenerated defaults", () => {
@@ -116,8 +116,9 @@ test("identifiers remain stable and unique including copies and regenerated defa
 test("dense external dimensions have no overlapping label boxes and include detached column positioning", () => {
   const column=createCadElement("column",[{x:2000,y:1000},{x:2400,y:1000},{x:2400,y:1400},{x:2000,y:1400}],{id:randomUUID()});
   const dims=getCadPlanDimensions(assignCadMarks(doc([...rectangle(),column])),250);
-  assert.ok(dims.some((d)=>d.label.includes("S1 X:")));
-  assert.ok(dims.some((d)=>d.label.includes("S1 Y:")));
+  assert.ok(dims.some((d)=>d.label === "S1 od lica W1: 2320 mm"));
+  assert.ok(dims.some((d)=>d.label === "S1 oś od lica W1: 1080 mm"));
+  assert.ok(!dims.some((d)=>d.label.includes("S1 X:") || d.label.includes("S1 Y:")));
   for(let i=0;i<dims.length;i++)for(let j=i+1;j<dims.length;j++){
     const a=dims[i].box,b=dims[j].box;
     assert.ok(!(a.x<b.x+b.width&&a.x+a.width>b.x&&a.y<b.y+b.height&&a.y+a.height>b.y));
@@ -125,4 +126,42 @@ test("dense external dimensions have no overlapping label boxes and include deta
   const many=layoutCadDimensions(Array.from({length:20},()=>({start:{x:0,y:0},end:{x:4000,y:0},color:"#000",group:"dense"})),125);
   assert.equal(new Set(many.map((d)=>d.box.y)).size,20);
   assert.equal(CadEntitySchema.safeParse({...column,attachment:{hostId:randomUUID(),start:{x:0,y:0},end:{x:0,y:0}}}).success,false);
+});
+
+test("T and X dimension chains meet at junctions without adding wall caps at internal nodes", () => {
+  const original = doc([wall({x:0,y:0},{x:6000,y:0}),wall({x:3000,y:-2000},{x:3000,y:2000})]);
+  const split = connectCadWallJunctions(original,randomUUID);
+  const dims = getCadPlanDimensions(split,125).filter((d)=>d.group.endsWith(":exterior") && Math.hypot(d.end.x-d.start.x,d.end.y-d.start.y)>240);
+  assert.equal(dims.length,4);
+  assert.deepEqual(dims.map((d)=>Number(d.label.split(" ")[0])).sort((a,b)=>a-b),[2120,2120,3120,3120]);
+  const horizontal = dims.filter((d)=>d.start.y===d.end.y);
+  assert.ok(horizontal.some((d)=>d.end.x===3000));
+  assert.ok(horizontal.some((d)=>d.start.x===3000));
+});
+
+test("basement field is gated, persists with slab in the same field and follows footing movement", () => {
+  assert.ok(!getCadDrawingTools("foundation","Rzut fundamentów",emptyConstructionTechnologySelections,false).includes("basement-area"));
+  assert.ok(getCadDrawingTools("foundation","Rzut fundamentów",emptyConstructionTechnologySelections,true).includes("basement-area"));
+  assert.ok(!getCadDrawingTools("foundation","Przekroje fundamentów",emptyConstructionTechnologySelections,true).includes("basement-area"));
+  const footings=rectangle("footing"),face=getCadPlanFaces(doc(footings),"footings")[0];
+  const area={...createCadElement("basement-area",face.inner,{id:randomUUID()}),infillFor:face.ids};
+  const slab={...createCadElement("slab",face.inner,{id:randomUUID()}),infillFor:face.ids};
+  const original=doc([...footings,area,slab]);
+  const saved=CadDocumentSchema.parse(JSON.parse(JSON.stringify(original)));
+  const moved=synchronizeCadInfill(translateConnectedCadEntity(saved,footings[0].id,{x:0,y:-200}));
+  assert.notDeepEqual(moved.entities.at(-2).geometry,area.geometry);
+  assert.deepEqual(moved.entities.at(-1).geometry,moved.entities.at(-2).geometry);
+  assert.equal(CadDocumentSchema.safeParse(doc()).success,true);
+  assert.equal(CadDocumentSchema.safeParse({...original,entities:[...footings,{...area,infillFor:undefined}]}).success,false);
+});
+
+test("detached supports beyond a wall end dimension from that wall, not drawing bounds or a diagonal", () => {
+  const host=wall({x:1000,y:1000},{x:5000,y:1000});
+  const support=createCadElement("pad",[{x:5700,y:1700},{x:6300,y:1700},{x:6300,y:2300},{x:5700,y:2300}],{id:randomUUID()});
+  const dims=getCadPlanDimensions(assignCadMarks(doc([host,support])),125).filter((d)=>d.group.endsWith(":location"));
+  assert.equal(dims.length,2);
+  assert.equal(dims[0].label,"ST1 od lica W1: 5120 mm");
+  assert.equal(dims[1].label,"ST1 oś od lica W1: 880 mm");
+  assert.equal(dims[1].start.x,dims[1].end.x);
+  assert.equal(dims[0].start.y,dims[0].end.y);
 });

@@ -20,10 +20,15 @@ export async function POST(request: Request) {
     const drawingRequirement = findDrawingRequirement(access.job, document.requirementId);
     if (!drawingRequirement) return apiError("Etap nie należy do zakresu budowy.", 400);
     const technology = ConstructionTechnologySchema.parse(JSON.parse(access.job.materials));
-    const allowed = getCadDrawingTools(drawingRequirement.requirement.kind, drawingRequirement.requirement.drawings[drawingRequirement.index], technology);
+    const allowed = getCadDrawingTools(drawingRequirement.requirement.kind, drawingRequirement.requirement.drawings[drawingRequirement.index], technology, access.job.basement === true);
     const supportOptions = getFoundationSupportOptions(technology);
-    if (document.entities.some((e) => e.infillFor && !e.derivedFrom) && technology.foundationBottomSlab !== "bottom-slab-yes") {
-      return apiError("Płyta denna między ławami wymaga wyboru w danych budowy.", 400);
+    if (document.entities.some((e) => e.kind === "slab" && e.infillFor && !e.derivedFrom)
+      && technology.foundationBottomSlab !== "bottom-slab-yes" && !supportOptions.some((option) => option.value === "slab")) {
+      return apiError("Płyta wymaga wyboru w danych budowy.", 400);
+    }
+    if (document.entities.some((e) => e.kind === "construction-area" && e.attributes.role === "basement-area")
+      && access.job.basement !== true) {
+      return apiError("Zaznaczenie piwnicy wymaga budynku z piwnicą w danych budowy.", 400);
     }
     const synchronized = synchronizeCadInfill(synchronizeCadAttachments(document));
     if (synchronized.entities.some((e, i) => JSON.stringify(e.geometry) !== JSON.stringify(document.entities[i]?.geometry))) {

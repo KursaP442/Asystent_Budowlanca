@@ -234,7 +234,7 @@ export function synchronizeCadInfill(document: CadDocument): CadDocument {
   return CadDocumentSchema.parse({ ...document, entities: document.entities.map((e) => {
     if (!e.infillFor) return e;
     const face = faces.find((f) => e.infillFor!.every((id) => f.ids.includes(id)));
-    if (!face) throw new CadPlanError("Płyta denna utraciła zamknięty obwód. Usuń płytę przed zmianą podziału pól.");
+    if (!face) throw new CadPlanError("Pole płyty lub piwnicy utraciło zamknięty obwód. Usuń zaznaczenie przed zmianą podziału pól.");
     return { ...e, infillFor: face.ids, geometry: { vertices: face.inner }, reviewStatus: "draft" };
   }) });
 }
@@ -283,12 +283,29 @@ export function getCadPlanDimensions(document: CadDocument, fontMm: number): Cad
   const minX = boxes.length ? Math.min(...boxes.map((b) => b.x)) : 0, minY = boxes.length ? Math.min(...boxes.map((b) => b.y)) : 0;
   const add = (start: CadPoint, end: CadPoint, group: string, side = 1, label?: string) =>
     requests.push({ start, end, group, color: "#334155", side, label });
+  const walls = document.entities.filter((e) => e.kind === "wall"
+    || e.kind === "construction-line" && e.attributes.role === "foundation-wall");
+  const references = walls.length ? walls : document.entities.filter((e) => e.kind === "footing");
+  const strips = document.entities.filter((e) => !e.supportFor && (e.kind === "wall" || e.kind === "footing"
+    || e.kind === "construction-line" && e.attributes.role === "foundation-wall"));
   for (const e of document.entities) {
     if ("start" in e.geometry) {
       const width = cadStripWidth(e);
       if (width > 0) {
         const p = segmentRectangle(e.geometry.start, e.geometry.end, width);
-        if (!e.supportFor) add(p[0]!, p[1]!, `${e.id}:exterior`);
+        if (!e.supportFor) {
+          const { start, end } = e.geometry, length = Math.hypot(end.x - start.x, end.y - start.y);
+          const ux = (end.x - start.x) / length, uy = (end.y - start.y) / length;
+          const continuation = (point: CadPoint) => strips.some((other) => {
+            if (other.id === e.id || !("start" in other.geometry)) return false;
+            const g = other.geometry;
+            return [g.start, g.end].some((q) => Math.hypot(q.x - point.x, q.y - point.y) < .001)
+              && Math.abs((g.end.x - g.start.x) * uy - (g.end.y - g.start.y) * ux) < .001;
+          });
+          const a = continuation(start) ? { x: p[0]!.x + ux * width / 2, y: p[0]!.y + uy * width / 2 } : p[0]!;
+          const b = continuation(end) ? { x: p[1]!.x - ux * width / 2, y: p[1]!.y - uy * width / 2 } : p[1]!;
+          add(a, b, `${e.id}:exterior`);
+        }
         const widthKey = `${e.kind}:${e.kind === "construction-line" ? e.attributes.role : ""}:${width}`;
         if (!widths.has(widthKey)) { add(p[1]!, p[2]!, `${e.id}:exterior`); widths.add(widthKey); }
       } else if (e.kind === "dimension") add(e.geometry.start, e.geometry.end, `${e.id}:manual`, 1,
@@ -296,15 +313,30 @@ export function getCadPlanDimensions(document: CadDocument, fontMm: number): Cad
     } else if ("vertices" in e.geometry) {
       if (e.kind === "construction-area" && ["pad", "column"].includes(e.attributes.role)) {
         const center = polygonCenter(e.geometry.vertices), b = cadElementBounds(e);
-        add({ x: minX, y: center.y }, center, `${e.id}:location`, 1, `${e.mark ?? ""} X: ${Math.round(center.x - minX)} mm`);
-        add({ x: center.x, y: minY }, center, `${e.id}:location`, -1, `${e.mark ?? ""} Y: ${Math.round(center.y - minY)} mm`);
-        if (e.attachment) {
-          const host = document.entities.find((h) => h.id === e.attachment!.hostId);
-          if (host && "start" in host.geometry) {
-            const projection = projectPointOnSegment(center, host.geometry.start, host.geometry.end);
-            add(host.geometry.start, projection, `${e.id}:location`, -1, `${e.mark ?? ""} od ${host.mark ?? "początku"}: ${Math.round(Math.hypot(projection.x - host.geometry.start.x, projection.y - host.geometry.start.y))} mm`);
-            add(projection, center, `${e.id}:location`, 1, `${e.mark ?? ""} odsunięcie: ${Math.round(Math.hypot(projection.x - center.x, projection.y - center.y))} mm`);
-          }
+        const ranked = references.map((host) => {
+          if (!("start" in host.geometry)) throw new CadPlanError("Odniesienie wymiaru wymaga ściany.");
+          const projection = projectPointOnSegment(center, host.geometry.start, host.geometry.end);
+          return { host, projection, distance: Math.hypot(center.x - projection.x, center.y - projection.y) };
+        }).sort((a, b) => (a.host.id === e.attachment?.hostId ? -1 : b.host.id === e.attachment?.hostId ? 1 : a.distance - b.distance));
+        const nearest = ranked[0];
+        if (nearest && "start" in nearest.host.geometry) {
+          const { host } = nearest, g = nearest.host.geometry;
+          if (!("start" in g)) throw new CadPlanError("Odniesienie wymiaru wymaga ściany.");
+          const length = Math.hypot(g.end.x - g.start.x, g.end.y - g.start.y);
+          const ux = (g.end.x - g.start.x) / length, uy = (g.end.y - g.start.y) / length;
+          const along = (center.x - g.start.x) * ux + (center.y - g.start.y) * uy;
+          const projection = { x: g.start.x + ux * along, y: g.start.y + uy * along };
+          const origin = { x: g.start.x - ux * cadStripWidth(host) / 2, y: g.start.y - uy * cadStripWidth(host) / 2 };
+          add(origin, projection, `${e.id}:location`, -1,
+            `${e.mark ?? ""} od lica ${host.mark ?? "ściany"}: ${Math.round(Math.hypot(projection.x - origin.x, projection.y - origin.y))} mm`);
+          const sign = (center.x - projection.x) * -uy + (center.y - projection.y) * ux >= 0 ? 1 : -1;
+          const face = { x: projection.x - uy * sign * cadStripWidth(host) / 2,
+            y: projection.y + ux * sign * cadStripWidth(host) / 2 };
+          add(face, center, `${e.id}:location`, 1,
+            `${e.mark ?? ""} oś od lica ${host.mark ?? "ściany"}: ${Math.round(Math.hypot(center.x - face.x, center.y - face.y))} mm`);
+        } else {
+          add({ x: minX, y: center.y }, center, `${e.id}:location`, 1, `${e.mark ?? ""} X: ${Math.round(center.x - minX)} mm`);
+          add({ x: center.x, y: minY }, center, `${e.id}:location`, -1, `${e.mark ?? ""} Y: ${Math.round(center.y - minY)} mm`);
         }
         // Size is printed inside the symbol; only its position uses external dimension chains.
         if (!b.width || !b.height) throw new Error("Stopa lub słup wymaga niezerowych wymiarów.");

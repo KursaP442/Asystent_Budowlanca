@@ -22,6 +22,7 @@ export const cadDrawingTools = [
   { id: "wall", label: "Ściana", geometry: "line" },
   { id: "opening", label: "Otwór w ścianie", geometry: "line" },
   { id: "slab", label: "Obrys / płyta", geometry: "area" },
+  { id: "basement-area", label: "Pomieszczenie z piwnicą", geometry: "area" },
   { id: "beam", label: "Belka", geometry: "line" },
   { id: "lintel", label: "Nadproże", geometry: "line" },
   { id: "ring-beam", label: "Wieniec", geometry: "line" },
@@ -95,7 +96,7 @@ const profiles: Record<ProjectDocumentationKind, CadDrawingTool[]> = {
 };
 
 export function getCadDrawingTools(kind: ProjectDocumentationKind, drawingTitle: string,
-  technology?: ConstructionTechnologySelections): CadDrawingTool[] {
+  technology?: ConstructionTechnologySelections, basement = false): CadDrawingTool[] {
   const reinforcement = /zbrojeni|prętów/i.test(drawingTitle) && !/rzut stropu/i.test(drawingTitle) && kind !== "roofStructure";
   const section = /przekro|profile|rozwinięcia|schemat/i.test(drawingTitle);
   const specific = kind === "foundation" && /Detale izolacji/i.test(drawingTitle) ? ["section", "foundation-wall", "footing", "drain", "pipe", "void"] as CadDrawingTool[]
@@ -104,6 +105,7 @@ export function getCadDrawingTools(kind: ProjectDocumentationKind, drawingTitle:
       : section ? [...profiles[kind].filter((tool) => !["roof-plane", "slab", "paving", "terrain"].includes(tool)), "section" as const]
       : profiles[kind];
   const result = [...new Set([...specific, ...(/strop.*zbrojen/i.test(drawingTitle) ? ["rebar-line" as const] : []),
+    ...(kind === "foundation" && !section && !reinforcement && basement ? ["basement-area" as const] : []),
     "axis", "section-cut", "dimension", "annotation"] as CadDrawingTool[])];
   if (kind === "foundation" && technology && !technology.foundationType.includes("foundation-slab")
     && !technology.otherFoundationType.includes("other-foundation-slab")

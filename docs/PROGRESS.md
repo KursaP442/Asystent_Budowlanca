@@ -1067,3 +1067,38 @@ wymaga jej usunięcia i ponownego wskazania. Host z przypisanym zbrojeniem nadal
 przed podziałem. Identyfikatory S1/ST1 przygotowują przyszłe projektowanie zbrojenia podpór, nie dobierają
 belki ani rozwiązania konstrukcyjnego. Pełny CAD 1:1, fizyczne gięcie, ujednolicone bryły i zatwierdzony
 przedmiar pozostają **NOT RUN**.
+
+## Sesja 29 — 12 października 2026
+
+### Zrobione
+
+1. Dwuklik na opisie otwiera edycję tekstu wewnątrz SVG, także w trybie płyty. Enter/blur zapisuje,
+   Escape anuluje. Przechwycenie myszy dla opisu zaczyna się dopiero przy przeciąganiu, nie blokując dwukliku.
+2. Przycisk „Wyczyść canvas” jest obok historii/eksportu. Potwierdzenie czyści elementy, podkład i kalibrację
+   bieżącego arkusza; ustawienia pozostają. Cofnij odtwarza dokument. Nie usuwamy plików z Storage.
+3. Prawy przycisk myszy z przeciąganiem przesuwa widok w każdym narzędziu; bez geometrii i menu kontekstowego.
+4. Symbol ocieplenia powiększony 10× wzdłuż ściany, bez zmiany projektowej grubości warstwy.
+5. Wymiary podzielonych T/X odcinków nie doliczają zakończeń rdzenia na wspólnych węzłach.
+   Stopy i słupy mają położenie wzdłuż i prostopadle do lic hosta/najbliższej ściany, nie gabarytu rysunku.
+   Projekcja poza końcem ściany pozostaje prostopadła; nie powstaje mylący wymiar ukośny.
+6. Oba warianty płyty w fundamentach są wybierane kliknięciem zamkniętego pola ław. Nowe narzędzie
+   „Pomieszczenie z piwnicą” jest warunkowane `basement=true`, także na API, i aktualizuje pole z ławami.
+   Płyta i piwnica mogą być w tym samym polu, niezależnie. JSON pozostaje kompatybilny, bez migracji.
+7. Blokada edytora podczas zmiany rysunku zapobiega kliknięciu/przeciąganiu poprzedniego arkusza.
+
+### Weryfikacja
+
+- Schemas **PASS** 32/32; domain **PASS** 38/38, w tym łańcuch X, najbliższa ściana i pole piwnicy.
+- Web build, workspace typecheck/lint **PASS**. Pełna regresja Playwright **PASS** 13/13;
+  dodatkowa kontrola czyszczenia podkładu importu i cofania jest raportowana w TEST_REPORT.
+- E2E obejmuje dwuklik/Enter/Escape, wszystkie dostępne tryby prawego przeciągania, symbol 10×,
+  piwnicę i płytę po reload, API 400 bez piwnicy oraz wybór płyty fundamentowej bez płyty dennej.
+- Iteracje **FAIL**: stare testy zakładały ręczny wielokąt płyty; używają teraz narzędzia otworu
+  do regresji wielokątów. Naprawiono przechwytywanie dwukliku i aktywność starego arkusza podczas nawigacji.
+- pgTAP **NOT RUN** (bez SQL); rzeczywiste OpenAI **BLOCKED** (bez klucza/płatnego wywołania).
+
+### Granice
+
+Piwnica to oznaczenie wybranych pomieszczeń, nie wygenerowany projekt konstrukcyjny. Podział już
+zaznaczonego pola wymaga usunięcia oznaczenia i ponownego wyboru. Pełny CAD i zatwierdzony
+przedmiar pozostają **NOT RUN**.

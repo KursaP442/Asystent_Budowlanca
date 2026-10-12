@@ -482,3 +482,27 @@ z tą rolą pozostają kompatybilne. Nie zmieniono SQL ani zależności.
 
 **Konsekwencje:** Rysunek pozostaje roboczy. Rozwiązania konstrukcyjne, przejścia powierzchniowe,
 pełne zestawienia gięcia, ujednolicone bryły oraz zatwierdzony przedmiar nie są ukończone.
+
+## ADR-026: Edycja opisów i wybór pól fundamentów/piwnicy
+
+**Kontekst:** Użytkownik wymaga edycji opisu dwuklikiem, czyszczenia, prawego przeciągania,
+czytelnego ocieplenia, wymiarów T/X i położeń od ścian oraz wyboru pól zamiast rysowania płyty.
+
+**Decyzja:** Opis używa tymczasowego HTML input w SVG foreignObject; poprawny tekst zapisuje
+się przez dotychczasowe autosave. Eksport pomija pole edycji. Opis przechwytuje pointer dopiero
+po ruchu, aby natywny dwuklik trafił do tekstu. Prawa mysz ma osobny gest widoku bez zmiany narzędzia.
+Czyszczenie jest potwierdzane, cofalne i dotyczy dokumentu, nie prywatnych plików Storage.
+
+`basement-area` jest obszarową rolą oznaczenia pomieszczenia. Współdzieli `infillFor` i synchronizację
+pól ław ze slab, bez zależności między płytą i piwnicą. UI i API wymagają piwnicy w zakresie projektu.
+Narzędzie slab na fundamentach zawsze wybiera zamknięte pole; poza fundamentami zachowuje rysowanie.
+Nowy symbol thermal ma 10× większą długość wzoru, ale zachowuje rzeczywistą grubość pasa.
+
+Wymiarowanie usuwa nadmiarowe półgrubości na kolinearnych węzłach podziału. Pozycja podpory
+ma odniesienie do przyczepionej/najbliższej ściany i jej lica, w lokalnych osiach także poza końcem.
+Gabaryt rysunku pozostaje fallback wyłącznie przy braku ścian/ław. Na czas zapisu zmiany arkusza
+edytor jest inert, żeby interakcja nie trafiła do poprzedniego dokumentu.
+
+**Konsekwencje:** Bez zmian zależności/SQL. Starsze obrysy slab są zachowane, nowe oznaczenie
+piwnicy wymaga obwodu. Przy zmianie podziału wybranego pola nadal wymagamy ponownego wyboru.
+Nie generujemy konstrukcji ani zatwierdzonego przedmiaru.
