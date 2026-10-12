@@ -125,14 +125,30 @@ export function translateConnectedCadEntity(document: CadDocument, id: string, d
   })));
 }
 
+export function updateConnectedCadEntity(document: CadDocument, updated: CadEntity): CadDocument {
+  const previous = document.entities.find((e) => e.id === updated.id);
+  if (!previous) throw new Error("Nie znaleziono elementu do aktualizacji.");
+  let next = document;
+  if (hasCadJunctions(previous) && hasCadJunctions(updated) && "start" in previous.geometry && "start" in updated.geometry) {
+    next = moveCadJunctions(document, [
+      { from: previous.geometry.start, to: updated.geometry.start },
+      { from: previous.geometry.end, to: updated.geometry.end },
+    ]);
+  }
+  return CadDocumentSchema.parse({ ...next, entities: next.entities.map((e) => e.id === updated.id ? updated : e) });
+}
+
 function moveCadJunctions(document: CadDocument, moves: { from: CadPoint; to: CadPoint }[]): CadDocument {
   const parsed = CadDocumentSchema.parse(document);
   const move = (point: CadPoint) => moves.find(({ from }) => samePoint(point, from))?.to ?? point;
   const entities = parsed.entities.map((entity) => {
-    if (!hasCadJunctions(entity) || !("start" in entity.geometry)) return entity;
+    if (!(hasCadJunctions(entity) || entity.kind === "dimension") || !("start" in entity.geometry)) return entity;
     const { start, end } = entity.geometry;
     const geometry = { start: move(start), end: move(end) };
-    return CadEntitySchema.parse({ ...entity, geometry, reviewStatus: "draft" });
+    const measured = entity.kind === "dimension" && Math.abs(entity.attributes.measuredMm - Math.hypot(end.x - start.x, end.y - start.y)) < .001;
+    return CadEntitySchema.parse({ ...entity, geometry, reviewStatus: "draft",
+      ...(entity.kind === "dimension" && measured ? { attributes: { ...entity.attributes,
+        measuredMm: Math.hypot(geometry.end.x - geometry.start.x, geometry.end.y - geometry.start.y) } } : {}) });
   });
   const adjusted = entities.map((entity) => {
     if (entity.kind !== "opening") return entity;

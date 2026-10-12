@@ -20,7 +20,7 @@ export function isSimplePolygon(vertices: readonly Point2D[]): boolean {
   return true;
 }
 
-function segmentsIntersect(a: Point2D, b: Point2D, c: Point2D, d: Point2D): boolean {
+export function segmentsIntersect(a: Point2D, b: Point2D, c: Point2D, d: Point2D): boolean {
   const cross = (p: Point2D, q: Point2D, r: Point2D) =>
     (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
   const onSegment = (p: Point2D, q: Point2D, r: Point2D) =>

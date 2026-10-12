@@ -4,7 +4,8 @@ import { randomUUID } from "node:crypto";
 import { CadDocumentSchema, CadEntitySchema, emptyConstructionTechnologySelections, getCadDrawingTools } from "@asystent/schemas";
 import { assignCadMarks, attachCadElement, cadLayerOutline, cadLayerSides, connectCadWallJunctions, copyCadGeometry,
   createCadElement, foundationSetupFromSettings, getCadPlanDimensions, getCadPlanFaces, layoutCadDimensions,
-  moveCadJunction, polygonCenter, resizeCadRectangle, synchronizeCadAttachments, synchronizeCadInfill, translateConnectedCadEntity } from "../dist/index.js";
+  moveCadJunction, polygonCenter, resizeCadRectangle, synchronizeCadAttachments, synchronizeCadInfill, translateConnectedCadEntity,
+  cadStripFaceSegment, cadEntityColor, configureFoundationWall, synchronizeFoundationSupports, resizeCadStrip, updateConnectedCadEntity } from "../dist/index.js";
 import { rectangleSize } from "@asystent/geometry";
 
 const doc = (entities = [], projectId = randomUUID()) => CadDocumentSchema.parse({
@@ -116,8 +117,8 @@ test("identifiers remain stable and unique including copies and regenerated defa
 test("dense external dimensions have no overlapping label boxes and include detached column positioning", () => {
   const column=createCadElement("column",[{x:2000,y:1000},{x:2400,y:1000},{x:2400,y:1400},{x:2000,y:1400}],{id:randomUUID()});
   const dims=getCadPlanDimensions(assignCadMarks(doc([...rectangle(),column])),250);
-  assert.ok(dims.some((d)=>d.label === "S1 od lica W1: 2320 mm"));
-  assert.ok(dims.some((d)=>d.label === "S1 oś od lica W1: 1080 mm"));
+  assert.ok(dims.some((d)=>d.label === "S1 → W1 : 2080 mm"));
+  assert.ok(dims.some((d)=>d.label === "S1 → W1 : 1080 mm"));
   assert.ok(!dims.some((d)=>d.label.includes("S1 X:") || d.label.includes("S1 Y:")));
   for(let i=0;i<dims.length;i++)for(let j=i+1;j<dims.length;j++){
     const a=dims[i].box,b=dims[j].box;
@@ -133,10 +134,10 @@ test("T and X dimension chains meet at junctions without adding wall caps at int
   const split = connectCadWallJunctions(original,randomUUID);
   const dims = getCadPlanDimensions(split,125).filter((d)=>d.group.endsWith(":exterior") && Math.hypot(d.end.x-d.start.x,d.end.y-d.start.y)>240);
   assert.equal(dims.length,4);
-  assert.deepEqual(dims.map((d)=>Number(d.label.split(" ")[0])).sort((a,b)=>a-b),[2120,2120,3120,3120]);
+  assert.deepEqual(dims.map((d)=>Number(d.label.split(" ")[0])).sort((a,b)=>a-b),[2000,2000,3000,3000]);
   const horizontal = dims.filter((d)=>d.start.y===d.end.y);
-  assert.ok(horizontal.some((d)=>d.end.x===3000));
-  assert.ok(horizontal.some((d)=>d.start.x===3000));
+  assert.ok(horizontal.some((d)=>d.end.x===2880));
+  assert.ok(horizontal.some((d)=>d.start.x===3120));
 });
 
 test("basement field is gated, persists with slab in the same field and follows footing movement", () => {
@@ -160,8 +161,95 @@ test("detached supports beyond a wall end dimension from that wall, not drawing 
   const support=createCadElement("pad",[{x:5700,y:1700},{x:6300,y:1700},{x:6300,y:2300},{x:5700,y:2300}],{id:randomUUID()});
   const dims=getCadPlanDimensions(assignCadMarks(doc([host,support])),125).filter((d)=>d.group.endsWith(":location"));
   assert.equal(dims.length,2);
-  assert.equal(dims[0].label,"ST1 od lica W1: 5120 mm");
-  assert.equal(dims[1].label,"ST1 oś od lica W1: 880 mm");
+  assert.equal(dims[0].label,"ST1 → W1 : 5120 mm");
+  assert.equal(dims[1].label,"ST1 → W1 : 880 mm");
   assert.equal(dims[1].start.x,dims[1].end.x);
   assert.equal(dims[0].start.y,dims[0].end.y);
+});
+
+test("each unequal wall face is dimensioned at real corners and unequal-width T joints", () => {
+  const building=assignCadMarks(doc(rectangle()));
+  const dims=getCadPlanDimensions(building,125);
+  for(const e of building.entities){
+    const longitudinal=dims.filter((d)=>d.entityId===e.id&&d.faceSide);
+    assert.equal(longitudinal.length,2);
+    const axisLength=Math.hypot(e.geometry.end.x-e.geometry.start.x,e.geometry.end.y-e.geometry.start.y);
+    assert.deepEqual(longitudinal.map((d)=>Math.hypot(d.end.x-d.start.x,d.end.y-d.start.y)).sort((a,b)=>a-b),
+      [axisLength-240,axisLength+240]);
+  }
+  const wide={...wall({x:0,y:0},{x:6000,y:0}),attributes:{thicknessMm:400,heightMm:2800,material:"Beton"}};
+  const branch=wall({x:2500,y:0},{x:2500,y:2000});
+  const t=assignCadMarks(connectCadWallJunctions(doc([wide,branch]),randomUUID));
+  const first=t.entities.find((e)=>e.id===wide.id);
+  assert.deepEqual(cadStripFaceSegment(t,first,"left"),{start:{x:-200,y:200},end:{x:2380,y:200}});
+  assert.deepEqual(cadStripFaceSegment(t,first,"right"),{start:{x:-200,y:-200},end:{x:2500,y:-200}});
+  const branchFace=cadStripFaceSegment(t,branch,"left");
+  assert.equal(branchFace.start.y,200);
+  const measured=getCadPlanDimensions(t,125).filter((d)=>d.entityId===first.id&&d.faceSide);
+  assert.deepEqual(measured.map((d)=>d.label),["2580 mm","2700 mm"]);
+});
+
+test("oblique T dimensions intersect actual neighbor faces and update immediately after movement", () => {
+  const slant=wall({x:0,y:0},{x:1000,y:8000});
+  const branch=wall({x:500,y:4000},{x:3500,y:4000});
+  const t=connectCadWallJunctions(doc([slant,branch]),randomUUID);
+  const segment=t.entities.find((e)=>e.id===slant.id);
+  const left=cadStripFaceSegment(t,segment,"left"),right=cadStripFaceSegment(t,segment,"right");
+  assert.ok(Math.abs(left.end.y-right.end.y)>100);
+  const side=Math.abs(left.end.y-3880)<.001?left:right;
+  assert.ok(Math.abs(side.end.y-3880)<.001);
+  const norm=Math.hypot(500,4000);
+  for(const face of [left,right]) assert.ok(Math.abs(Math.abs((-4000*face.end.x+500*face.end.y)/norm)-120)<.001);
+  const before=getCadPlanDimensions(t,125);
+  const moved=moveCadJunction(t,{x:500,y:4000},{x:800,y:4300});
+  const after=getCadPlanDimensions(moved,125);
+  for(const e of moved.entities){
+    const a=after.filter((d)=>d.entityId===e.id&&d.faceSide),b=before.filter((d)=>d.entityId===e.id&&d.faceSide);
+    assert.notDeepEqual(a.map((d)=>[d.start,d.end]),b.map((d)=>[d.start,d.end]));
+  }
+});
+
+test("generated footing dimensions and wall dimensions have separate colors and both track resized shared nodes", () => {
+  const setup=foundationSetupFromSettings(settings,[]);
+  const walls=rectangle("foundation-wall").map((e)=>configureFoundationWall(e,setup));
+  const original=assignCadMarks(synchronizeFoundationSupports(doc(walls),randomUUID));
+  const before=getCadPlanDimensions(original,125);
+  const target=original.entities.find((e)=>e.id===walls[0].id);
+  const updated=resizeCadStrip(target,7000);
+  const next=synchronizeFoundationSupports(updateConnectedCadEntity(original,updated),randomUUID);
+  assert.deepEqual(next.entities.find((e)=>e.id===walls[1].id).geometry.start,updated.geometry.end);
+  const after=getCadPlanDimensions(next,125);
+  for(const e of next.entities.filter((e)=>e.kind==="footing"||e.id===walls[0].id||e.id===walls[1].id)){
+    const dimensions=after.filter((d)=>d.entityId===e.id&&d.faceSide);
+    assert.ok(dimensions.length>0);
+    assert.ok(dimensions.every((d)=>d.color===cadEntityColor(e)));
+    if(e.id===walls[0].id||e.id===walls[1].id||e.supportFor?.includes(walls[0].id)||e.supportFor?.includes(walls[1].id))
+      assert.notDeepEqual(dimensions.map((d)=>d.label),before.filter((d)=>d.entityId===e.id&&d.faceSide).map((d)=>d.label));
+  }
+  const excavation=createCadElement("excavation",[{x:0,y:9000},{x:5000,y:9000}],{id:randomUUID()});
+  assert.equal(new Set([cadEntityColor(excavation),cadEntityColor(walls[0]),cadEntityColor(original.entities[0])]).size,3);
+});
+
+test("hiding a layer preserves full junction topology and support reference labels", () => {
+  const a=wall({x:0,y:0},{x:6000,y:0});
+  const b={...wall({x:3000,y:0},{x:3000,y:2000}),layerId:"hidden-branch"};
+  const support=createCadElement("pad",[{x:1800,y:800},{x:2200,y:800},{x:2200,y:1200},{x:1800,y:1200}],{id:randomUUID()});
+  const t=assignCadMarks(connectCadWallJunctions(doc([a,b,support]),randomUUID));
+  const all=getCadPlanDimensions(t,125),hidden=getCadPlanDimensions(t,125,["hidden-branch"]);
+  const endpoints=(dims)=>dims.filter((d)=>d.entityId===a.id).map((d)=>[d.start,d.end,d.label]);
+  assert.deepEqual(endpoints(hidden),endpoints(all));
+  assert.equal(hidden.some((d)=>d.entityId===b.id),false);
+  const locations=hidden.filter((d)=>d.entityId===support.id);
+  assert.ok(locations.every((d)=>d.referenceId===a.id&&d.anchor));
+  assert.ok(locations.every((d)=>d.label.startsWith("ST1 → W1 :")));
+});
+
+test("moving junctions updates manual geometric dimensions but retains explicit reference measurements", () => {
+  const a=wall({x:0,y:0},{x:6000,y:0});
+  const dim=createCadElement("dimension",[{x:0,y:0},{x:6000,y:0}],{id:randomUUID()});
+  const reference={...dim,id:randomUUID(),attributes:{...dim.attributes,measuredMm:6200}};
+  const moved=moveCadJunction(doc([a,dim,reference]),{x:6000,y:0},{x:7000,y:0});
+  assert.equal(moved.entities[1].attributes.measuredMm,7000);
+  assert.equal(moved.entities[2].attributes.measuredMm,6200);
+  assert.equal(moved.entities[1].geometry.end.x,7000);
 });

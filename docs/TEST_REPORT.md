@@ -3,6 +3,27 @@
 Zasada: zapisujemy **dokładne komendy**, **datę**, **środowisko** i **rzeczywisty wynik** (PASS/FAIL/BLOCKED/NOT RUN).
 Nigdy nie wpisujemy ogólnego „działa” bez dowodu z uruchomienia.
 
+## Sesja 30 — 12 października 2026
+
+Środowisko: Windows, Node 26.7, pnpm 12.11.2, Next 16.4; lokalny Supabase, Playwright/Edge.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/geometry test` | geometria i udostępnienie przecięć odcinków | PASS | 13/13 |
+| `pnpm --filter @asystent/domain test` | rzeczywiste lica i spójna edycja | PASS | 43/43; nierówne lica, ukośne T, generowane ławy, kolory, resize wspólnych końców, ukryte warstwy, ręczne wymiary |
+| `pnpm --filter web exec playwright test` | pełna regresja przed ostatnim doprecyzowaniem eksportu | PASS | 14/14 |
+| `pnpm --filter web build` | końcowy bundle, również render eksportowy | PASS | TypeScript i produkcyjny build |
+| `pnpm --filter web exec playwright test --grep 'CAD dimensions measure\|CAD plan settings'` | końcowa regresja po zmianie eksportu | PASS | 2/2; kolory i dokładne długości obu lic, bieżący ruch połączenia, undo/redo/reload, etykiety 12 px przy zoomie, nieprzecinające się ramki SVG i font 125 mm w modelu przy 1:50; przywrócenie układu ekranowego |
+| `pnpm typecheck`, `pnpm lint` | workspace | PASS | 13/7 zadań; typecheck ponowiony po końcowej zmianie eksportu |
+| `pnpm --filter web lint` | końcowy Web | PASS | po zmianie renderu eksportowego |
+| Diagnostyka zmienionych plików TS/TSX | edytor | PASS | bez błędów |
+| Pierwsze iteracje domain/E2E | korekta zachowania i synchronizacji testu | FAIL | stare długości osiowe/opisy; stały font modelowy dawał tekst około 5 px; test czytał przed załadowaniem dokumentu po reload. Poprawiono lica, adaptacyjny zwykły font, lokalny font podpór i oczekiwanie na encje |
+| Screenshot nowego scenariusza | obie strony, kolory i opisy podpór | PASS | obejrzany `colored-face-dimensions.png`; brak deklaracji czytelności dowolnie złożonego rzutu |
+| HTTP `127.0.0.1:3010` i `/pdf.worker.min.mjs` | zrestartowany podgląd po końcowym build | PASS | 200/200; bez odświeżania formularza użytkownika |
+| pgTAP / SQL | bez migracji | NOT RUN | bez resetu danych |
+| OpenAI rzeczywiste | bez klucza/zgody na koszt | BLOCKED | tylko istniejące testy mock |
+| Pełny CAD / zatwierdzony przedmiar | wymaganie docelowe | NOT RUN | wymiary nie zatwierdzają konstrukcji |
+
 ## Sesja 29 — 12 października 2026
 
 | Komenda / kontrola | Kontekst | Wynik | Uwagi |

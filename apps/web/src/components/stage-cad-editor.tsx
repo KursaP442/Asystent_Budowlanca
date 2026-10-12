@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { flushSync } from "react-dom";
 import { CadDocumentSchema, CadEntitySchema, cadDrawingTools, cadEntityTool, foundationDocumentChecklist, getCadDrawingTools, getCadWallDefaults, getFoundationSupportOptions,
   type ConstructionTechnologySelections, type CadDrawingTool, type ProjectDocumentationKind, type CadDocument, type CadEntity, type CadPoint } from "@asystent/schemas";
 import { calibrateCadSource, classifyCadTrace, connectCadWallJunctions, copyCadGeometry, createCadElement, entityPoints, hasCadJunctions, moveCadJunction, projectCadWallElevations,
-  projectPointOnSegment, snapCadConnection, translateCadEntity, translateConnectedCadEntity } from "@asystent/domain";
+  projectPointOnSegment, snapCadConnection, translateCadEntity, translateConnectedCadEntity, updateConnectedCadEntity } from "@asystent/domain";
 import { configureFoundationWall, foundationPlanExtents, resizeCadRectangle, resizeCadStrip, synchronizeFoundationSupports, synchronizeReinforcementPlacement } from "@asystent/domain";
-import { assignCadMarks, attachCadElement, cadElementBounds, cadLayerOutline, cadLayerSides, foundationSetupFromSettings,
+import { assignCadMarks, attachCadElement, cadElementBounds, cadEntityColor as entityColor, cadLayerOutline, cadLayerSides, foundationSetupFromSettings,
   getCadPlanDimensions, getCadPlanFaces, pointInCadPolygon, polygonCenter, synchronizeCadAttachments, synchronizeCadInfill } from "@asystent/domain";
 import { distanceBetweenPoints, drawingBounds, isSimplePolygon, polygonAreaMm2, rectangleFromCorners, rectangleSize,
   segmentRectangle, viewportToWorld, zoomDrawingView } from "@asystent/geometry";
@@ -32,18 +33,6 @@ const attributeLabels: Record<string, string> = {
   sillMm: "Wysokość parapetu (mm)", system: "System instalacji", type: "Rodzaj otworu",
   fontSizeMm: "Rozmiar czcionki na arkuszu (mm)",
 };
-const colors: Partial<Record<CadEntity["kind"], string>> = {
-  wall: "#2563eb", footing: "#b45309", slab: "#0891b2", "roof-plane": "#22a06b", "rebar-line": "#0f172a",
-  dimension: "#475569", "trace-line": "#2563eb", "trace-area": "#2563eb", annotation: "#7c3aed",
-};
-const roleColors: Partial<Record<CadDrawingTool, string>> = {
-  "foundation-wall": "#2563eb", pad: "#7c3aed", column: "#be185d", excavation: "#a16207", "basement-area": "#16a34a",
-  section: "#64748b", elevation: "#475569", paving: "#0d9488", finish: "#9333ea", terrain: "#4d7c0f",
-};
-function entityColor(entity: CadEntity) {
-  const role = cadEntityTool(entity);
-  return role && roleColors[role] ? roleColors[role]! : colors[entity.kind] ?? "#475569";
-}
 const entityLabels: Partial<Record<CadEntity["kind"], string>> = {
   "trace-line": "Rozpoznany odcinek", "trace-area": "Rozpoznany obrys", "rebar-annotation": "Opis zbrojenia",
   opening: "Otwór", pipe: "Przewód",
@@ -117,6 +106,7 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
   const [status, setStatus] = useState("");
   const [showLegend, setShowLegend] = useState(true);
   const [canvasWidth, setCanvasWidth] = useState(1300);
+  const [exporting, setExporting] = useState(false);
 
   const fit = useCallback((document: CadDocument) => {
     const all = document.entities.flatMap(entityPoints);
@@ -487,7 +477,8 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
     if (selected.supportFor && !selected.derivedFrom) { setError("Podparcie jest generowane. Zmień parametry ściany fundamentowej."); return; }
     const result = CadEntitySchema.safeParse(next);
     if (!result.success) { setError(result.error.issues.map(({ message }) => message).join(" ")); return; }
-    commit({ ...drawing, entities: drawing.entities.map((entity) => entity.id === selected.id ? { ...result.data, reviewStatus: "draft" } : entity) });
+    try { commit(updateConnectedCadEntity(drawing, { ...result.data, reviewStatus: "draft" })); }
+    catch (cause) { setError(cadError(cause)); }
   }
   function saveAnnotation() {
     if (!drawing || !editingAnnotation) return;
@@ -533,14 +524,16 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
   }
   function exportSvg() {
     if (!svgRef.current) return;
+    // Paper-sized text needs its own collision layout, not the screen-sized label boxes.
+    flushSync(() => setExporting(true));
     const copy = svgRef.current.cloneNode(true);
+    flushSync(() => setExporting(false));
     if (!(copy instanceof SVGSVGElement)) return;
     copy.querySelectorAll("image, foreignObject").forEach((element) => element.remove());
     const scale = drawing?.paperScale ?? 100;
     copy.removeAttribute("class"); copy.removeAttribute("style");
     copy.setAttribute("width", `${view.width / scale}mm`); copy.setAttribute("height", `${view.height / scale}mm`);
     copy.setAttribute("data-paper-scale", String(scale));
-    copy.querySelectorAll(".cad-dimension text").forEach((element) => element.setAttribute("font-size", String(2.5 * scale)));
     const blob = new Blob([new XMLSerializer().serializeToString(copy)], { type: "image/svg+xml" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a"); anchor.href = url; anchor.download = `${requirementId}.svg`; anchor.click();
@@ -549,15 +542,14 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
   const layers = [...new Set(drawing?.entities.map(({ layerId }) => layerId) ?? [])];
   const materialLegend = [...new Map((drawing?.entities ?? []).flatMap((entity) => (entity.buildUp ?? []).map((layer) =>
     [JSON.stringify([layer.purpose, layer.material, layer.thicknessMm]), layer] as const))).values()];
-  const visibleDrawing = drawing ? { ...drawing, entities: drawing.entities.filter((e) => !hiddenLayers.includes(e.layerId)) } : null;
+  const dimensionFont = exporting ? 2.5 * (drawing?.paperScale ?? 100)
+    : Math.max(2.5 * (drawing?.paperScale ?? 100), view.width * 13 / Math.max(1, canvasWidth));
   let faces: ReturnType<typeof getCadPlanFaces> = [], dimensions: ReturnType<typeof getCadPlanDimensions> = [], planError = "";
   try {
     if (drawing) faces = getCadPlanFaces(drawing);
-    if (visibleDrawing) dimensions = getCadPlanDimensions(visibleDrawing,
-      Math.max(2.5 * (drawing?.paperScale ?? 100), view.width * 13 / Math.max(1, canvasWidth)));
+    if (drawing) dimensions = getCadPlanDimensions(drawing, dimensionFont, hiddenLayers,
+      exporting ? dimensionFont : view.width * 12 / Math.max(1, canvasWidth));
   } catch (cause) { planError = cadError(cause); }
-  const dimensionFont = Math.max(2.5 * (drawing?.paperScale ?? 100),
-    view.width * 13 / Math.max(1, canvasWidth));
   const legendEntries = [
     `Skala arkusza 1:${drawing?.paperScale ?? 100} · Wymiary w mm`,
     ...technologyHints.map((h) => `${h.label}: ${h.material}`),

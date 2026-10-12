@@ -506,3 +506,29 @@ edytor jest inert, żeby interakcja nie trafiła do poprzedniego dokumentu.
 **Konsekwencje:** Bez zmian zależności/SQL. Starsze obrysy slab są zachowane, nowe oznaczenie
 piwnicy wymaga obwodu. Przy zmianie podziału wybranego pola nadal wymagamy ponownego wyboru.
 Nie generujemy konstrukcji ani zatwierdzonego przedmiaru.
+
+## ADR-027: Rzeczywiste lica i lokalne etykiety wymiarów
+
+**Kontekst:** Wymiary T/X nadal kończyły się na osi węzła, pomijały długości generowanych ław
+i miały wspólny szary kolor. Prostokątne rezerwacje ukośnych ścian oraz pól wypychały opisy podpór
+daleko od symboli. Liczbowa edycja odcinka nie przesuwała wszystkich wspólnych końców.
+
+**Decyzja:** `cadStripFaceSegment` w domain przecina odsunięte lica z licami sąsiednich elementów
+tej samej rodziny. Wolne końce zachowują kwadratowe zakończenie; podział kolinearny nie dodaje
+sztucznego zakończenia. Przy różnych długościach opisujemy obie strony, także dla ław automatycznych.
+Paleta `cadEntityColor` jest wspólna dla geometrii i wymiarów. Warstwy sterują widocznością wymiarów,
+ale nie usuwają geometrii potrzebnej do topologii i odniesień.
+
+`updateConnectedCadEntity` używa tego samego jednoczesnego mapowania węzłów co przeciąganie.
+Geometryczny ręczny wymiar aktualizuje długość; inna, jawna wartość referencyjna pozostaje.
+Opisy podpór mają 12 px w widoku, krótkie oznaczenia i odnośnik do środka symbolu; ich ramki
+planujemy przed pozostałymi etykietami. Kolizje sprawdzamy z rzeczywistymi wielokątami pasów/podpór,
+nie z gabarytem ukośnej ściany ani wypełnieniem pola. Zwykłe wymiary zachowują minimum 13 px.
+
+Przed klonowaniem SVG render eksportowy przelicza wszystkie ramki przy font size odpowiadającym
+2,5 mm na arkuszu. Natychmiast przywraca układ ekranowy. Sama zmiana fontu sklonowanego tekstu
+nie wystarcza, bo maski i rozmieszczenie byłyby niezgodne z nowym rozmiarem.
+
+**Konsekwencje:** Bez nowych zależności, schematów i migracji. Zbyt krótki odcinek dla danych lic
+daje jawny błąd zamiast wymiaru osiowego. To wymiarowanie istniejącej geometrii, nie zatwierdzenie
+projektu ani przedmiaru. ADR-027 zastępuje wcześniejsze uproszczenie długości kończących się na węźle.

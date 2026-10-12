@@ -195,15 +195,22 @@ Rzut ma wymiary elementów i gabarytów oraz legendę materiałów. Fundamenty o
 detali izolacji, odwodnienia i przejść. Lista referencji obejmuje rzut, przekroje/rzędne, zbrojenie, izolacje,
 geotechnikę, opis materiałów i przejścia branżowe; numer referencji nie oznacza weryfikacji jej treści.
 
-Wymiary mają wspólny układ unikający kolizji etykiet, z białym tłem tekstu i minimalną ekranową wielkością
-13 px. Identyczne szerokości elementów tej samej roli nie są powtarzane przy każdym odcinku.
+Wymiary mają wspólny układ unikający kolizji etykiet, z białym tłem tekstu. Zwykłe wymiary mają ekranowe
+minimum 13 px; zwarte opisy położenia podpór mają 12 px i odnośnik do środka symbolu.
+Kolor wymiarów odpowiada elementowi: ściana niebieska, ława pomarańczowa, wykop zielony.
+Ławy generowane pod ścianami również mają wymiary długości. Jeśli długości obu lic są różne,
+każdy odcinek ma osobne wymiary obu stron. Identyczne szerokości tej samej roli nie są powtarzane.
 Ściany i samodzielne ławy dzielą się również przy przecięciu X; ruch węzła zmienia wszystkie cztery końce.
 Stopy i słupy dotykające ściany otrzymują relację położenia; podążają za jej przesunięciem i obrotem,
 zachowując rzeczywiste wymiary przekroju. Rozmiar X × X i oznaczenie (np. S1, ST1) są wewnątrz symbolu.
 Pozycję opisują dwa wymiary od lic ściany, z którą symbol jest związany, albo najbliższej ściany:
 wzdłuż jej kierunku i prostopadle do niej. Dotyczy to również podpór poza końcem ściany.
-Gabaryt X/Y jest odniesieniem tylko gdy rysunek nie ma ścian ani ław. Łańcuchy wymiarowe przy T/X
-kończą się we wspólnych węzłach, bez dodawania grubości zakończeń na wewnętrznych podziałach.
+Gabaryt X/Y jest odniesieniem tylko gdy rysunek nie ma ścian ani ław. Opisy podpór mają zwięzły format
+`ST1 → SF3 : 4500 mm`, są zakotwiczone przy symbolu, a kierunek pomiaru objaśnia tooltip.
+Wymiary przy T/X i narożnikach kończą się na przecięciach rzeczywistych lic, z grubością sąsiedniego
+elementu, także przy połączeniach ukośnych. Ukrywanie warstw nie usuwa topologii ani odniesień.
+Ruch całego elementu, narożnika/węzła i liczbowy resize aktualizują połączoną geometrię oraz wymiary
+na bieżąco. Ręczne wymiary geometryczne aktualizują wartość; jawna wartość referencyjna pozostaje.
 Usunięcie ściany odczepia symbol, zamiast go usuwać.
 Ściany, ławy, stopy, słupy, płyty i belki mają trwałe, unikalne, edytowalne oznaczenia.
 Wykop rysuje się pasem jak ścianę, z własną szerokością, głębokością i kolorem; starsze obszary zachowano.
@@ -228,7 +235,8 @@ Na czas przełączania rysunków edytor jest nieaktywny, aby gest nie zmienił p
 Legenda w prawym dolnym rogu zawiera technologie, parametry i referencje dokumentów,
 z możliwością ukrycia; dopasowanie widoku rezerwuje jej prawy pas. Przyciski historii i widoku są wyróżnione.
 Skala arkusza (np. 1:50, 1:100) zapisuje się osobno od zoomu i kalibracji. Eksport SVG ma fizyczne wymiary
-w mm według tej skali i tekst wymiarowy 2,5 mm na arkuszu. Płótno pozostaje modelem w mm.
+w mm według tej skali i tekst wymiarowy 2,5 mm na arkuszu. Eksport przelicza również ramki/rozmieszczenie
+etykiet dla tego fontu, bez zmiany zoomu i ekranowych opisów. Płótno pozostaje modelem w mm.
 
 Graficzny kreator zbrojenia w osobnym oknie rozróżnia geometrię, parametry prętów/strzemion i położenie.
 Przekrój można zmieniać uchwytem lub liczbowo; podgląd pokazuje otulinę, strzemiona i pręty górne/dolne.

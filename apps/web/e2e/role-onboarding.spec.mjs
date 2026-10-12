@@ -2,11 +2,131 @@ import { test, expect } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 import { randomInt, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
+import { assignCadMarks, connectCadWallJunctions, createCadElement, synchronizeFoundationSupports } from "@asystent/domain";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const admin = createClient(url, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 const userIds = [];
 const password = "Local-test-password-2026!";
+
+test("CAD dimensions measure both colored faces, refresh connected geometry and keep support labels nearby when zooming", async ({page,request}) => {
+  test.setTimeout(120000);
+  await page.setViewportSize({width:1440,height:1100});
+  const owner=await createAccount(),title=`Wymiary lic ${randomUUID()}`;
+  await login(page,owner.email); await page.locator(".account-type-card.type-client").click();
+  await fillConstruction(page,title);
+  const {data:job,error:jobError}=await admin.from("construction_jobs").select("id").eq("title",title).single();
+  if(jobError)throw jobError;
+  const points=[{x:1000,y:1000},{x:7000,y:1000},{x:7000,y:5000},{x:1000,y:5000}];
+  const walls=points.map((p,i)=>createCadElement("foundation-wall",[p,points[(i+1)%4]],{id:randomUUID()}));
+  walls.push(createCadElement("foundation-wall",[{x:4000,y:1000},{x:4000,y:3000}],{id:randomUUID()}));
+  for(const wall of walls)wall.foundationBase={type:"strip",widthMm:800,depthMm:400,designReference:"K-01"};
+  const excavation=createCadElement("excavation",[{x:1000,y:6500},{x:7000,y:6500}],{id:randomUUID()});
+  excavation.attributes.widthMm=1200;
+  const pad=createCadElement("pad",[{x:2000,y:2000},{x:2600,y:2000},{x:2600,y:2600},{x:2000,y:2600}],{id:randomUUID()});
+  const draft={schemaVersion:1,id:randomUUID(),projectId:job.id,requirementId:"foundation-drawing-0",revision:0,
+    status:"draft",calibration:null,entities:[...walls,excavation,pad],paperScale:50};
+  const plan=assignCadMarks(synchronizeFoundationSupports(connectCadWallJunctions(draft,randomUUID),randomUUID));
+  const token=await tokenFor(owner.email);
+  const response=await request.post("/api/cad/drawings",{data:plan,headers:{Authorization:`Bearer ${token}`}});
+  expect(response.status()).toBe(200);
+  await page.getByRole("button",{name:"Edytuj",exact:true}).click();
+  await page.getByRole("button",{name:"Przejdź dalej",exact:true}).click();
+  const editor=page.locator(".cad-editor"),canvas=editor.getByRole("img",{name:/Płótno projektu/});
+  await expect(canvas.locator(".cad-entity")).toHaveCount(plan.entities.length);
+  await editor.getByRole("button",{name:"Ukryj legendę",exact:true}).click();
+  await editor.getByRole("button",{name:"Dopasuj widok",exact:true}).click();
+  const face=(id,side)=>canvas.locator(`.cad-dimension[data-dimension-entity="${id}"][data-face-side="${side}"]`);
+  const footing=plan.entities.find((e)=>e.supportFor?.includes(walls[0].id));
+  await expect(face(walls[0].id,"left")).toContainText("2760 mm");
+  await expect(face(walls[0].id,"right")).toContainText("3120 mm");
+  await expect(face(footing.id,"left")).toContainText("2200 mm");
+  await expect(face(footing.id,"right")).toContainText("3400 mm");
+  await expect(face(walls[0].id,"left")).toHaveAttribute("stroke","#2563eb");
+  await expect(face(footing.id,"left")).toHaveAttribute("stroke","#b45309");
+  await expect(face(excavation.id,"left")).toHaveAttribute("stroke","#4d7c0f");
+  for(const wall of plan.entities.filter((e)=>e.kind==="construction-line"&&e.attributes.role==="foundation-wall")){
+    expect(await canvas.locator(`.cad-dimension[data-dimension-entity="${wall.id}"][data-face-side]`).count()).toBeGreaterThan(0);
+  }
+  const locations=canvas.locator(`.cad-dimension[data-dimension-entity="${pad.id}"]`);
+  await expect(locations).toHaveCount(2);
+  for(const node of await locations.all())await expect(node.locator("text")).toHaveText(/^ST1 → SF1 : \d+ mm$/);
+  const checkLocationLabels=async()=>{
+    await canvas.scrollIntoViewIfNeeded();
+    const polygon=await canvas.locator(`.cad-entity[data-entity-id="${pad.id}"] polygon`).boundingBox();
+    const labels=await locations.locator("text").evaluateAll((nodes)=>nodes.map((n)=>{
+      const r=n.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2,height:r.height};
+    }));
+    for(const label of labels){
+      expect(label.height).toBeGreaterThanOrEqual(11);
+      expect(label.height).toBeLessThanOrEqual(15);
+      expect(Math.abs(label.x-(polygon.x+polygon.width/2))).toBeLessThan(2);
+      expect(Math.abs(label.y-(polygon.y+polygon.height/2))).toBeLessThan(160);
+    }
+    await expect(locations.locator(".cad-location-leader circle")).toHaveCount(2);
+    const boxes=await canvas.locator(".cad-dimension").evaluateAll((nodes)=>nodes.map((n)=>n.getAttribute("data-label-box").split(" ").map(Number)));
+    for(let i=0;i<boxes.length;i++)for(let j=i+1;j<boxes.length;j++){
+      const [ax,ay,aw,ah]=boxes[i],[bx,by,bw,bh]=boxes[j];
+      expect(ax<bx+bw&&ax+aw>bx&&ay<by+bh&&ay+ah>by).toBe(false);
+    }
+  };
+  await checkLocationLabels();
+  for(let i=0;i<4;i++)await editor.getByRole("button",{name:"Pomniejsz",exact:true}).click();
+  await checkLocationLabels();
+  for(let i=0;i<7;i++)await editor.getByRole("button",{name:"Powiększ",exact:true}).click();
+  await checkLocationLabels();
+  const labelsBeforeExport=await locations.locator("text").evaluateAll((nodes)=>nodes.map((n)=>[n.getAttribute("x"),n.getAttribute("y"),n.getAttribute("font-size")]));
+  const downloadPromise=page.waitForEvent("download");
+  await editor.getByRole("button",{name:"Eksport SVG",exact:true}).click();
+  const download=await downloadPromise,svg=await readFile(await download.path(),"utf8");
+  const exported=await page.evaluate((markup)=>{
+    const root=new DOMParser().parseFromString(markup,"image/svg+xml");
+    return [...root.querySelectorAll(".cad-dimension")].map((n)=>({
+      box:n.getAttribute("data-label-box").split(" ").map(Number),
+      font:Number(n.querySelector("text").getAttribute("font-size")),color:n.getAttribute("stroke"),
+    }));
+  },svg);
+  for(const d of exported)expect(d.font).toBe(125);
+  expect(new Set(exported.map((d)=>d.color))).toEqual(new Set(["#2563eb","#b45309","#4d7c0f","#7c3aed","#334155"]));
+  for(let i=0;i<exported.length;i++)for(let j=i+1;j<exported.length;j++){
+    const [ax,ay,aw,ah]=exported[i].box,[bx,by,bw,bh]=exported[j].box;
+    expect(ax<bx+bw&&ax+aw>bx&&ay<by+bh&&ay+ah>by).toBe(false);
+  }
+  expect(await locations.locator("text").evaluateAll((nodes)=>nodes.map((n)=>[n.getAttribute("x"),n.getAttribute("y"),n.getAttribute("font-size")]))).toEqual(labelsBeforeExport);
+  await editor.getByRole("button",{name:"Dopasuj widok",exact:true}).click();
+  const watched=plan.entities.filter((e)=>e.kind==="construction-line"&&e.attributes.role==="foundation-wall"
+    && [e.geometry.start,e.geometry.end].some((p)=>p.x===4000&&p.y===1000)).map((e)=>e.id);
+  const ids=[...watched,...plan.entities.filter((e)=>e.supportFor?.some((id)=>watched.includes(id))).map((e)=>e.id)];
+  const measurements=async()=>Object.fromEntries(await Promise.all(ids.map(async(id)=>[id,await canvas.locator(`.cad-dimension[data-dimension-entity="${id}"][data-face-side]`)
+    .evaluateAll((nodes)=>nodes.map((n)=>Number(n.getAttribute("data-measurement"))))])));
+  const before=await measurements();
+  await editor.locator(".cad-element-list button").filter({hasText:/SF1 Ściana fundamentowa/}).click();
+  await editor.getByLabel("Punkt 2 X (mm)",{exact:true}).fill("4500");
+  await editor.getByLabel("Punkt 2 X (mm)",{exact:true}).press("Tab");
+  const afterNumeric=await measurements();
+  for(const id of ids)expect(afterNumeric[id]).not.toEqual(before[id]);
+  await expect(editor.getByRole("status")).toContainText("Rysunek zapisany automatycznie");
+  const handle=canvas.locator(".cad-junction").nth(1);
+  await canvas.scrollIntoViewIfNeeded(); const grip=await handle.boundingBox();
+  await page.mouse.move(grip.x+grip.width/2,grip.y+grip.height/2);await page.mouse.down();
+  await page.mouse.move(grip.x+grip.width/2+20,grip.y+grip.height/2+15);
+  const live=await measurements();
+  for(const id of ids)expect(live[id]).not.toEqual(afterNumeric[id]);
+  await page.mouse.up();
+  const committed=await measurements();
+  for(const id of ids)for(let i=0;i<committed[id].length;i++)expect(committed[id][i]).toBeCloseTo(live[id][i],3);
+  await expect(editor.getByRole("status")).toContainText("Rysunek zapisany automatycznie");
+  await editor.getByRole("button",{name:"Cofnij",exact:true}).click();
+  expect(await measurements()).toEqual(afterNumeric);
+  await editor.getByRole("button",{name:"Ponów",exact:true}).click();
+  expect(await measurements()).toEqual(committed);
+  await expect(editor.getByRole("status")).toContainText("Rysunek zapisany automatycznie");
+  await canvas.scrollIntoViewIfNeeded();await page.screenshot({path:test.info().outputPath("colored-face-dimensions.png"),fullPage:true});
+  await page.reload();await page.getByRole("button",{name:"Edytuj",exact:true}).click();
+  await page.getByRole("button",{name:"Przejdź dalej",exact:true}).click();
+  await expect(canvas.locator(".cad-entity")).toHaveCount(plan.entities.length);
+  expect(await measurements()).toEqual(committed);
+});
 
 test("CAD plan settings autosave, readable dimensions, insulation, attached columns, infill and paper scale persist", async ({page,request}) => {
   test.setTimeout(120000);

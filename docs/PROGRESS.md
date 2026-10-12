@@ -1102,3 +1102,40 @@ przedmiar pozostają **NOT RUN**.
 Piwnica to oznaczenie wybranych pomieszczeń, nie wygenerowany projekt konstrukcyjny. Podział już
 zaznaczonego pola wymaga usunięcia oznaczenia i ponownego wyboru. Pełny CAD i zatwierdzony
 przedmiar pozostają **NOT RUN**.
+
+## Sesja 30 — 12 października 2026
+
+### Zrobione
+
+1. Wspólna paleta rysunku i wymiarów: niebieskie ściany, pomarańczowe ławy, zielone wykopy;
+   stopy/słupy zachowują własne kolory. Generowane ławy mają także wymiary długości.
+2. Wymiary obu nierównych lic każdego odcinka wynikają z przecięć rzeczywistych krawędzi.
+   T/X, narożniki i połączenia ukośne uwzględniają szerokość sąsiedniego elementu, nie kończą się na osi.
+3. Liczbowa zmiana elementu przesuwa jego wspólne węzły, tak jak przeciąganie. Wymiary wynikają
+   z pełnej aktualnej topologii, także gdy część warstw jest ukryta. Ręczny wymiar geometryczny
+   podąża za węzłem; jawna wartość referencyjna nie jest nadpisywana.
+4. Położenia podpór mają krótkie etykiety `ST1 → SF3 : 4500 mm`, 12 px i odnośnik do symbolu.
+   Układ sprawdza rzeczywiste obrysy ścian/podpór zamiast dużych prostokątów ukośnych elementów.
+   Pola pomieszczeń/płyt nie wypychają opisów na zewnątrz całego budynku.
+5. SVG przelicza etykiety i maski dla fizycznego fontu 2,5 mm na arkuszu. Ekranowy układ
+   i font podpór wracają natychmiast po eksporcie, bez zmiany widoku.
+
+### Weryfikacja
+
+- Geometry **PASS** 13/13; domain **PASS** 43/43, w tym pięć nowych scenariuszy.
+- Pełna regresja Edge **PASS** 14/14. Po końcowej zmianie eksportu dodatkowy E2E **PASS** 2/2:
+  dokładne wartości obu lic, kolory, żywy ruch węzła, liczbowe przesunięcie, undo/redo/reload,
+  cztery oddalenia/siedem przybliżeń, brak kolizji etykiet oraz papierowy font i przywrócenie widoku.
+- Web build/lint, workspace typecheck/lint **PASS**. Diagnostyka zmienionych plików **PASS**.
+- Podgląd na porcie 3010 zrestartowany po końcowym build; aplikacja i worker PDF **PASS** HTTP 200.
+- Pierwsze iteracje **FAIL**: stare oczekiwania osiowych długości i opisów; zbyt mały font
+  przy stałej wielkości modelowej; odczyt dokumentu po reload przed zakończeniem ładowania.
+  Poprawiono oczekiwania na rzeczywiste lica, zachowano minimum zwykłych wymiarów i dodano oczekiwanie.
+- pgTAP **NOT RUN** (bez SQL); OpenAI rzeczywiste **BLOCKED** (bez płatnego wywołania).
+
+### Granice i dalej
+
+Pełny CAD dowolnego projektu i zatwierdzony przedmiar pozostają **NOT RUN**. Rozbudowane rzuty
+mogą wymagać rozdzielenia arkuszy; nie deklarujemy pełnej czytelności dowolnej liczby wymiarów.
+Dalszy etap to weryfikacja przeniesienia rzeczywistych projektów i reguł obliczeń, nie automatyczne
+zatwierdzanie konstrukcji.
