@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { CadDocumentSchema, emptyConstructionTechnologySelections, getFoundationSupportOptions } from "@asystent/schemas";
-import { configureFoundationWall, copyCadGeometry, createCadElement, createReinforcementLayout, moveCadJunction,
+import { configureFoundationWall, connectCadWallJunctions, copyCadGeometry, createCadElement, createReinforcementLayout, moveCadJunction,
   placeReinforcementOnHost, synchronizeFoundationSupports, synchronizeReinforcementPlacement } from "../dist/index.js";
 
 const projectId = randomUUID();
@@ -60,6 +60,24 @@ test("foundation options match house and other-work selections without inventing
   assert.deepEqual(getFoundationSupportOptions(t).map((o) => o.value),["strip"]);
   t.otherFoundationType = []; t.foundationType = ["pile-foundation"];
   assert.deepEqual(getFoundationSupportOptions(t).map((o) => o.value),["manual"]);
+});
+test("T joints split foundation walls without losing generated supports or closed slab boundary", () => {
+  const perimeter = [wall({x:0,y:0},{x:6000,y:0},slab),wall({x:6000,y:0},{x:6000,y:4000},slab),
+    wall({x:6000,y:4000},{x:0,y:4000},slab),wall({x:0,y:4000},{x:0,y:0},slab)];
+  const internal = wall({x:3000,y:0},{x:3000,y:3000},{...slab,boundary:false});
+  const connected = connectCadWallJunctions(document([...perimeter,internal]),randomUUID);
+  assert.equal(connected.entities.length,6);
+  const result = synchronizeFoundationSupports(connected,randomUUID);
+  const plate = result.entities.find((e) => e.kind === "slab");
+  assert.equal(plate.supportFor.length,5);
+  assert.ok(Math.abs(Math.max(...plate.geometry.vertices.map((p) => p.x))-6320) < .000001);
+  const stripWalls = connectCadWallJunctions(document([wall({x:0,y:0},{x:6000,y:0},strip),
+    wall({x:3000,y:0},{x:3000,y:3000},strip)]),randomUUID);
+  const supported = synchronizeFoundationSupports(stripWalls,randomUUID);
+  assert.equal(supported.entities.filter((e) => e.kind === "footing").length,3);
+  const moved = synchronizeFoundationSupports(moveCadJunction(supported,{x:3000,y:0},{x:3200,y:200}),randomUUID);
+  assert.equal(moved.entities.filter((e) => e.kind === "construction-line"
+    && [e.geometry.start,e.geometry.end].some((p) => p.x === 3200 && p.y === 200)).length,3);
 });
 test("graphic beam section retains bar groups; placement rotates, follows host and flags length changes", () => {
   const host = wall({x:1000,y:2000},{x:1000,y:7000},strip);

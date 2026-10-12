@@ -42,6 +42,48 @@ export function snapCadEndpoint(document: CadDocument, point: CadPoint, toleranc
   return closest && Math.hypot(closest.x - point.x, closest.y - point.y) <= toleranceMm ? { ...closest } : point;
 }
 
+export function snapCadConnection(document: CadDocument, point: CadPoint, toleranceMm: number,
+  excludedIds: string[] = []): CadPoint | null {
+  if (!Number.isFinite(toleranceMm) || toleranceMm < 0) throw new Error("Nieprawidłowa tolerancja połączenia.");
+  const candidates = document.entities.filter((entity) => hasCadJunctions(entity) && !entity.supportFor && !excludedIds.includes(entity.id));
+  const endpoints = candidates.flatMap(entityPoints).sort((a, b) => Math.hypot(a.x - point.x, a.y - point.y) - Math.hypot(b.x - point.x, b.y - point.y));
+  if (endpoints[0] && Math.hypot(endpoints[0].x - point.x, endpoints[0].y - point.y) <= toleranceMm) return { ...endpoints[0] };
+  const projections = candidates.flatMap((entity) => (entity.kind === "wall" || entity.kind === "construction-line"
+    && entity.attributes.role === "foundation-wall") ? [projectPointOnSegment(point, entity.geometry.start, entity.geometry.end)] : [])
+    .sort((a, b) => Math.hypot(a.x - point.x, a.y - point.y) - Math.hypot(b.x - point.x, b.y - point.y));
+  return projections[0] && Math.hypot(projections[0].x - point.x, projections[0].y - point.y) <= toleranceMm ? projections[0] : null;
+}
+
+export function connectCadWallJunctions(document: CadDocument, createId: () => string): CadDocument {
+  let entities = [...document.entities];
+  const walls = document.entities.filter((entity) => entity.kind === "wall" || entity.kind === "construction-line"
+    && entity.attributes.role === "foundation-wall");
+  const junctions = walls.flatMap(entityPoints);
+  for (const wall of walls) {
+    if (!("start" in wall.geometry)) continue;
+    const { start, end } = wall.geometry;
+    const splits = junctions.filter((p) => !samePoint(p, start) && !samePoint(p, end)
+      && samePoint(p, projectPointOnSegment(p, start, end)));
+    if (!splits.length) continue;
+    const points = [start, ...splits, end].sort((a, b) =>
+      ((a.x - start.x) * (end.x - start.x) + (a.y - start.y) * (end.y - start.y))
+      - ((b.x - start.x) * (end.x - start.x) + (b.y - start.y) * (end.y - start.y)))
+      .filter((p, i, all) => i === 0 || !samePoint(p, all[i - 1]!));
+    if (entities.some((e) => e.placement?.hostId === wall.id)) throw new Error("Ściana ma przypisane zbrojenie. Usuń układ przed dodaniem nowego węzła w środku ściany.");
+    const parts = points.slice(0, -1).map((p, i) => CadEntitySchema.parse({ ...wall,
+      id: i === 0 ? wall.id : createId(), geometry: { start: p, end: points[i + 1] }, reviewStatus: "draft" }));
+    entities = entities.map((entity) => {
+      if (entity.kind !== "opening" || entity.attributes.wallId !== wall.id) return entity;
+      const part = parts.find((candidate) => "start" in candidate.geometry
+        && samePoint(entity.geometry.start, projectPointOnSegment(entity.geometry.start, candidate.geometry.start, candidate.geometry.end))
+        && samePoint(entity.geometry.end, projectPointOnSegment(entity.geometry.end, candidate.geometry.start, candidate.geometry.end)));
+      if (!part) throw new Error("Nowe połączenie wypada w otworze ściany. Przesuń je poza otwór.");
+      return CadEntitySchema.parse({ ...entity, attributes: { ...entity.attributes, wallId: part.id } });
+    }).flatMap((entity) => entity.id === wall.id ? parts : [entity]);
+  }
+  return CadDocumentSchema.parse({ ...document, entities });
+}
+
 export function moveCadJunction(document: CadDocument, from: CadPoint, to: CadPoint): CadDocument {
   return moveCadJunctions(document, [{ from, to }]);
 }

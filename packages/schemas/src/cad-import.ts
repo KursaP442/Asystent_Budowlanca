@@ -60,7 +60,7 @@ export const CadEntitySchema = z.discriminatedUnion("kind", [
   z.object({
     ...common, kind: z.literal("construction-area"), geometry: polygon,
     attributes: z.object({
-      role: z.enum(["column", "pad", "section", "elevation", "paving", "finish", "ceiling", "terrain", "equipment", "void"]),
+      role: z.enum(["column", "pad", "excavation", "section", "elevation", "paving", "finish", "ceiling", "terrain", "equipment", "void"]),
       thicknessMm: positiveMm, heightMm: positiveMm, material: z.string().trim().min(1).max(160),
       designReference: z.string().trim().min(1).max(240),
     }).strict(),

@@ -17,6 +17,7 @@ i od czego zacząć kolejną sesję. **To jest pierwszy plik, który agent powin
   kopiowanie rzutów, rozwinięcia ścian i kreator rzutów zbrojenia. Nie oznacza to pełnego CAD 1:1.
   Etapy mają podpunkty, narożniki ciągły podgląd, a fundamenty zależne ławy/płyty i izolacje.
   Graficzny kreator przekroju belki zapisuje położenie na podparciu; po zmianie długości wymaga sprawdzenia.
+  Przyciąganie łączy narożniki i węzły T; canvas zajmuje pełną szerokość, z panelami pod płótnem i kolorami ról.
   MCP, 3D, korekcja perspektywy i pełny zweryfikowany przedmiar pozostają niezakończone.
 - **Tryb pracy:** wyłącznie lokalny (bez hostingu/wdrożenia). Repozytorium Git istnieje tylko lokalnie
   (`C:\Users\Patryk\Desktop\Aplikacja_Budowa`), bez zdalnego remote na GitHub.
@@ -969,3 +970,44 @@ Istniejąca publikacja zlecenia nadal publikuje bazowy raport, nie zatwierdzony 
   Połączone pasy nie są jeszcze ujednoliconą bryłą do obliczenia objętości bez podwójnych przecięć.
 - Źródłowe podkłady nadal nie synchronizują się z wcześniejszym dokumentem; związany układ śledzi tylko
   podparcie w bieżącym rysunku. Zmiana długości wymaga odtworzenia układu z projektu.
+
+## Sesja 27 — 12 października 2026
+
+### Zrobione
+
+1. Przyciąganie końców działa podczas rysowania i przeciągania narożnika: 12 px niezależnie od zoomu,
+   priorytet końca przed odcinkiem ściany. Zielony znacznik wskazuje połączenie. Można je wyłączyć,
+   niezależnie od przyciągania siatki; płynny ruch i undo/redo zachowano.
+2. Wspólne końce są trwałym połączeniem: narożnik przesuwa wszystkie dochodzące odcinki. Można złapać
+   narożnik także blisko końca niezaznaczonego elementu. Połączenie T dzieli ścianę i przepisuje właściciela
+   otworów. Połączenie wewnątrz otworu lub podział hosta zbrojenia daje jawny błąd.
+3. Zależne ławy/płyty pozostają zsynchronizowane po podziale ściany. Testy sprawdzają T na obwodzie płyty,
+   ścianę wewnętrzną oraz trzy ławy pod dochodzącymi odcinkami.
+4. Canvas zajmuje pełną szerokość (przy 1440 px ponad 1250 px, wysokość co najmniej 640 px).
+   Panel z obrazka i inspektor przeniesiono pod płótno; powiększono teksty i zgrupowano parametry
+   fundamentów: ściana, podparcie, izolacje. Referencja dokumentacji jest opcjonalną sekcją rozwijaną.
+5. Technologia podpowiada materiał; bloczki 24/25/30 cm ustawiają grubość 240/250/300 mm z możliwością
+   ręcznej zmiany. Dodano bloczek szalunkowy 24 cm. Nie zgadujemy grubości wariantów bez podanego wymiaru.
+6. Ściany są niebieskie, ławy bursztynowe, stopy fioletowe, słupy różowe, płyty turkusowe, wykopy ochrowe.
+   Legenda opisuje kolory; zaznaczenie zmienia obrys, nie usuwa koloru roli. Dodano zwymiarowany obszar
+   wykopu i pole „Głębokość wykopu (mm)”, bez automatycznego doboru czy przedmiaru ziemnego.
+
+### Weryfikacja
+
+- `pnpm --filter @asystent/schemas test`, `pnpm --filter @asystent/domain test` — **PASS**: 32 + 27 testów.
+- Web build, `pnpm typecheck`, `pnpm lint`, `git diff --check` — **PASS**.
+- Pełny Playwright Edge — **PASS**: 11/11. Nowy scenariusz sprawdza połączenie w odległości 7 px,
+  wspólny ruch obu ścian przed puszczeniem myszy, undo, zamknięty obrys, węzeł T, kolory trzech ról,
+  automatyczne 240 mm z technologii, pełne wymiary canvas i położenie panelu pod nim oraz reload.
+- Desktop/mobile — **PASS**; 390 px bez poziomego overflow, panel nadal pod canvas.
+- Pierwsze iteracje nowego testu — **FAIL**: ścisłą równość float zastąpiono tolerancją 0,001 mm;
+  po undo/fit gest startował poza canvas, poprawiono współrzędne scenariusza do aktualnego widoku.
+- Geometry tests — **NOT RUN**: brak zmian w pakiecie geometrii; dotychczasowe 13/13 pozostaje historycznym wynikiem.
+- Baza pgTAP — **NOT RUN**: brak SQL; regresja uprawnień/zapisu objęta E2E.
+- Rzeczywiste OpenAI — **BLOCKED**: bez klucza i płatnego wywołania.
+
+### Kontynuacja
+
+Pełny CAD 1:1, objętości po usunięciu nakładających się pasów, pionowe przekroje/poziomy, gięcie prętów
+i zatwierdzony przedmiar pozostają **NOT RUN**. Przy podziale ściany z przypisanym zbrojeniem trzeba
+usunąć układ i odtworzyć go na nowym podparciu; aplikacja nie zgaduje zmiany rozwiązania konstrukcyjnego.

@@ -1106,6 +1106,7 @@ test("foundation wall generates linked footing or closed slab, isolation and gra
   const editor = page.locator(".cad-editor"), canvas = editor.getByRole("img", {name:/Płótno projektu/});
   await editor.getByRole("button", {name:"Ściana fundamentowa",exact:true}).click();
   await editor.getByLabel("Podparcie rysowanej ściany",{exact:true}).selectOption("strip");
+  await editor.getByText("Opcjonalne odniesienie do dokumentacji",{exact:true}).click();
   for (const [label,value] of [
     ["Grubość ściany fundamentowej (mm)","240"],["Wysokość ściany fundamentowej (mm)","1000"],
     ["Materiał ściany fundamentowej","Bloczek betonowy"],["Rysunek fundamentów / pozycja","K-01"],
@@ -1214,6 +1215,111 @@ test("foundation wall generates linked footing or closed slab, isolation and gra
   await expect(editor.getByRole("status")).toContainText("Rysunek zapisany automatycznie");
   await editor.locator(".cad-element-list button").filter({hasText:"Przekrój belki"}).click();
   await expect(editor.locator(".cad-inspector")).toContainText("Długość podparcia zmieniona");
+});
+test("CAD connects nearby wall corners and T joints, preserves shared movement and expands workspace", async ({ page }) => {
+  test.setTimeout(90000);
+  await page.setViewportSize({width:1440,height:1000});
+  const owner = await createAccount(), title = `Połączony obrys ${randomUUID()}`;
+  await login(page,owner.email);
+  await page.locator(".account-type-card.type-client").click();
+  await fillConstruction(page,title);
+  await page.getByRole("button",{name:"Edytuj",exact:true}).click();
+  await page.getByRole("tab",{name:"Materiały i technologia",exact:true}).click();
+  await selectTechnology(page,"foundationWalls","shuttering-block-24","Bloczki szalunkowe zalewane betonem (24 cm)");
+  await page.getByRole("button",{name:"Przejdź dalej",exact:true}).click();
+  const editor = page.locator(".cad-editor"), canvas = editor.getByRole("img",{name:/Płótno projektu/});
+  await editor.getByRole("button",{name:"Ściana fundamentowa",exact:true}).click();
+  await expect(editor.getByLabel("Grubość ściany fundamentowej (mm)",{exact:true})).toHaveValue("240");
+  await expect(editor.getByLabel("Materiał ściany fundamentowej",{exact:true})).toHaveValue("Bloczki szalunkowe zalewane betonem (24 cm)");
+  const widthInput = editor.getByLabel("Grubość ściany fundamentowej (mm)",{exact:true});
+  await widthInput.fill("300"); await expect(widthInput).toHaveValue("300");
+  await editor.getByRole("button",{name:"Ściana",exact:true}).click();
+  await editor.getByLabel("Skok przyciągania (mm, 0 = bez siatki)",{exact:true}).fill("0");
+  await expect(editor.getByLabel("Grubość nowej ściany (mm)",{exact:true})).toHaveValue("240");
+  const screen = async (p) => {
+    await canvas.scrollIntoViewIfNeeded();
+    const rect = await canvas.boundingBox(), view = (await canvas.getAttribute("viewBox")).split(" ").map(Number);
+    return {x:rect.x+(p.x-view[0])/view[2]*rect.width,y:rect.y+(p.y-view[1])/view[3]*rect.height};
+  };
+  const segment = async (a,b) => {
+    const p = await screen(a), q = await screen(b);
+    await page.mouse.move(p.x,p.y); await page.mouse.down(); await page.mouse.move(q.x,q.y); await page.mouse.up();
+  };
+  await segment({x:1000,y:1500},{x:5000,y:1500});
+  await segment({x:5200,y:2000},{x:5000,y:4500});
+  await editor.getByRole("button",{name:"Zaznacz / przesuń",exact:true}).click();
+  await editor.locator(".cad-element-list button").nth(1).click();
+  const aEnd = canvas.locator('.cad-entity[data-role="wall"]').first();
+  const bWall = canvas.locator('.cad-entity[data-role="wall"]').nth(1);
+  const readSegment = (element) => element.locator(".cad-solid-outline").getAttribute("points");
+  await canvas.scrollIntoViewIfNeeded();
+  const handle = canvas.locator(".cad-junction").first();
+  const grip = await handle.boundingBox(), corner = await screen({x:5000,y:1500});
+  await page.mouse.move(grip.x+grip.width/2,grip.y+grip.height/2); await page.mouse.down();
+  await page.mouse.move(corner.x+7,corner.y+3);
+  await expect(canvas.locator(".cad-snap-target")).toHaveCount(1);
+  expect(Number(await handle.getAttribute("cx"))).toBeCloseTo(5000,3);
+  expect(Number(await handle.getAttribute("cy"))).toBeCloseTo(1500,3);
+  await page.mouse.up();
+  await expect(canvas.locator(".cad-snap-target")).toHaveCount(0);
+  await expect(editor.getByRole("status")).toContainText("Rysunek zapisany automatycznie");
+  const connectedBeforeA = await readSegment(aEnd), connectedBeforeB = await readSegment(bWall);
+  const newGrip = await handle.boundingBox();
+  await page.mouse.move(newGrip.x+newGrip.width/2,newGrip.y+newGrip.height/2); await page.mouse.down();
+  await page.mouse.move(newGrip.x+newGrip.width/2+30,newGrip.y+newGrip.height/2+20);
+  expect(await readSegment(aEnd)).not.toBe(connectedBeforeA);
+  expect(await readSegment(bWall)).not.toBe(connectedBeforeB);
+  await page.mouse.up();
+  await editor.getByRole("button",{name:"Cofnij",exact:true}).click();
+  await expect(aEnd.locator(".cad-solid-outline")).toHaveAttribute("points",connectedBeforeA);
+  await expect(bWall.locator(".cad-solid-outline")).toHaveAttribute("points",connectedBeforeB);
+  await editor.getByRole("button",{name:"Ściana",exact:true}).click();
+  await segment({x:5000,y:4500},{x:1000,y:4500});
+  const p = await screen({x:1000,y:4500}), q = await screen({x:1000,y:1500});
+  await page.mouse.move(p.x+5,p.y+2); await page.mouse.down();
+  await page.mouse.move(q.x+6,q.y+2);
+  await expect(canvas.locator(".cad-snap-target")).toHaveCount(1);
+  await page.mouse.up();
+  await expect(canvas.locator('.cad-entity[data-role="wall"]')).toHaveCount(4);
+  await segment({x:3000,y:3500},{x:3000,y:1500});
+  await expect(canvas.locator('.cad-entity[data-role="wall"]')).toHaveCount(6);
+  await editor.getByRole("button",{name:"Stopa fundamentowa",exact:true}).click();
+  await segment({x:2000,y:2500},{x:2600,y:3000});
+  await editor.getByRole("button",{name:"Wykop",exact:true}).click();
+  for (const point of [{x:3500,y:2500},{x:4200,y:2500},{x:4200,y:3500},{x:3500,y:3500}]) {
+    const at = await screen(point); await page.mouse.click(at.x,at.y);
+  }
+  await editor.getByRole("button",{name:"Zamknij obrys (4)",exact:true}).click();
+  await expect(editor.getByLabel("Głębokość wykopu (mm)",{exact:true})).toBeVisible();
+  const wallFill = await canvas.locator('.cad-entity[data-role="wall"] .cad-solid-outline').first().getAttribute("fill");
+  const padFill = await canvas.locator('.cad-entity[data-role="pad"] .cad-solid-outline').getAttribute("fill");
+  const excavationFill = await canvas.locator('.cad-entity[data-role="excavation"] .cad-solid-outline').getAttribute("fill");
+  expect(new Set([wallFill,padFill,excavationFill]).size).toBe(3);
+  await expect(editor.getByLabel("Kolory elementów",{exact:true})).toContainText("Wykop");
+  await expect(editor.getByRole("status")).toContainText("Rysunek zapisany automatycznie");
+  const rect = await canvas.boundingBox(), options = await editor.getByLabel("Ustawienia pod płótnem",{exact:true}).boundingBox();
+  expect(rect.width).toBeGreaterThan(1250);
+  expect(rect.height).toBeGreaterThanOrEqual(640);
+  expect(options.y).toBeGreaterThan(rect.y+rect.height);
+  const {data:job,error} = await admin.from("construction_jobs").select("id").eq("title",title).single();
+  if (error) throw error;
+  const {data:row,error:readError} = await admin.from("cad_drawings").select("payload")
+    .eq("job_id",job.id).eq("requirement_id","foundation-drawing-0").single();
+  if (readError) throw readError;
+  const walls = row.payload.entities.filter((e) => e.kind === "wall");
+  const at = (p,x,y) => Math.abs(p.x-x)<.001 && Math.abs(p.y-y)<.001;
+  expect(walls.filter((w) => at(w.geometry.start,5000,1500) || at(w.geometry.end,5000,1500))).toHaveLength(2);
+  expect(walls.filter((w) => at(w.geometry.start,3000,1500) || at(w.geometry.end,3000,1500))).toHaveLength(3);
+  await canvas.scrollIntoViewIfNeeded();
+  await page.screenshot({path:test.info().outputPath("expanded-connected-cad.png"),fullPage:true});
+  await page.reload();
+  await page.getByRole("button",{name:"Edytuj",exact:true}).click();
+  await page.getByRole("button",{name:"Przejdź dalej",exact:true}).click();
+  await expect(canvas.locator('.cad-entity[data-role="wall"]')).toHaveCount(6);
+  await page.setViewportSize({width:390,height:844});
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
+  const mobileCanvas = await canvas.boundingBox(), mobileOptions = await editor.getByLabel("Ustawienia pod płótnem",{exact:true}).boundingBox();
+  expect(mobileOptions.y).toBeGreaterThan(mobileCanvas.y+mobileCanvas.height);
 });
 for (const kind of ["contractor", "store"]) {
   test(`${kind} profile, owner-only employee provisioning and mandatory password change`, async ({ page, request }) => {

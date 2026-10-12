@@ -17,6 +17,7 @@ export const cadDrawingTools = [
   { id: "footing", label: "Ława fundamentowa", geometry: "line" },
   { id: "foundation-wall", label: "Ściana fundamentowa", geometry: "line" },
   { id: "pad", label: "Stopa fundamentowa", geometry: "area" },
+  { id: "excavation", label: "Wykop", geometry: "area" },
   { id: "column", label: "Słup", geometry: "area" },
   { id: "wall", label: "Ściana", geometry: "line" },
   { id: "opening", label: "Otwór w ścianie", geometry: "line" },
@@ -48,6 +49,15 @@ export const cadDrawingTools = [
 ] as const;
 export type CadDrawingTool = typeof cadDrawingTools[number]["id"];
 
+export function getCadWallDefaults(technology: ConstructionTechnologySelections, foundation: boolean) {
+  const key = foundation ? "foundationWalls" : "loadBearingWall";
+  const value = technology[key];
+  const material = constructionTechnologyCatalog[key].options.find((option) => option.value === value)?.label;
+  const widths: Record<string, number> = { "concrete-block-24": 240, "shuttering-block-24": 240,
+    "shuttering-block-25": 250, "shuttering-block-30": 300 };
+  return { material: value && value !== "according-to-project" ? material ?? null : null, widthMm: value ? widths[value] ?? null : null };
+}
+
 export function getFoundationSupportOptions(technology: ConstructionTechnologySelections) {
   const selected = [...technology.foundationType, ...technology.otherFoundationType];
   const options: { value: "strip" | "slab" | "manual"; label: string }[] = [];
@@ -62,7 +72,7 @@ export function getFoundationSupportOptions(technology: ConstructionTechnologySe
 
 const structural: CadDrawingTool[] = ["wall", "opening", "column", "beam", "lintel", "ring-beam", "slab", "void"];
 const profiles: Record<ProjectDocumentationKind, CadDrawingTool[]> = {
-  foundation: ["footing", "foundation-wall", "wall", "pad", "column", "slab", "void"],
+  foundation: ["footing", "foundation-wall", "wall", "pad", "column", "slab", "void", "excavation"],
   basement: structural, storey: structural, masonry: ["wall", "opening", "column", "lintel", "ring-beam"],
   concrete: ["footing", "pad", "column", "beam", "slab", "void"],
   roof: ["roof-plane", "ridge", "gutter", "void"],

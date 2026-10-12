@@ -92,6 +92,7 @@ export const constructionTechnologyCatalog = {
     options: [
       projectOption,
       { value: "concrete-block-24", label: "Bloczki betonowe murowane (np. grubość 24 cm)" },
+      { value: "shuttering-block-24", label: "Bloczki szalunkowe zalewane betonem (24 cm)" },
       { value: "shuttering-block-25", label: "Bloczki szalunkowe zalewane betonem (25 cm)" },
       { value: "shuttering-block-30", label: "Bloczki szalunkowe zalewane betonem (30 cm)" },
       { value: "hollow-shuttering-block", label: "Pustaki zasypowe / szalunkowe wypełniane betonem" },

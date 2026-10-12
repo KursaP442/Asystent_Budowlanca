@@ -162,6 +162,15 @@ Płótno ma zoom kółkiem wokół kursora, osie, linijki, odczyt X/Y w mm i reg
 Narzędzia zależą od rodzaju i funkcji rysunku: fundamenty rozróżniają ławy, stopy, ściany i słupy;
 strop, dach, zbrojenie, elewacje, nawierzchnie, wykończenia oraz ogrodzenia mają odrębne profile.
 Narożniki mają ciągły podgląd ruchu bez kwantyzacji siatki; jeden gest to jedna operacja cofania.
+Przyciąganie połączeń (osobne od siatki, wyłączalne) działa w promieniu 12 pikseli, priorytetowo do
+narożnika, następnie do odcinka ściany. Zielony znacznik wskazuje docelowe połączenie.
+Węzeł T dzieli ścianę na połączone odcinki; ruch wspólnego narożnika zmienia wszystkie dochodzące końce.
+Otwory zachowują właściciela po podziale; połączenie w środku otworu jest odrzucane.
+Canvas zajmuje pełną szerokość przestrzeni projektu, a czytelny panel ustawień i właściwości leży pod nim.
+Ściany, ławy, stopy, płyty i wykopy mają różne kolory i legendę. Wykop jest zwymiarowanym obszarem
+z głębokością wpisywaną z projektu, nie automatycznym obliczeniem robót ziemnych.
+Materiał ściany jest podpowiadany z technologii. Konkretny wymiar wybranego bloczka (24/25/30 cm)
+ustawia edytowalną grubość; brak wymiaru w technologii nie może być podstawą do jego zgadywania.
 Wymiary odnoszą się do zewnętrznych krawędzi rdzenia, a grubości izolacji są wymiarowane oddzielnie.
 Stopy i słupy są prostokątami rysowanymi przeciągnięciem, z edytowalną długością i szerokością.
 Ściany mają połączone narożniki i wymiarowanie z liniami pomocniczymi. Materiały i grubości warstw

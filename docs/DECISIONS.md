@@ -412,3 +412,28 @@ fundamentów ma indeks 3; wcześniejsze indeksy i stare dokumenty zachowano. Roz
 nie zmieniają tabel ani nie wymagają migracji. Strzemiona nadal są projekcją, bez długości gięcia.
 Nie rozwiązano doboru konstrukcyjnego, pełnej topologii powierzchni, układów gięcia ani zatwierdzonego
 przedmiaru. Rysunki oraz referencje dokumentów nie są dowodem kompletności projektu 1:1.
+
+## ADR-024: Przyciąganie połączeń ścian i pełnoszerokościowe płótno
+
+**Kontekst:** Użytkownik wymaga prostego zamykania obrysu, trwałego wspólnego narożnika, ustawień
+pod canvas, większej przestrzeni rysowania, podstawowych pól i odróżnienia elementów kolorami.
+
+**Decyzja:** Przyciąganie topologiczne jest niezależne od siatki. Promień 12 px przelicza się przez
+aktualną skalę widoku, najpierw szukając końca, potem projekcji na odcinek ściany.
+Ruch węzła wyklucza jego własne odcinki i wygenerowane podpory, żeby nie przyciągał się do starej pozycji.
+Podgląd i końcowy zapis używają tej samej reguły. Wspólny węzeł zachowuje istniejącą tolerancję 0,001 mm.
+
+Połączenie T dzieli ścianę, zachowuje pierwszy ID i tworzy nowe ID kolejnych odcinków. Otwory są przypisane
+do zawierającego je odcinka bez zmiany geometrii. Podział w otworze albo podparcia z przypisanym zbrojeniem
+daje jawny błąd, zamiast uszkadzać relacje. Synchronizacja fundamentów następuje po normalizacji węzłów;
+podział obwodu zachowuje płytę, a każdy odcinek ławy otrzymuje relację ze swoją ścianą.
+
+Ustawienia i inspektor zajmują drugi wiersz pod pełnoszerokościowym canvas. Przy 1440 px płótno ma ponad
+1250 px szerokości i co najmniej 640 px wysokości; mobile zachowuje kolejność pionową bez overflow.
+Legenda ról i odrębne kolory nie są nadpisywane kolorem zaznaczenia; zaznaczenie ma pomarańczowy obrys.
+Dodano rolę obszarową `excavation`, bez automatycznego generowania wykopów czy przedmiaru.
+
+Jawne warianty technologii bloczków 24/25/30 cm ustawiają edytowalną grubość oraz materiał. Dodano wariant
+bloczka szalunkowego 24 cm. Materiały bez konkretnego wymiaru nie tworzą domyślnej grubości.
+Referencja dokumentacyjna jest opcjonalnym polem rozwijanym; brak pozostaje oznaczony „Do uzupełnienia
+z projektu”, bez zatwierdzenia. Wysokości, parametry podpór i grubości izolacji nadal wymagają danych projektu.

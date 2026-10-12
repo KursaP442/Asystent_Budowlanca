@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { classifyCadTrace, copyCadGeometry, createCadElement, createReinforcementLayout, entityPoints, getCadApprovalIssues, moveCadJunction,
-  projectCadWallElevations, resizeCadRectangle, resizeCadStrip, snapCadEndpoint, translateConnectedCadEntity } from "../dist/index.js";
-import { CadDocumentSchema, cadDrawingTools, emptyConstructionTechnologySelections, getCadDrawingTools, projectDocumentationCatalog } from "@asystent/schemas";
+import { classifyCadTrace, connectCadWallJunctions, copyCadGeometry, createCadElement, createReinforcementLayout, entityPoints, getCadApprovalIssues, moveCadJunction,
+  projectCadWallElevations, resizeCadRectangle, resizeCadStrip, snapCadConnection, snapCadEndpoint, translateConnectedCadEntity } from "../dist/index.js";
+import { CadDocumentSchema, cadDrawingTools, emptyConstructionTechnologySelections, getCadDrawingTools, getCadWallDefaults, projectDocumentationCatalog } from "@asystent/schemas";
 
 const common = () => ({ id: randomUUID(), layerId: "wall", units: "mm", reviewStatus: "draft",
   source: { origin: "manual", documentId: null, page: null, confidence: null } });
@@ -69,6 +69,44 @@ test("junction snapping and shared corner movement preserve openings and source 
   assert.deepEqual(translated.entities[0].geometry.end, { x: 8000, y: 0 });
   assert.deepEqual(translated.entities[1].geometry.start, { x: 8000, y: 0 });
   assert.deepEqual(translated.entities[2].geometry.start, { x: 5000, y: 0 });
+});
+test("connection snapping prioritizes corners, supports T joints and excludes the moving group", () => {
+  const a = wall({x:0,y:0},{x:4000,y:0});
+  const original = document([a]);
+  assert.deepEqual(snapCadConnection(original,{x:3995,y:8},20),{x:4000,y:0});
+  assert.deepEqual(snapCadConnection(original,{x:2000,y:8},20),{x:2000,y:0});
+  assert.equal(snapCadConnection(original,{x:2000,y:25},20),null);
+  assert.equal(snapCadConnection(original,{x:2000,y:8},20,[a.id]),null);
+  const b = wall({x:2000,y:0},{x:2000,y:3000});
+  const joined = connectCadWallJunctions(document([a,b]),randomUUID);
+  assert.equal(joined.entities.length,3);
+  const corner = moveCadJunction(joined,{x:2000,y:0},{x:2100,y:400});
+  assert.equal(corner.entities.filter((e) => entityPoints(e).some((p) => p.x === 2100 && p.y === 400)).length,3);
+  assert.deepEqual(a.geometry.end,{x:4000,y:0});
+  assert.equal(connectCadWallJunctions(joined,randomUUID).entities.length,3);
+});
+test("joining a wall preserves opening ownership and rejects a joint inside an opening", () => {
+  const a = wall({x:0,y:0},{x:4000,y:0});
+  const opening = {...common(),kind:"opening",geometry:{start:{x:2500,y:0},end:{x:3500,y:0}},
+    attributes:{wallId:a.id,heightMm:1200,sillMm:900,type:"window"}};
+  const b = wall({x:2000,y:0},{x:2000,y:3000});
+  const joined = connectCadWallJunctions(document([a,b,opening]),randomUUID);
+  const relocated = joined.entities.find((e) => e.kind === "opening");
+  assert.notEqual(relocated.attributes.wallId,a.id);
+  assert.equal(joined.entities.find((e) => e.id === relocated.attributes.wallId).geometry.start.x,2000);
+  assert.throws(() => connectCadWallJunctions(document([a,wall({x:3000,y:0},{x:3000,y:3000}),opening]),randomUUID),/otworze/);
+});
+test("only explicit technology thicknesses are automatic, and remain editable", () => {
+  const t = structuredClone(emptyConstructionTechnologySelections);
+  for (const [choice,width] of [["shuttering-block-24",240],["shuttering-block-25",250],["shuttering-block-30",300],["concrete-block-24",240]]) {
+    t.foundationWalls = choice;
+    assert.equal(getCadWallDefaults(t,true).widthMm,width);
+    assert.ok(getCadWallDefaults(t,true).material);
+  }
+  t.foundationWalls = "hollow-shuttering-block";
+  assert.equal(getCadWallDefaults(t,true).widthMm,null);
+  t.foundationWalls = "according-to-project";
+  assert.equal(getCadWallDefaults(t,true).material,null);
 });
 test("copying drawings remaps opening ownership and retains revision lineage without double approval", () => {
   const a = wall({ x: 0, y: 0 }, { x: 4000, y: 0 });

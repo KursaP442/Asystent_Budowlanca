@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { CadDocumentSchema, CadEntitySchema, cadDrawingTools, cadEntityTool, foundationDocumentChecklist, getCadDrawingTools,
+import { CadDocumentSchema, CadEntitySchema, cadDrawingTools, cadEntityTool, foundationDocumentChecklist, getCadDrawingTools, getCadWallDefaults,
   type ConstructionTechnologySelections, type CadDrawingTool, type ProjectDocumentationKind, type CadDocument, type CadEntity, type CadPoint } from "@asystent/schemas";
-import { calibrateCadSource, classifyCadTrace, copyCadGeometry, createCadElement, entityPoints, hasCadJunctions, moveCadJunction, projectCadWallElevations,
-  projectPointOnSegment, snapCadEndpoint, translateCadEntity, translateConnectedCadEntity } from "@asystent/domain";
+import { calibrateCadSource, classifyCadTrace, connectCadWallJunctions, copyCadGeometry, createCadElement, entityPoints, hasCadJunctions, moveCadJunction, projectCadWallElevations,
+  projectPointOnSegment, snapCadConnection, translateCadEntity, translateConnectedCadEntity } from "@asystent/domain";
 import { configureFoundationWall, foundationPlanExtents, resizeCadRectangle, resizeCadStrip, synchronizeFoundationSupports, synchronizeReinforcementPlacement, type FoundationWallSetup } from "@asystent/domain";
 import { distanceBetweenPoints, drawingBounds, isSimplePolygon, polygonAreaMm2, polygonExteriorSide, rectangleFromCorners,
   segmentRectangle, viewportToWorld, zoomDrawingView } from "@asystent/geometry";
@@ -29,9 +29,17 @@ const attributeLabels: Record<string, string> = {
   sillMm: "Wysokość parapetu (mm)", system: "System instalacji", type: "Rodzaj otworu",
 };
 const colors: Partial<Record<CadEntity["kind"], string>> = {
-  wall: "#334155", footing: "#64748b", slab: "#94a3b8", "roof-plane": "#22a06b", "rebar-line": "#0f172a",
+  wall: "#2563eb", footing: "#b45309", slab: "#0891b2", "roof-plane": "#22a06b", "rebar-line": "#0f172a",
   dimension: "#475569", "trace-line": "#2563eb", "trace-area": "#2563eb", annotation: "#7c3aed",
 };
+const roleColors: Partial<Record<CadDrawingTool, string>> = {
+  "foundation-wall": "#2563eb", pad: "#7c3aed", column: "#be185d", excavation: "#a16207",
+  section: "#64748b", elevation: "#475569", paving: "#0d9488", finish: "#9333ea", terrain: "#4d7c0f",
+};
+function entityColor(entity: CadEntity) {
+  const role = cadEntityTool(entity);
+  return role && roleColors[role] ? roleColors[role]! : colors[entity.kind] ?? "#475569";
+}
 const entityLabels: Partial<Record<CadEntity["kind"], string>> = {
   "trace-line": "Rozpoznany odcinek", "trace-area": "Rozpoznany obrys", "rebar-annotation": "Opis zbrojenia",
   opening: "Otwór", pipe: "Przewód",
@@ -90,6 +98,10 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
   const [layerSide, setLayerSide] = useState<"left" | "right" | "both">("both");
   const [gridMm, setGridMm] = useState(100);
   const [foundationSetup, setFoundationSetup] = useState<FoundationWallSetup | null>(null);
+  const [snapTarget, setSnapTarget] = useState<CadPoint | null>(null);
+  const [connectWalls, setConnectWalls] = useState(true);
+  const wallDefaults = getCadWallDefaults(technology, kind === "foundation");
+  const [wallThickness, setWallThickness] = useState(String(wallDefaults.widthMm ?? 240));
   const gesture = useRef<{ start: CadPoint; entityId: string | null; junction: CadPoint | null;
     pointIndex: number | null; document: CadDocument; view: typeof initialView } | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -215,7 +227,8 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
   function commit(next: CadDocument, remember = true) {
     try {
       const parsed = CadDocumentSchema.parse(synchronizeReinforcementPlacement(
-        synchronizeFoundationSupports({ ...next, status: "draft", revision: savedRevision.current }, () => crypto.randomUUID())));
+        synchronizeFoundationSupports(connectCadWallJunctions({ ...next, status: "draft", revision: savedRevision.current },
+          () => crypto.randomUUID()), () => crypto.randomUUID())));
       if (parsed.entities.some((entity) => "vertices" in entity.geometry && !isSimplePolygon(entity.geometry.vertices))) {
         throw new Error("Obrys jest zdegenerowany lub przecina sam siebie. Popraw współrzędne.");
       }
@@ -234,18 +247,21 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
     commit(next, false); setSelectedId(null); fit(next);
   }
   function chooseTool(next: Tool) {
-    setTool(next); setPoints([]); setGhost(null); gesture.current = null; setPreviewDrawing(null); setError(""); onPendingChange(dirty || saving);
+    setTool(next); setPoints([]); setGhost(null); setSnapTarget(null); gesture.current = null; setPreviewDrawing(null); setError(""); onPendingChange(dirty || saving);
   }
   const polygonTool = cadDrawingTools.some((item) => item.id === tool && item.geometry === "area");
   const rectangleTool = tool === "pad" || tool === "column";
   function cancelGesture() {
-    gesture.current = null; setPreviewDrawing(null); setPoints([]); setGhost(null); onPendingChange(dirty || saving);
+    gesture.current = null; setPreviewDrawing(null); setPoints([]); setGhost(null); setSnapTarget(null); onPendingChange(dirty || saving);
   }
   function world(event: ReactPointerEvent<SVGSVGElement>, snap = true) {
-    const point = viewportToWorld({ x: event.clientX, y: event.clientY }, event.currentTarget.getBoundingClientRect(), view,
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const raw = viewportToWorld({ x: event.clientX, y: event.clientY }, bounds, view);
+    const connection = snap && connectWalls && drawing && ["wall", "foundation-wall", "footing"].includes(tool)
+      ? snapCadConnection(drawing, raw, view.width * 12 / Math.max(1, bounds.width)) : null;
+    const point = viewportToWorld({ x: event.clientX, y: event.clientY }, bounds, view,
       snap && !drawing?.sourceImage ? gridMm : 0);
-    return snap && drawing && !polygonTool && !["pan", "calibrate", "annotation"].includes(tool)
-      ? snapCadEndpoint(drawing, point, view.width * 10 / Math.max(1, event.currentTarget.getBoundingClientRect().width)) : point;
+    return connection ?? point;
   }
   function newEntity(start: CadPoint, end: CadPoint, vertices?: CadPoint[]): CadEntity {
     if (tool === "select" || tool === "pan" || tool === "calibrate") throw new Error("Wybierz narzędzie rysowania.");
@@ -262,6 +278,8 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
       if (!foundationSetup) throw new Error("Najpierw uzupełnij parametry ściany i jej podparcia, następnie kliknij „Zastosuj do nowych ścian”.");
       return configureFoundationWall(entity, foundationSetup);
     }
+    if (entity.kind === "wall") return CadEntitySchema.parse({ ...entity,
+      attributes: { ...entity.attributes, thicknessMm: Number(wallThickness), material: wallDefaults.material ?? entity.attributes.material } });
     return entity;
   }
   function add(start: CadPoint, end: CadPoint, vertices?: CadPoint[]) {
@@ -286,8 +304,13 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
       setPoints((current) => tool === "calibrate" && current.length >= 2 ? [point] : [...current, point]); return;
     }
     const handle = event.target instanceof Element ? event.target.closest("[data-junction-index]") : null;
-    const junctionIndex = handle?.getAttribute("data-junction-index");
+    let junctionIndex = handle?.getAttribute("data-junction-index") ?? null;
     const entity = drawing.entities.find((item) => item.id === entityId);
+    if (tool === "select" && entity && hasCadJunctions(entity) && !entity.supportFor && junctionIndex === null) {
+      const tolerance = view.width * 12 / event.currentTarget.getBoundingClientRect().width;
+      const index = entityPoints(entity).findIndex((p) => distanceBetweenPoints(p, point) <= tolerance);
+      if (index >= 0) junctionIndex = String(index);
+    }
     const junction = junctionIndex !== null && junctionIndex !== undefined && entity ? entityPoints(entity)[Number(junctionIndex)] : null;
     gesture.current = { start: point, entityId, junction, pointIndex: junctionIndex == null ? null : Number(junctionIndex), document: drawing, view };
     if (tool === "select" && entityId) onPendingChange(true);
@@ -306,7 +329,12 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
       try { setPreviewDrawing(synchronizeReinforcementPlacement(
         synchronizeFoundationSupports(dragSelection(gesture.current, point), () => crypto.randomUUID()))); setError(""); }
       catch (cause) { setError(cadError(cause)); }
-    } else setGhost(point);
+    } else {
+      setGhost(point);
+      const raw = world(event, false);
+      setSnapTarget(connectWalls && ["wall", "foundation-wall", "footing"].includes(tool) && drawing
+        ? snapCadConnection(drawing, raw, view.width * 12 / event.currentTarget.getBoundingClientRect().width) : null);
+    }
   }
   function dragSelection(start: NonNullable<typeof gesture.current>, end: CadPoint): CadDocument {
     const document = start.document;
@@ -317,7 +345,13 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
       throw new Error("Przesuń podparcie, aby przenieść przypisany układ zbrojenia; nie przesuwaj pojedynczych prętów.");
     }
     if (start.junction && start.pointIndex !== null) {
-      const corner = { x: start.junction.x + end.x - start.start.x, y: start.junction.y + end.y - start.start.y };
+      const rawCorner = { x: start.junction.x + end.x - start.start.x, y: start.junction.y + end.y - start.start.y };
+      const excludedIds = document.entities.filter((entity) => entity.id === moving.id || entity.supportFor
+        || hasCadJunctions(entity) && entityPoints(entity).some((p) => distanceBetweenPoints(p, start.junction!) < .001)).map((e) => e.id);
+      const target = connectWalls && hasCadJunctions(moving) ? snapCadConnection(document, rawCorner,
+        view.width * 12 / Math.max(1, svgRef.current?.getBoundingClientRect().width ?? 1), excludedIds) : null;
+      setSnapTarget(target);
+      const corner = target ?? rawCorner;
       if (hasCadJunctions(moving)) return moveCadJunction(document, start.junction, corner);
       if (moving.kind === "construction-area" && ["pad", "column"].includes(moving.attributes.role)) {
         const opposite = entityPoints(moving)[(start.pointIndex + 2) % 4];
@@ -348,6 +382,7 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
     const start = gesture.current;
     gesture.current = null;
     setPreviewDrawing(null);
+    setSnapTarget(null);
     onPendingChange(dirty || saving);
     if (!start || !drawing) return;
     const end = world(event, tool !== "select");
@@ -364,6 +399,7 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
       if (distanceBetweenPoints(start.start, end) > 0.01) add(start.start, end);
       else { setPoints([]); setError("Przeciągnij od początku do końca elementu."); }
     }
+    setSnapTarget(null);
   }
   const selected = drawing?.entities.find(({ id }) => id === selectedId);
   const rectangularSelection = selected?.kind === "construction-area" && ["pad", "column"].includes(selected.attributes.role)
@@ -447,7 +483,7 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
     </g>;
   }
   function shape(entity: CadEntity) {
-    const color = selectedId === entity.id ? "#ea580c" : colors[entity.kind] ?? "#475569";
+    const color = entityColor(entity);
     if ("start" in entity.geometry) {
       const { start, end } = entity.geometry;
       const width = entity.kind === "wall" ? entity.attributes.thicknessMm : entity.kind === "footing" ? entity.attributes.widthMm
@@ -545,7 +581,7 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
           <span aria-hidden="true">{item.icon}</span>{item.id === "slab" && kind === "foundation" ? "Płyta fundamentowa / denna" : item.label}</button>)}
       </div>
       <div className="cad-workspace">
-        <aside className="cad-tools-panel">
+        <aside className="cad-tools-panel" aria-label="Ustawienia pod płótnem">
           <h4>Narzędzia etapu</h4><p>{tool === "select" ? "Kliknij element, aby go edytować. Przeciągnij, aby go przesunąć."
             : rectangleTool ? "Przeciągnij od jednego narożnika prostokąta do przeciwległego. Wymiary zmienisz po zaznaczeniu."
               : polygonTool ? "Klikaj kolejne narożniki, następnie zamknij obrys."
@@ -553,6 +589,12 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
                 : tool === "annotation" ? "Kliknij miejsce opisu." : tool === "pan" ? "Przeciągnij płótno." : "Przeciągnij od początku do końca elementu."}</p>
           <label>Skok przyciągania (mm, 0 = bez siatki)<input type="number" min={0} max={10000} step="any" value={gridMm}
             onChange={(event) => { const value = Number(event.target.value); if (Number.isFinite(value) && value >= 0 && value <= 10000) setGridMm(value); }} /></label>
+          <label className="checkbox-field"><input type="checkbox" checked={connectWalls}
+            onChange={(event) => { setConnectWalls(event.target.checked); setSnapTarget(null); }} /> Przyciągaj i łącz ściany</label>
+          <p>Końce przyciągają się do narożników i ścian w promieniu 12 px. Zielony znacznik pokazuje połączenie.
+            Przeciągnij wspólny narożnik, aby zmienić obie ściany naraz.</p>
+          {tool === "wall" && <label>Grubość nowej ściany (mm)<input type="number" min={1} max={1000000}
+            value={wallThickness} onChange={(event) => setWallThickness(event.target.value)} /></label>}
           {tool === "annotation" && <label>Tekst nowego opisu<input value={annotation} maxLength={1000} onChange={(event) => setAnnotation(event.target.value)} /></label>}
           {polygonTool && !rectangleTool && <button type="button" className="quiet-button" disabled={points.length < 3}
             onClick={() => add(points[0], points.at(-1)!, points)}>Zamknij obrys ({points.length})</button>}
@@ -604,6 +646,13 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
           </button>)}</div>
         </aside>
         <div className="cad-drawing-panel">
+          <div className="cad-color-legend" aria-label="Kolory elementów">
+            {[...new Set(drawing.entities.map((entity) => cadEntityTool(entity)).filter((role) => role !== null))].map((role) => {
+              const entity = drawing.entities.find((item) => cadEntityTool(item) === role)!;
+              return <span key={role}><i style={{ backgroundColor: entityColor(entity) }} aria-hidden="true" />
+                {tools.find((item) => item.id === role)?.label}</span>;
+            })}
+          </div>
           <svg ref={svgRef} className="cad-canvas" role="img" aria-label={`Płótno projektu: ${title}`} tabIndex={0}
             viewBox={`${view.x} ${view.y} ${view.width} ${view.height}`} preserveAspectRatio="none"
             onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp}
@@ -638,7 +687,13 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
             {drawing.sourceImage && sourceUrl && showSource && <image href={sourceUrl} x={0} y={0} opacity={0.4}
               width={drawing.sourceImage.widthPx * drawing.sourceImage.mmPerPixel} height={drawing.sourceImage.heightPx * drawing.sourceImage.mmPerPixel} />}
             {drawing.entities.filter(({ layerId }) => !hiddenLayers.includes(layerId)).map((entity) => <g key={entity.id}
-              data-entity-id={entity.id} className="cad-entity">{shape(entity)}</g>)}
+              data-entity-id={entity.id} data-role={cadEntityTool(entity) ?? entity.kind}
+              data-selected={selectedId === entity.id} className="cad-entity">{shape(entity)}</g>)}
+            {snapTarget && <g className="cad-snap-target" pointerEvents="none">
+              <circle cx={snapTarget.x} cy={snapTarget.y} r={view.width / 100} fill="#dcfce7" stroke="#16a34a"
+                strokeWidth={2} vectorEffect="non-scaling-stroke" />
+              <title>Połączenie ścian</title>
+            </g>}
             {overall.length === 4 && <g className="cad-overall-dimensions" pointerEvents="none">
               {dimensionShape(overall[0], overall[1], "#0f172a", -textSize * 6)}
               {dimensionShape(overall[1], overall[2], "#0f172a", -textSize * 6)}
@@ -730,7 +785,8 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
             {selected.kind === "rebar-line" && selected.attributes.representation === "projection" && <p className="cad-disclaimer">
               Symbol położenia strzemienia. Ta kreska nie jest długością pręta do przedmiaru.</p>}
             {Object.entries(selected.attributes).filter(([name]) => !["specialistVerified", "wallId", "role", "representation", "section"].includes(name)).map(([name, value]) => <div key={`${selected.id}-${name}-${String(value)}`}>
-              <label htmlFor={`cad-attribute-${name}`}>{attributeLabels[name] ?? name}</label>
+              <label htmlFor={`cad-attribute-${name}`}>{name === "heightMm" && selected.kind === "construction-area"
+                && selected.attributes.role === "excavation" ? "Głębokość wykopu (mm)" : attributeLabels[name] ?? name}</label>
               {attributeOptions[name] ? <select id={`cad-attribute-${name}`} value={String(value)}
                 onChange={(event) => updateSelected({ ...selected, attributes: { ...selected.attributes, [name]: event.target.value } })}>
                 {attributeOptions[name].map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}

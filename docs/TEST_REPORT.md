@@ -3,6 +3,24 @@
 Zasada: zapisujemy **dokładne komendy**, **datę**, **środowisko** i **rzeczywisty wynik** (PASS/FAIL/BLOCKED/NOT RUN).
 Nigdy nie wpisujemy ogólnego „działa” bez dowodu z uruchomienia.
 
+## Sesja 27 — 12 października 2026
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|---|
+| `pnpm --filter @asystent/schemas test` | katalog 24 cm, preset i rola wykopu | PASS | 32/32 |
+| `pnpm --filter @asystent/domain test` | snap, wspólne narożniki, T, otwory i zależne podpory | PASS | 27/27; T nie gubi płyty ani ław; zachowanie ID/własności i odrzucanie przecięcia otworu |
+| `pnpm --filter web build`, `pnpm --filter web lint` | rozbudowana przestrzeń i ustawienia | PASS | produkcyjny build i ESLint |
+| `pnpm --filter web exec playwright test --grep 'CAD smooth\|CAD workspace\|foundation wall generates\|stage canvas'` | regresja po zmianie layoutu | PASS | 4/4 |
+| `pnpm --filter web exec playwright test --grep 'CAD connects nearby'` | pierwsze iteracje nowego testu | FAIL | nieaktualna ścisła równość float i gest poza viewBox po fit; użyto tolerancji oraz punktów w widocznym obszarze |
+| `pnpm --filter web exec playwright test --grep 'CAD connects nearby'` | końcowy nowy scenariusz | PASS | snap przy 7 px, wspólny ruch, undo, obrys i T, preset 240 mm, kolory, reload, desktop/mobile |
+| `pnpm typecheck`, `pnpm lint` | cały workspace | PASS | 13 / 7 zadań Turbo |
+| `pnpm --filter web exec playwright test` | pełna regresja Edge | PASS | 11/11 |
+| Geometria układu i screenshot desktop/mobile | wymagane rozmiary i położenie paneli | PASS | canvas >1250 px szerokości przy viewport 1440, ≥640 px wysokości, panel pod canvas; 390 px bez overflow |
+| `git diff --check` | zmiany tej sesji | PASS | bez błędów whitespace |
+| Geometry tests / pgTAP | brak zmian w pakiecie geometry lub SQL | NOT RUN | logika snap/topologii sprawdzona w domain i E2E |
+| Rzeczywiste OpenAI | klucz i zgoda użytkownika | BLOCKED | bez wywołania płatnej usługi |
+| Pełny CAD 1:1 i przedmiar brył/wykopów | wymagania docelowe | NOT RUN | role/kolory i połączone odcinki nie są zweryfikowanym obliczeniem |
+
 ## Sesja 26 — 12 października 2026
 
 | Komenda / kontrola | Kontekst | Wynik | Uwagi |
