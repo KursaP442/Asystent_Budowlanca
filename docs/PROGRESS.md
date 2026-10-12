@@ -1139,3 +1139,17 @@ Pełny CAD dowolnego projektu i zatwierdzony przedmiar pozostają **NOT RUN**. R
 mogą wymagać rozdzielenia arkuszy; nie deklarujemy pełnej czytelności dowolnej liczby wymiarów.
 Dalszy etap to weryfikacja przeniesienia rzeczywistych projektów i reguł obliczeń, nie automatyczne
 zatwierdzanie konstrukcji.
+
+## Sesja 31 — 12 października 2026
+
+### Publikacja repozytorium
+
+- Na prośbę użytkownika przygotowano pierwsze wysłanie projektu wraz z historią gałęzi `master`
+  do `https://github.com/KursaP442/Asystent_Budowlanca`.
+- Ostatni commit funkcjonalny: `1384cd2` — poprawki wymiarowania CAD.
+- Kontrola dostępu i pustej historii zdalnej przez `git ls-remote`: **PASS**.
+- Kontrola śledzonych plików konfiguracyjnych i wzorców kluczy w historii: **PASS**;
+  śledzony jest tylko przykładowy plik środowiska z placeholderami. Lokalne sekrety i buildy
+  pozostają poza repozytorium. Kontrola wzorców nie jest pełnym audytem bezpieczeństwa.
+- Testy kodu: **NOT RUN** w tej sesji (bez zmian kodu; wyniki sesji 30 pozostają aktualne).
+- Publikacja źródeł nie uruchamia hostingu, płatnych usług ani migracji bazy.
