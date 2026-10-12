@@ -266,15 +266,22 @@ export function layoutCadDimensions(requests: CadDimensionRequest[], fontMm: num
     && a.y < b.y + b.height && a.y + a.height > b.y;
   for (const request of requests) {
     const { start, end } = request, length = Math.hypot(end.x - start.x, end.y - start.y), font = request.fontMm ?? fontMm;
-    if (length < .001) continue;
-    const label = request.label ?? `${Math.round(length)} mm`, nx = -(end.y - start.y) / length, ny = (end.x - start.x) / length;
+    if (length < .001 && !request.anchor) continue;
+    const label = request.label ?? `${Math.round(length)} mm`,
+      nx = -(end.y - start.y) / Math.max(.001, length), ny = (end.x - start.x) / Math.max(.001, length);
     const width = (label.length * .62 + 1) * font, height = font * 1.5;
     let placed = false;
     for (let lane = 0; lane < 300; lane++) {
       const offset = (request.side ?? 1) * font * (2.5 + lane * 2);
-      const a = { x: start.x + nx * offset, y: start.y + ny * offset }, b = { x: end.x + nx * offset, y: end.y + ny * offset };
+      const a = request.anchor ?? { x: start.x + nx * offset, y: start.y + ny * offset },
+        b = request.anchor ?? { x: end.x + nx * offset, y: end.y + ny * offset };
+      if (!request.anchor && solids.some((solid) => pointInCadPolygon(a, solid) || pointInCadPolygon(b, solid)
+        || solid.some((p, i) => segmentsIntersect(a, b, p, solid[(i + 1) % solid.length]!)))) continue;
+      const gap = font * (2.5 + Math.floor(lane / 4) * 2);
       const text = request.anchor
-        ? { x: request.anchor.x, y: request.anchor.y - font * (2.5 + lane * 2) }
+        ? lane % 4 < 2
+          ? { x: request.anchor.x, y: request.anchor.y + (lane % 4 ? 1 : -1) * gap }
+          : { x: request.anchor.x + (lane % 4 === 2 ? -1 : 1) * (width / 2 + gap), y: request.anchor.y - font * .35 }
         : { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 - font * .35 };
       const box = { x: text.x - width / 2, y: text.y - font, width, height };
       if (boxes.some((other) => overlaps(box, other))) continue;
@@ -342,7 +349,7 @@ export function cadStripFaceSegment(document: CadDocument, entity: CadEntity, si
 }
 
 export function getCadPlanDimensions(document: CadDocument, fontMm: number, hiddenLayers: readonly string[] = [],
-  locationFontMm = fontMm): CadDimensionLayout[] {
+  locationFontMm = fontMm, detailed = false): CadDimensionLayout[] {
   const requests: CadDimensionRequest[] = [];
   const widths = new Set<string>();
   const visible = document.entities.filter((e) => !hiddenLayers.includes(e.layerId));
@@ -358,7 +365,10 @@ export function getCadPlanDimensions(document: CadDocument, fontMm: number, hidd
   const walls = document.entities.filter((e) => e.kind === "wall"
     || e.kind === "construction-line" && e.attributes.role === "foundation-wall");
   const references = walls.length ? walls : document.entities.filter((e) => e.kind === "footing");
+  const visibleIds = new Set(visible.map((e) => e.id));
+  const wallFaces = getCadPlanFaces(document), footingFaces = getCadPlanFaces(document, "footings");
   for (const e of visible) {
+    if (!detailed && e.supportFor?.some((id) => visibleIds.has(id))) continue;
     if ("start" in e.geometry) {
       const width = cadStripWidth(e);
       if (width > 0) {
@@ -366,11 +376,13 @@ export function getCadPlanDimensions(document: CadDocument, fontMm: number, hidd
         const left = cadStripFaceSegment(document, e, "left"), right = cadStripFaceSegment(document, e, "right");
         const l = Math.hypot(left.end.x - left.start.x, left.end.y - left.start.y);
         const r = Math.hypot(right.end.x - right.start.x, right.end.y - right.start.y);
-        const both = Math.abs(l - r) > .001;
-        if (both || l >= r) add(left.start, left.end, `${e.id}:exterior`, 1, undefined, e, { faceSide: "left" });
-        if (both || l < r) add(right.start, right.end, `${e.id}:exterior`, -1, undefined, e, { faceSide: "right" });
+        const both = detailed && Math.abs(l - r) > .001;
+        const exterior = cadLayerSides(e, "exterior", e.kind === "footing" ? footingFaces : wallFaces)[0];
+        const side = exterior ?? (l >= r ? "left" : "right");
+        if (both || side === "left") add(left.start, left.end, `${e.id}:exterior`, 1, undefined, e, { faceSide: "left" });
+        if (both || side === "right") add(right.start, right.end, `${e.id}:exterior`, -1, undefined, e, { faceSide: "right" });
         const widthKey = `${e.kind}:${e.kind === "construction-line" ? e.attributes.role : ""}:${width}`;
-        if (!widths.has(widthKey)) { add(p[1]!, p[2]!, `${e.id}:exterior`, 1, undefined, e); widths.add(widthKey); }
+        if (detailed && !widths.has(widthKey)) { add(p[1]!, p[2]!, `${e.id}:exterior`, 1, undefined, e); widths.add(widthKey); }
       } else if (e.kind === "dimension") add(e.geometry.start, e.geometry.end, `${e.id}:manual`, 1,
         e.attributes.label || `${Math.round(e.attributes.measuredMm)} mm`);
     } else if ("vertices" in e.geometry) {
@@ -394,17 +406,23 @@ export function getCadPlanDimensions(document: CadDocument, fontMm: number, hidd
           const originAlong = (hostFace.start.x - g.start.x) * ux + (hostFace.start.y - g.start.y) * uy;
           const origin = { x: g.start.x + ux * originAlong, y: g.start.y + uy * originAlong };
           const extra = { referenceId: host.id, anchor: center, fontMm: locationFontMm };
-          add(origin, projection, `${e.id}:location`, -1,
-            `${e.mark ?? "Podpora"} → ${host.mark ?? "Ściana"} : ${Math.round(Math.hypot(projection.x - origin.x, projection.y - origin.y))} mm`, e,
-            { ...extra, description: "Położenie osi podpory wzdłuż ściany, od jej początku na licu." });
           const face = { x: projection.x - uy * sign * cadStripWidth(host) / 2,
             y: projection.y + ux * sign * cadStripWidth(host) / 2 };
-          add(face, center, `${e.id}:location`, 1,
-            `${e.mark ?? "Podpora"} → ${host.mark ?? "Ściana"} : ${Math.round(Math.hypot(center.x - face.x, center.y - face.y))} mm`, e,
+          const alongMm = Math.round(Math.hypot(projection.x - origin.x, projection.y - origin.y));
+          const acrossMm = Math.round(Math.hypot(center.x - face.x, center.y - face.y));
+          const prefix = `${e.mark ?? "Podpora"} → ${host.mark ?? "Ściana"}`;
+          add(origin, projection, `${e.id}:location`, -1,
+            `${prefix} : ${alongMm}${detailed ? "" : ` / ${acrossMm}`} mm`, e,
+            { ...extra, description: `Położenie osi podpory: wzdłuż ściany od początku lica ${alongMm} mm; prostopadle od lica ${acrossMm} mm.` });
+          if (detailed) add(face, center, `${e.id}:location`, 1, `${prefix} : ${acrossMm} mm`, e,
             { ...extra, description: "Prostopadłe odsunięcie osi podpory od lica ściany." });
         } else {
-          add({ x: minX, y: center.y }, center, `${e.id}:location`, 1, `${e.mark ?? ""} X: ${Math.round(center.x - minX)} mm`, e, { anchor: center, fontMm: locationFontMm });
-          add({ x: center.x, y: minY }, center, `${e.id}:location`, -1, `${e.mark ?? ""} Y: ${Math.round(center.y - minY)} mm`, e, { anchor: center, fontMm: locationFontMm });
+          const x = Math.round(center.x - minX), y = Math.round(center.y - minY);
+          add({ x: minX, y: center.y }, center, `${e.id}:location`, 1,
+            `${e.mark ?? "Podpora"} X: ${x}${detailed ? "" : ` / Y: ${y}`} mm`, e,
+            { anchor: center, fontMm: locationFontMm, description: `Położenie od gabarytu rysunku: X ${x} mm; Y ${y} mm.` });
+          if (detailed) add({ x: center.x, y: minY }, center, `${e.id}:location`, -1,
+            `${e.mark ?? "Podpora"} Y: ${y} mm`, e, { anchor: center, fontMm: locationFontMm });
         }
         // Size is printed inside the symbol; only its position uses external dimension chains.
         if (!b.width || !b.height) throw new Error("Stopa lub słup wymaga niezerowych wymiarów.");
@@ -414,7 +432,7 @@ export function getCadPlanDimensions(document: CadDocument, fontMm: number, hidd
       }
     }
   }
-  if (boxes.length) {
+  if (detailed && boxes.length) {
     const maxX = Math.max(...boxes.map((b) => b.x + b.width)), maxY = Math.max(...boxes.map((b) => b.y + b.height));
     add({ x: minX, y: minY }, { x: maxX, y: minY }, "overall", -1);
     add({ x: maxX, y: minY }, { x: maxX, y: maxY }, "overall", -1);

@@ -198,15 +198,22 @@ geotechnikę, opis materiałów i przejścia branżowe; numer referencji nie ozn
 Wymiary mają wspólny układ unikający kolizji etykiet, z białym tłem tekstu. Zwykłe wymiary mają ekranowe
 minimum 13 px; zwarte opisy położenia podpór mają 12 px i odnośnik do środka symbolu.
 Kolor wymiarów odpowiada elementowi: ściana niebieska, ława pomarańczowa, wykop zielony.
-Ławy generowane pod ścianami również mają wymiary długości. Jeśli długości obu lic są różne,
-każdy odcinek ma osobne wymiary obu stron. Identyczne szerokości tej samej roli nie są powtarzane.
+Domyślny widok jest uproszczony: jeden odcinek ściany ma jeden wymiar długości zewnętrznego lica
+(przy niejednoznacznym obrysie dłuższego lica). Generowane ławy/płyty nie dublują wymiarów widocznego
+hosta. Samodzielna ława/wykop albo ława z ukrytą ścianą zachowuje swój wymiar.
+Przycisk „Wymiary szczegółowe” odsłania wymiary obu nierównych lic, generowanych ław, gabaryty
+i powtarzalne grubości/szerokości (raz dla tej samej roli). Dane nie są usuwane; tryb to ustawienie widoku,
+nie zmiana geometrii. Po odświeżeniu rozpoczynamy od uproszczonego rzutu. Eksport używa wybranego trybu.
 Ściany i samodzielne ławy dzielą się również przy przecięciu X; ruch węzła zmienia wszystkie cztery końce.
 Stopy i słupy dotykające ściany otrzymują relację położenia; podążają za jej przesunięciem i obrotem,
 zachowując rzeczywiste wymiary przekroju. Rozmiar X × X i oznaczenie (np. S1, ST1) są wewnątrz symbolu.
 Pozycję opisują dwa wymiary od lic ściany, z którą symbol jest związany, albo najbliższej ściany:
 wzdłuż jej kierunku i prostopadle do niej. Dotyczy to również podpór poza końcem ściany.
-Gabaryt X/Y jest odniesieniem tylko gdy rysunek nie ma ścian ani ław. Opisy podpór mają zwięzły format
-`ST1 → SF3 : 4500 mm`, są zakotwiczone przy symbolu, a kierunek pomiaru objaśnia tooltip.
+Gabaryt X/Y jest odniesieniem tylko gdy rysunek nie ma ścian ani ław. W uproszczonym widoku oba pomiary
+podpory są jednym opisem `ST1 → SF3 : 4500 / 300 mm` (wzdłuż / prostopadle), objaśnionym w tooltipie.
+W szczegółowym są osobnymi opisami `ST1 → SF3 : 4500 mm`. Pozostaje lokalny odnośnik do symbolu,
+bez długich prostopadłych/wzdłużnych linii przez budynek. Etykiety szukają miejsca nad, pod lub obok
+symbolu. Linie wymiarowe omijają pasy konstrukcji; kreski pomocnicze są krótkie, do 1,5 wysokości fontu.
 Wymiary przy T/X i narożnikach kończą się na przecięciach rzeczywistych lic, z grubością sąsiedniego
 elementu, także przy połączeniach ukośnych. Ukrywanie warstw nie usuwa topologii ani odniesień.
 Ruch całego elementu, narożnika/węzła i liczbowy resize aktualizują połączoną geometrię oraz wymiary

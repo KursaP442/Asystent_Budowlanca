@@ -105,13 +105,15 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
   const alive = useRef(true);
   const [status, setStatus] = useState("");
   const [showLegend, setShowLegend] = useState(true);
+  const [detailedDimensions, setDetailedDimensions] = useState(false);
+  const detailedDimensionsRef = useRef(false);
   const [canvasWidth, setCanvasWidth] = useState(1300);
   const [exporting, setExporting] = useState(false);
 
   const fit = useCallback((document: CadDocument) => {
     const all = document.entities.flatMap(entityPoints);
     all.push(...foundationPlanExtents(document));
-    for (const d of getCadPlanDimensions(document, 2.5 * (document.paperScale ?? 100))) {
+    for (const d of getCadPlanDimensions(document, 2.5 * (document.paperScale ?? 100), [], undefined, detailedDimensionsRef.current)) {
       all.push({ x: d.box.x, y: d.box.y }, { x: d.box.x + d.box.width, y: d.box.y + d.box.height }, d.a, d.b);
     }
     for (const entity of document.entities) {
@@ -548,7 +550,7 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
   try {
     if (drawing) faces = getCadPlanFaces(drawing);
     if (drawing) dimensions = getCadPlanDimensions(drawing, dimensionFont, hiddenLayers,
-      exporting ? dimensionFont : view.width * 12 / Math.max(1, canvasWidth));
+      exporting ? dimensionFont : view.width * 12 / Math.max(1, canvasWidth), detailedDimensions);
   } catch (cause) { planError = cadError(cause); }
   const legendEntries = [
     `Skala arkusza 1:${drawing?.paperScale ?? 100} · Wymiary w mm`,
@@ -794,6 +796,12 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
             </select></label>
             <button type="button" className="quiet-button" aria-pressed={showLegend} onClick={() => setShowLegend(!showLegend)}>
               {showLegend ? "Ukryj legendę" : "Pokaż legendę"}</button>
+            <button type="button" className="quiet-button" aria-pressed={detailedDimensions}
+              onClick={() => {
+                detailedDimensionsRef.current = !detailedDimensions;
+                setDetailedDimensions(!detailedDimensions);
+              }}>
+              {detailedDimensions ? "Wymiary uproszczone" : "Wymiary szczegółowe"}</button>
           </div>
           <svg ref={svgRef} className="cad-canvas" role="img" aria-label={`Płótno projektu: ${title}`} tabIndex={0}
             viewBox={`${view.x} ${view.y} ${view.width} ${view.height}`} preserveAspectRatio="none"

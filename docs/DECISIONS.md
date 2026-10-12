@@ -532,3 +532,28 @@ nie wystarcza, bo maski i rozmieszczenie byłyby niezgodne z nowym rozmiarem.
 **Konsekwencje:** Bez nowych zależności, schematów i migracji. Zbyt krótki odcinek dla danych lic
 daje jawny błąd zamiast wymiaru osiowego. To wymiarowanie istniejącej geometrii, nie zatwierdzenie
 projektu ani przedmiaru. ADR-027 zastępuje wcześniejsze uproszczenie długości kończących się na węźle.
+
+## ADR-028: Uproszczone wymiarowanie jako widok domyślny
+
+**Kontekst:** Pełne wymiarowanie obu lic, ław, grubości, gabarytu i lokalizacji podpór jednocześnie
+przesłaniało rzut. Użytkownik wymaga jednego wymiaru na ścianę; potwierdził zachowanie szczegółów
+pod osobnym przyciskiem.
+
+**Decyzja:** `getCadPlanDimensions` domyślnie emituje jeden wymiar długości odcinka. Strona wynika
+z zewnętrznego lica zamkniętego obrysu (także przy odwróconym kierunku); przy braku jednoznacznej
+strony wybieramy dłuższe rzeczywiste lico. Generowane podparcie nie dubluje widocznego hosta;
+przy ukrytej warstwie hosta ława znów ma własny wymiar. Grubości i gabaryt pozostają w szczegółach.
+
+Oba pomiary położenia podpory łączymy w jeden opis „wzdłuż / prostopadle”. W obu trybach renderujemy
+wyłącznie opis z lokalnym odnośnikiem, bez pełnych łańcuchów przecinających rzut. Położenie szukane
+jest nad, pod, z lewej lub prawej strony symbolu. Zerowa stacja nie usuwa niezerowego odsunięcia.
+Linia wymiarowa nie może przecinać pasów geometrii; kreski pomocnicze ograniczamy do 1,5 fontu.
+Wymiary nadal odnoszą się do prawdziwych lic, nie osi.
+
+Przełącznik zmienia wyłącznie prezentację, bez zapisu/ponownego wczytywania dokumentu.
+Callback dopasowania widoku pozostaje stabilny, ponieważ jest zależnością efektu wczytującego rysunek.
+SVG używa wybranego trybu oraz istniejącego układu papierowego. Reload wraca do widoku uproszczonego.
+
+**Konsekwencje:** Bez migracji i utraty danych. ADR-028 zastępuje domyślne jednoczesne pokazywanie
+obu lic z ADR-027, nie jego obliczenia. Szczegółowy rzut nadal może być gęsty; nie deklarujemy
+pełnego odwzorowania dowolnego projektu ani zatwierdzonego przedmiaru.

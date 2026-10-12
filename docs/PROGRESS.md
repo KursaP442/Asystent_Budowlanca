@@ -1161,3 +1161,42 @@ zatwierdzanie konstrukcji.
 - `git push -u origin master`: **PASS** — projekt z historią wysłany; gałąź śledzi `origin/master`.
   `git ls-remote origin refs/heads/master`: **PASS** — zdalny hash zgodny z lokalnym HEAD
   `123d704defe2ef9ff14949320a8e7d9aa00e45b0` podczas kontroli pierwszej publikacji.
+
+## Sesja 32 — 12 października 2026
+
+### Zrobione
+
+1. Użytkownik wskazał GitHub jako bieżące repozytorium: po zweryfikowanych zmianach commit i push
+   do `origin/master`, bez force push. Przed pracą wykonano fetch i sprawdzono zgodność gałęzi.
+2. Domyślnie jeden wymiar długości na odcinek ściany, po zewnętrznym rzeczywistym licu.
+   Generowane ławy nie dublują widocznych ścian; przy ukryciu ścian ich wymiary są dostępne.
+   Usunięto z domyślnego widoku dodatkowe grubości i gabaryty, nie geometrię ani parametry.
+3. „Wymiary szczegółowe” odsłania oba nierówne lica, ławy, grubości i gabaryty.
+   Przełączenie nie zapisuje/wczytuje dokumentu i nie gubi niezapisanych edycji. Reload wraca do uproszczenia.
+4. Podpora ma jeden opis obu współrzędnych „wzdłuż / prostopadle” oraz lokalny odnośnik.
+   Nie rysujemy przez cały budynek linii położenia podpór. Etykiety szukają miejsca z czterech stron symbolu.
+   Linie długości omijają konstrukcję, a pomocnicze kreski mają ograniczoną długość.
+5. SVG eksportuje wybrany wariant wymiarowania. Obejrzano screenshot ukośnego obrysu z odgałęzieniem T:
+   sześć ścian = sześć wymiarów długości, dwie podpory = dwa zwarte opisy.
+
+### Weryfikacja
+
+- Domain **PASS** 46/46; trzy nowe scenariusze: liczba wymiarów i kierunki ścian, ukośny obrys/T
+  z nieprzecinaniem konstrukcji oraz zerowa stacja podpory.
+- Web build/lint i workspace typecheck **PASS**; diagnostyka zmienionych TS/TSX **PASS**.
+- Podgląd na porcie 3010 zrestartowany; aplikacja i worker PDF **PASS** HTTP 200/200.
+- Pełna regresja Edge **PASS** 15/15; nowy E2E mierzy 8 etykiet zamiast ponad 16 w szczegółach,
+  długość kresek pomocniczych, brak kolizji ramek, eksport, przełączenie i zachowanie encji.
+- Iteracje **FAIL**: test ukrywał złą warstwę; zmienny callback fit wyzwalał ponowne wczytanie
+  dokumentu przy przełączeniu — ustabilizowano callback. Próby pionowego rozmieszczania podpór
+  nadal odsuwały opisy; dodano boczne miejsca. Po trzech próbach potwierdzono z użytkownikiem
+  pozostawienie trybu szczegółowego. Test bliskości mierzy odległość od symbolu, nie tylko jego środka.
+- Równoległy lint/E2E **FAIL**: Playwright usuwał katalog wyników podczas skanowania ESLint;
+  końcowy lint uruchomiony po E2E **PASS**, bez zmiany konfiguracji.
+- SQL **NOT RUN** (bez migracji); OpenAI rzeczywiste **BLOCKED** (bez płatnych wywołań).
+
+### Granice / dalej
+
+Pełny CAD dowolnego projektu i zatwierdzony przedmiar **NOT RUN**. Tryb szczegółowy świadomie pokazuje
+więcej danych i nadal może wymagać osobnych arkuszy. Nie kasowano danych użytkownika ani nie
+odświeżano jego formularza.

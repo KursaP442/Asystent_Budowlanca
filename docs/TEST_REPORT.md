@@ -3,6 +3,26 @@
 Zasada: zapisujemy **dokładne komendy**, **datę**, **środowisko** i **rzeczywisty wynik** (PASS/FAIL/BLOCKED/NOT RUN).
 Nigdy nie wpisujemy ogólnego „działa” bez dowodu z uruchomienia.
 
+## Sesja 32 — 12 października 2026
+
+Środowisko: Windows, lokalny Supabase, Playwright/Edge; bez nowych zależności i migracji.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/domain test` | uproszczone wymiary i zachowane pomiary lic | PASS | 46/46; trzy nowe scenariusze, także odwrócony kierunek ściany i ukryty host |
+| `pnpm --filter web build` | końcowa wersja Web | PASS | TypeScript i produkcyjny bundle |
+| `pnpm --filter web exec playwright test --grep 'CAD dimensions measure\|slanted foundation plan'` | końcowy test uproszczenia i szczegółów | PASS | 2/2; screenshot, zoom, liczba wymiarów, eksport i żywa geometria |
+| `pnpm --filter web exec playwright test` | pełna końcowa regresja | PASS | 15/15 |
+| `pnpm --filter web lint`, `pnpm typecheck` | po końcowym E2E | PASS | ESLint i 13 zadań workspace |
+| Diagnostyka zmienionych TS/TSX | edytor | PASS | bez błędów |
+| HTTP `127.0.0.1:3010` i `/pdf.worker.min.mjs` | podgląd po końcowym build | PASS | 200/200; bez odświeżania formularza użytkownika |
+| Screenshot `simple-slanted-foundations.png` | ukośny obrys z T i dwiema podporami | PASS | 6 wymiarów ścian + 2 opisy podpór; w szczegółach ponad 16 etykiet; brak przecinających się ramek |
+| Początkowe domain/E2E | iteracje | FAIL | zła warstwa w teście; zależność fit powodowała reload przy przełączeniu; pionowe etykiety podpór nadal odsuwały się od symbolu. Poprawiono warstwę, stabilność callbacka i kandydatów bocznych; zachowanie szczegółów potwierdzone przez użytkownika |
+| `pnpm --filter web lint` równolegle z Playwright | skan katalogów | FAIL | ENOENT test-results podczas czyszczenia przez E2E; końcowy lint wykonany sekwencyjnie PASS |
+| pgTAP / SQL | bez migracji | NOT RUN | bez resetu danych |
+| OpenAI rzeczywiste | bez płatnego wywołania | BLOCKED | istniejący mock w regresji |
+| Pełny CAD / zatwierdzony przedmiar | wymaganie docelowe | NOT RUN | uproszczenie prezentacji nie zatwierdza geometrii |
+
 ## Sesja 30 — 12 października 2026
 
 Środowisko: Windows, Node 26.7, pnpm 12.11.2, Next 16.4; lokalny Supabase, Playwright/Edge.
