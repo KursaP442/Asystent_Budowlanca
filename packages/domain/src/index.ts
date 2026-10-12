@@ -1,5 +1,7 @@
 import type { Membership } from "@asystent/schemas";
 
+export * from "./cad-review.js";
+
 export class MembershipAccessError extends Error {
   constructor(userId: string, organizationId: string) {
     super(`User ${userId} has no membership in organization ${organizationId}.`);

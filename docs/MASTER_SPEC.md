@@ -134,6 +134,19 @@ Maps. Aplikacja nie odczytuje współrzędnych kliknięć z osadzonej mapy. Zapi
 `materials.locationPin` mogą być pokazane jako punkt w Google Maps, ale dodanie nowego punktu przez Maps JavaScript
 API wymaga osobnej konfiguracji klucza i rozliczeń.
 
+### Rozszerzenie kreatora — 12 października 2026 (w implementacji)
+
+Zamiast kończyć po technologii, „Przejdź dalej” ma prowadzić do dokumentacji i danych geometrycznych
+dobranych do zakresu. Dom i rozbudowa obejmują fundamenty, opcjonalną piwnicę, osobny rzut każdej kondygnacji,
+przekroje, stropy, detale konstrukcyjne i dach oraz branże aktywne w ankiecie. „Inne prace” obejmują wyłącznie
+wybrane zakresy (np. pokrycie dachu bez fundamentów i rzutów całego domu). Wielokrotne zakresy łączą wymagania,
+bez dublowania wspólnych etapów.
+
+Rozpoznawanie projektu ma używać OpenAI API skonfigurowanego osobno przez użytkownika; jest płatną usługą API,
+nie automatyzacją konta ChatGPT. MCP i API mają wywoływać te same przypadki użycia: propozycja, kalibracja,
+walidacja, jawne zatwierdzenie i wersjonowany zapis. Przedmiaru nie wolno liczyć z niezweryfikowanych propozycji.
+Lista wymaganych rysunków jest dopiero pierwszą warstwą wymagań, nie gotowym modułem skanowania lub CAD.
+
 **Firma wykonawcza:** rejestracja organizacji (NIP, specjalizacje, obszar działania), feed zleceń z filtrami, oferty
 (cena netto/brutto, VAT, zakres, harmonogram, ważność), licytacja z audytem, realizacja zleceń.
 

@@ -270,6 +270,9 @@ importers:
 
   packages/domain:
     dependencies:
+      '@asystent/geometry':
+        specifier: workspace:*
+        version: link:../geometry
       '@asystent/schemas':
         specifier: workspace:*
         version: link:../schemas

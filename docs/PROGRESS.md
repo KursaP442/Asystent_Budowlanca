@@ -10,6 +10,9 @@ i od czego zacząć kolejną sesję. **To jest pierwszy plik, który agent powin
   materiałów/technologii, raportem i panelem klienta zweryfikowano lokalnie. Rozbudowany rynek, składanie ofert,
   RFQ/katalog oraz dalsze etapy specyfikacji pozostają do wykonania. Nie ma kroku tworzenia organizacji w UI.
   Ograniczenia usług pomocniczych Supabase opisano w `docs/TEST_REPORT.md`.
+- **Rozszerzenie w toku:** adaptacyjna dokumentacja po „Przejdź dalej” i wersjonowany zapis danych roboczych
+  są dostępne lokalnie. Model CAD, kalibracja i walidacja propozycji mają testy jednostkowe **PASS**, ale
+  edytor rysunków, import/skanowanie, OpenAI/BYOK i MCP nie są jeszcze podłączone. Całe nowe zadanie nie jest zakończone.
 - **Tryb pracy:** wyłącznie lokalny (bez hostingu/wdrożenia). Repozytorium Git istnieje tylko lokalnie
   (`C:\Users\Patryk\Desktop\Aplikacja_Budowa`), bez zdalnego remote na GitHub.
 - **Źródło specyfikacji:** `C:\Users\Patryk\Downloads\Asystent_Budowlanca_MASTER_PROMPT_MULTI_AI_BYOK_MCP.pdf`,
@@ -771,3 +774,46 @@ dokładnego numeru domu, mapa celowo nie wskaże centrum Grabia; należy wskaza�
 Sprawdzić mapę w lokalnym podglądzie dla Grabie 156a i potwierdzić, czy wynik Google Maps wskazuje właściwy budynek.
 Jeśli aplikacja ma zapisywać nowe współrzędne po kliknięciu Google Maps, wymaga to osobnej decyzji o Google Maps
 Platform API i jej konfiguracji rozliczeń.
+
+## Sesja 23 — 12 października 2026
+
+### Zrobione
+
+1. Wykonano pełny commit poprzednich zmian ankiety i map Google: `658666d`.
+2. Zastąpiono przycisk kończący formularz przez „Przejdź dalej”. Po walidacji danych ogólnych i technologii
+   zapisuje szkic budowy i zdjęcia, następnie otwiera dokumentację, zamiast przechodzić od razu do panelu.
+3. Wspólny katalog dokumentacji pokrywa 28 obecnych kategorii innych prac. Dla domu i rozbudowy dobiera
+   fundamenty, piwnicę, osobne kondygnacje, dach i branże. Same roboty pokryciowe pokazują wyłącznie dach.
+4. Kolejne kroki pokazują wymagane rysunki i pozwalają zapisać robocze opisy pomiarów oraz źródła danych.
+   Nawigacja, powrót do danych budowy i zapis szkicu zachowują odpowiedzi. Po przeładowaniu można otworzyć
+   „Edytuj”, kliknąć „Przejdź dalej” i wznowić zapisany etap.
+5. Dodano osobną tabelę szkiców dokumentacji, RLS i RPC z optymistyczną kontrolą rewizji. Nie zapisujemy
+   dokumentacji w ograniczonym polu `materials`. Migracje zastosowano lokalnie, bez resetu bazy.
+6. Dodano ścisłe kontrakty geometrii w mm, pochodzenia danych, kalibracji i propozycji AI; funkcje przeliczenia
+   współrzędnych, kontroli obrysów i zatwierdzania. Propozycja AI nie może sama zatwierdzić obiektów lub zbrojenia.
+7. Użytkownik wybrał OpenAI API z własnym kluczem i wymaga MCP. Nie pobierano klucza, nie przesyłano projektów
+   do modelu i nie wykonano płatnych operacji.
+
+### Weryfikacja
+
+- `pnpm build`, `pnpm --filter web build`, `pnpm typecheck`, `pnpm lint`, `pnpm test` — **PASS**.
+- Testy jednostkowe — **PASS**: 51 przypadków; geometria 7, schemas 32, domain 7, kalkulatory 3, tokeny 2.
+- `pnpm db:test` — **PASS**: 93 asercje, w tym zapis, izolacja danych, odrzucenie błędnej treści i konflikt wersji.
+- `pnpm exec supabase db lint --local --schema public --fail-on error` — **PASS**.
+- `pnpm test:e2e` — **PASS**: 6 scenariuszy, w tym kontynuacja ankiety, awaria zapisu i ponowienie,
+  odtworzenie odpowiedzi/bieżącego etapu po przeładowaniu oraz dach bez dokumentacji całego domu.
+- `git diff --check` — **PASS**.
+
+### Niezakończone
+
+- **NOT RUN:** pełna akceptacja nowego zadania. Katalog i pola tekstowe nie są pełną, ilościową ankietą CAD.
+- **NOT RUN:** edytor geometrii, import PDF/obrazów, korekcja perspektywy, nakładka źródła i kalibracja w UI.
+- **NOT RUN:** konfiguracja szyfrowanego BYOK, rozpoznawanie OpenAI, serwer MCP, audyt i trwałe zatwierdzenia.
+- **NOT RUN:** automatyczny przedmiar i przekazanie zweryfikowanej dokumentacji wykonawcom.
+
+### Kontynuacja
+
+Nie oznaczać zadania jako zakończonego. Następny etap to rysowanie/import z prywatnym zapisem dokumentów,
+kalibracją i ręczną weryfikacją, następnie OpenAI/BYOK oraz uwierzytelnione MCP na wspólnych przypadkach użycia.
+Obecne pola pomiarów są opisami roboczymi, nie danymi nadającymi się automatycznie do kalkulacji.
+Istniejąca publikacja zlecenia nadal publikuje bazowy raport, nie zatwierdzony projekt CAD.

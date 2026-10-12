@@ -49,10 +49,21 @@ export type EmployeeAccount = {
   password_change_required: boolean;
   created_at: string;
 };
+export type DocumentationDraftRow = {
+  job_id: string;
+  revision: number;
+  payload: unknown;
+};
 
 export interface Database {
   public: {
     Tables: {
+      construction_documentation_drafts: {
+        Row: DocumentationDraftRow;
+        Insert: DocumentationDraftRow;
+        Update: Partial<DocumentationDraftRow>;
+        Relationships: [];
+      };
       construction_jobs: {
         Row: ConstructionJob;
         Insert: Omit<ConstructionJob, "id" | "client_id" | "created_at" | "status" | "roof"> & {
@@ -148,6 +159,10 @@ export interface Database {
     };
     Views: Record<string, never>;
     Functions: {
+      save_documentation_draft: {
+        Args: { target_job_id: string; expected_revision: number; draft_payload: object };
+        Returns: number;
+      };
       attach_employee_account: {
         Args: { owner_id: string; target_business_id: string; employee_id: string; employee_email: string; employee_name: string };
         Returns: undefined;

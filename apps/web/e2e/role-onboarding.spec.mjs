@@ -90,7 +90,7 @@ test("registration validates input and completes client onboarding", async ({ pa
   await page.getByRole("tab", { name: "Materiały i technologia" }).click();
   await expect(page.getByRole("tab", { name: "Materiały i technologia" })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByRole("heading", { name: "Materiały i technologia" })).toBeVisible();
-  await page.getByRole("button", { name: "Zapisz budowę i przejdź do panelu" }).click();
+  await page.getByRole("button", { name: "Przejdź dalej", exact: true }).click();
   await expect(page.locator(".workflow-form .alert-error")).toContainText("To pole jest wymagane.");
   await expect(page.getByRole("tab", { name: "Materiały i technologia" })).toHaveAttribute("aria-selected", "true");
   await page.getByRole("tab", { name: "Dane budowy" }).click();
@@ -105,7 +105,7 @@ test("registration validates input and completes client onboarding", async ({ pa
   await page.getByRole("tab", { name: "Materiały i technologia" }).click();
   await expect(page.getByRole("heading", { name: "Materiały i technologia" })).toBeVisible();
   await page.getByRole("tab", { name: "Dane budowy" }).click();
-  await page.getByRole("button", { name: "Zapisz budowę i przejdź do panelu" }).click();
+  await page.getByRole("button", { name: "Przejdź dalej", exact: true }).click();
   await expect(page.locator(".workflow-form .alert-error")).toContainText("Wybierz technologię:");
 });
 test("admin shortcut is granted only through app metadata and does not bypass save validation", async ({ page }) => {
@@ -121,7 +121,7 @@ test("admin shortcut is granted only through app metadata and does not bypass sa
   await expect(page.getByRole("button", { name: "Pomiń walidację i przejdź do materiałów i technologii" })).toBeVisible();
   await page.getByRole("button", { name: "Pomiń walidację i przejdź do materiałów i technologii" }).click();
   await expect(page.getByRole("tab", { name: "Materiały i technologia" })).toHaveAttribute("aria-selected", "true");
-  await page.getByRole("button", { name: "Zapisz budowę i przejdź do panelu" }).click();
+  await page.getByRole("button", { name: "Przejdź dalej", exact: true }).click();
   await expect(page.locator(".workflow-form .alert-error")).toBeVisible();
 });
 async function signout(page) {
@@ -157,8 +157,14 @@ async function fillConstruction(page, title) {
   await page.getByLabel("Zakres prac", { exact: true }).fill("Fundamenty i stan surowy domu");
   await page.getByLabel("Planowany termin", { exact: true }).fill("2026-12-01");
   await fillTechnology(page, "house");
-  await page.getByRole("button", { name: "Zapisz budowę i przejdź do panelu" }).click();
+  await page.getByRole("button", { name: "Przejdź dalej", exact: true }).click();
+  await returnToPanelFromDocumentation(page);
   await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
+}
+
+async function returnToPanelFromDocumentation(page) {
+  await expect(page.getByRole("heading", { name: "Dokumentacja projektu", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Zapisz szkic i wróć do panelu", exact: true }).click();
 }
 
 async function fillTechnology(page, workType) {
@@ -422,10 +428,27 @@ test("work-specific details, consent map, private photos and upload retry persis
   await page.route(uploadRoute, (route) => route.request().method() === "POST"
     ? route.fulfill({status:503,contentType:"application/json",body:JSON.stringify({statusCode:"503",error:"Test upload failure",message:"Test upload failure"})})
     : route.continue());
-  await page.getByRole("button", {name:"Zapisz budowę i przejdź do panelu"}).click();
+  await page.getByRole("button", {name:"Przejdź dalej",exact:true}).click();
   await expect(page.locator(".alert-error")).toContainText("Dane zlecenia zapisano");
   await page.unroute(uploadRoute);
-  await page.getByRole("button", {name:"Zapisz budowę i przejdź do panelu"}).click();
+  await page.getByRole("button", {name:"Przejdź dalej",exact:true}).click();
+  await expect(page.getByRole("heading", {name:"Dokumentacja projektu",exact:true})).toBeVisible();
+  await page.getByLabel("Wymiary istniejących elementów", {exact:true}).fill("Ściana kuchni: 4200 mm długości, 2650 mm wysokości.");
+  const draftRoute = "**/rest/v1/rpc/save_documentation_draft";
+  await page.route(draftRoute, (route) => route.fulfill({
+    status:503,contentType:"application/json",body:JSON.stringify({message:"Test draft save failure"}),
+  }));
+  await page.getByRole("button", {name:"Przejdź dalej",exact:true}).click();
+  await expect(page.getByRole("region", {name:"Dokumentacja projektu"}).getByRole("alert"))
+    .toContainText("Test draft save failure");
+  await expect(page.getByLabel("Etap dokumentacji", {exact:true})).toHaveValue("existing");
+  await expect(page.getByLabel("Wymiary istniejących elementów", {exact:true}))
+    .toHaveValue("Ściana kuchni: 4200 mm długości, 2650 mm wysokości.");
+  await page.unroute(draftRoute);
+  await page.getByRole("button", {name:"Przejdź dalej",exact:true}).click();
+  await expect(page.getByLabel("Etap dokumentacji", {exact:true})).toHaveValue("interior");
+  await page.getByLabel("Źródło danych, uwagi i brakujące informacje", {exact:true}).fill("Pomiar ręczny, brak projektu zmian instalacji.");
+  await returnToPanelFromDocumentation(page);
   await expect(page.getByRole("heading", {name:"Remont mieszkania",exact:true})).toBeVisible();
   const {data:jobs,error} = await admin.from("construction_jobs").select("*").eq("client_id",owner.id);
   if (error) throw error;
@@ -464,6 +487,14 @@ test("work-specific details, consent map, private photos and upload retry persis
   await expect(page.locator('[data-technology-stage="roofChimneyFlashingMaterial"] .technology-select-trigger'))
     .toContainText("Blacha cynkowo-tytanowa");
   await expect(page.locator('[data-technology-stage="renovationKitchenFitout"]')).toHaveCount(0);
+  await page.getByRole("button", {name:"Przejdź dalej",exact:true}).click();
+  await expect(page.getByLabel("Etap dokumentacji", {exact:true})).toHaveValue("interior");
+  await expect(page.getByLabel("Źródło danych, uwagi i brakujące informacje", {exact:true}))
+    .toHaveValue("Pomiar ręczny, brak projektu zmian instalacji.");
+  await page.getByLabel("Etap dokumentacji", {exact:true}).selectOption("existing");
+  await expect(page.getByLabel("Wymiary istniejących elementów", {exact:true}))
+    .toHaveValue("Ściana kuchni: 4200 mm długości, 2650 mm wysokości.");
+  await page.getByRole("button", {name:"Wróć do danych budowy",exact:true}).click();
   await page.getByRole("tab", {name:"Dane budowy"}).click();
   const other = createClient(url, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY, {auth:{persistSession:false}});
   const {error:loginError} = await other.auth.signInWithPassword({email:outsider.email,password});
@@ -492,7 +523,8 @@ test("work-specific details, consent map, private photos and upload retry persis
   await page.getByLabel("Liczba kondygnacji", {exact:true}).fill("2");
   await fillTechnology(page, "extension");
   await page.getByLabel("Planowany termin", { exact: true }).fill("2026-12-10");
-  await page.getByRole("button", {name:"Zapisz budowę i przejdź do panelu"}).click();
+  await page.getByRole("button", {name:"Przejdź dalej",exact:true}).click();
+  await returnToPanelFromDocumentation(page);
   await expect(page.getByRole("heading", {name:"Remont mieszkania",exact:true})).toBeVisible();
   const {data:extension,error:extensionError} = await admin.from("construction_jobs").select("*").eq("id",jobs[0].id).single();
   if (extensionError) throw extensionError;
@@ -506,7 +538,8 @@ test("work-specific details, consent map, private photos and upload retry persis
   await otherDescription.fill("Ułożenie kostki wokół domu i wykonanie odwodnienia terenu.");
   await fillTechnology(page, "other");
   await page.getByLabel("Planowany termin", { exact: true }).fill("2026-12-20");
-  await page.getByRole("button", {name:"Zapisz budowę i przejdź do panelu"}).click();
+  await page.getByRole("button", {name:"Przejdź dalej",exact:true}).click();
+  await returnToPanelFromDocumentation(page);
   await expect(page.getByRole("heading", {name:"Remont mieszkania",exact:true})).toBeVisible();
   const {data:otherJob,error:otherError} = await admin.from("construction_jobs").select("*").eq("id",jobs[0].id).single();
   if (otherError) throw otherError;
@@ -548,7 +581,22 @@ test("work-specific details, consent map, private photos and upload retry persis
     .toContainText("Biały / złamana biel");
   await expect(page.locator('[data-technology-stage="otherDrivewaySurface"] .technology-select-trigger'))
     .toContainText("Kostka betonowa brukowa");
-  await page.getByRole("button", {name:"Wróć do panelu",exact:true}).click();
+  const categories = page.locator('[data-technology-stage="otherWorkTechnology"]');
+  await categories.locator(".technology-select-trigger").click();
+  for (const label of [
+    "Podjazd, ścieżki i nawierzchnie", "Odwodnienie terenu / drenaż",
+    "Fundamenty, ławy, płyta fundamentowa i zbrojenie",
+    "Konstrukcja dachu / więźba dachowa", "Fasada / elewacja",
+  ]) {
+    await categories.getByRole("option", {name:label,exact:true}).click();
+  }
+  await categories.locator(".technology-select-trigger").click();
+  await page.getByRole("button", {name:"Przejdź dalej",exact:true}).click();
+  const steps = page.getByLabel("Etap dokumentacji", {exact:true});
+  await expect(steps).toHaveValue("roof");
+  await expect(steps.locator("option")).toHaveText(["Dach"]);
+  await expect(page.getByRole("list")).not.toContainText("fundamentów");
+  await returnToPanelFromDocumentation(page);
 });
 
 test("client goes straight to construction, dashboard on next login and adds another job", async ({ page }) => {
@@ -599,7 +647,8 @@ test("client goes straight to construction, dashboard on next login and adds ano
   expect(constructionJobs[0].report_summary).toContain("Profil i kształt blachodachówki: Blachodachówka modułowa, krótkie arkusze");
   await page.getByRole("button", { name: "Edytuj", exact: true }).click();
   await page.getByLabel("Nazwa budowy", { exact: true }).fill("Pierwsza budowa po edycji");
-  await page.getByRole("button", { name: "Zapisz budowę i przejdź do panelu" }).click();
+  await page.getByRole("button", { name: "Przejdź dalej", exact: true }).click();
+  await returnToPanelFromDocumentation(page);
   await expect(page.getByRole("heading", { name: "Pierwsza budowa po edycji" })).toBeVisible();
   await page.getByRole("button", { name: "Opublikuj", exact: true }).click();
   await expect(page.getByText("Opublikowane", { exact: true })).toBeVisible();

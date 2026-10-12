@@ -11,11 +11,14 @@ import {
   multiSelectTechnologyKeys,
   otherWorkTechnologyKeys,
   requiresTechnologyOptionDescription,
+  projectScopeFromConstruction,
+  type ProjectScope,
   type ConstructionTechnologySelections,
 } from "@asystent/schemas";
 import { getSupabaseClient } from "@/lib/supabase";
 import { TechnologyQuestionnaire } from "@/components/technology-questionnaire";
 import { ConstructionLocationMap } from "@/components/construction-location-map";
+import { ProjectDocumentationQuestionnaire } from "@/components/project-documentation-questionnaire";
 
 type Photo = { path: string; url: string };
 type PendingPhoto = Photo & { file: File };
@@ -30,6 +33,7 @@ export function ConstructionForm({ job, userId, isAdministrator, onSaved, onCanc
   const [persisted, setPersisted] = useState(!!job);
   const [kind, setKind] = useState<ConstructionJob["building_type"]>(job?.building_type ?? "house");
   const [activeTab, setActiveTab] = useState<"details" | "technology">("details");
+  const [documentationScope, setDocumentationScope] = useState<ProjectScope | null>(null);
   const [technologySelections, setTechnologySelections] = useState<ConstructionTechnologySelections>(
     () => readTechnologySelections(job?.materials, job?.building_type ?? "house"),
   );
@@ -136,7 +140,7 @@ export function ConstructionForm({ job, userId, isAdministrator, onSaved, onCanc
         if (uploadError) throw new Error(`Dane zlecenia zapisano, ale zdjęcie „${photo.file.name}” nie zostało przesłane: ${uploadError.message}. Ponów zapis, aby przesłać pozostałe zdjęcia.`);
         setPending((items) => items.filter((item) => item.path !== photo.path));
       }
-      onSaved();
+      setDocumentationScope(projectScopeFromConstruction(parsed.data));
     } catch (cause) { setError(errorMessage(cause)); setPhotoRevision((value) => value + 1); }
     finally { setBusy(false); }
   }
@@ -151,7 +155,7 @@ export function ConstructionForm({ job, userId, isAdministrator, onSaved, onCanc
     finally { setBusy(false); }
   }
 
-  return <form ref={formRef} className="panel workflow-form form-stack" onSubmit={save}>
+  return <><form ref={formRef} hidden={documentationScope !== null} className="panel workflow-form form-stack" onSubmit={save}>
     {error && <div className="alert alert-error" role="alert">{error}</div>}
     <fieldset disabled={busy}>
       <legend>Dane ogólne budowy</legend>
@@ -257,8 +261,11 @@ export function ConstructionForm({ job, userId, isAdministrator, onSaved, onCanc
       </section>
     </fieldset>
     <div className="form-actions">{isAdministrator && activeTab === "technology" && <button type="button" className="quiet-button admin-shortcut" disabled={busy} onClick={() => setActiveTab("details")}>Wróć do danych bez walidacji</button>}{onCancel && <button type="button" className="quiet-button" disabled={busy} onClick={onCancel}>Wróć do panelu</button>}
-      <button className="primary-button" disabled={busy || loadingPhotos || photoLoadError}>{busy ? "Zapisywanie…" : "Zapisz budowę i przejdź do panelu"}</button></div>
-  </form>;
+      <button className="primary-button" disabled={busy || loadingPhotos || photoLoadError}>{busy ? "Zapisywanie…" : "Przejdź dalej"}</button></div>
+  </form>
+    {documentationScope && <ProjectDocumentationQuestionnaire jobId={id} scope={documentationScope}
+      onBack={() => setDocumentationScope(null)} onSaved={onSaved} />}
+  </>;
 }
 
 function errorMessage(error: unknown) {

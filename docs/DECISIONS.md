@@ -289,3 +289,35 @@ Zachowujemy odczyt już zapisanych współrzędnych `locationPin` jako wyszukiwa
 nowego punktu przez kliknięcie mapy. Integracja zapisu punktów wymagałaby osobnej decyzji, klucza Google Maps
 Platform i konfiguracji rozliczeń. Zapytanie lokalizacyjne jest przekazywane Google. Ta decyzja zastępuje
 wyświetlanie mapy z ADR-015 oraz sposób geokodowania opisany w ADR-016 i ADR-017.
+
+## ADR-019: Warunkowa dokumentacja i bramka zatwierdzenia CAD
+
+**Kontekst:** Kolejne kroki wniosku muszą zbierać rysunki i szczegółowe wymiary odpowiednie do zakresu,
+zanim aplikacja przystąpi do przedmiaru. Użytkownik wybrał OpenAI API do rozpoznawania oraz wymaga MCP.
+
+**Decyzja:** Wspólny katalog dokumentacji w `packages/schemas` pokrywa każdą aktualną kategorię „Innych prac”.
+Dom i rozbudowa mają identyfikowane kondygnacje oraz opcjonalną piwnicę. Wyłączone zakresy nie dodają
+dokumentacji. Schematy CAD definiują jednostki mm, źródło, status weryfikacji, wersję i klucz idempotencji.
+Propozycja nie zatwierdza geometrii ani zbrojenia. Wspólne przypadki użycia w `packages/domain` sprawdzają
+skalę, obrysy, rewizję oraz wymagane zatwierdzenia przed zmianą statusu dokumentu.
+
+**Konsekwencje:** Kalibracja jest odwracalną transformacją; rozbieżność skal referencyjnych powyżej 1% blokuje
+zatwierdzenie w tej bramce. Ten limit jest kontrolą jakości pomiarów, nie deklaracją dokładności konstrukcyjnej
+ani tolerancją wykonawczą. Edytor/import w UI, Storage dokumentów, OpenAI i MCP pozostają do zaimplementowania
+na tych kontraktach. Adaptacyjna lista rysunków i zapisywane opisy pomiarów są jedynie dokumentacją roboczą.
+Zbrojenie nie może zostać zaakceptowane wyłącznie na podstawie odpowiedzi modelu.
+
+## ADR-020: Wersjonowany szkic kolejnych kroków ankiety
+
+**Kontekst:** „Przejdź dalej” ma otwierać dalszą ankietę, a nie kończyć wniosek. Odpowiedzi muszą przetrwać
+odświeżenie bez rozbudowy JSON technologii i jego limitu 12 000 znaków.
+
+**Decyzja:** Dane ogólne i zdjęcia zapisujemy jako szkic przed otwarciem kroków dokumentacji.
+Osobna tabela `construction_documentation_drafts` przechowuje aktualny etap oraz robocze opisy pomiarów.
+Odczyt podlega RLS właściciela zlecenia; zapis jest dostępny wyłącznie przez RPC sprawdzające właściciela,
+kształt danych i oczekiwaną rewizję. Konflikt innej karty nie nadpisuje odpowiedzi. Każda nawigacja między
+etapami zapisuje postęp. „Zapisz szkic i wróć do panelu” nie oznacza zatwierdzenia dokumentacji.
+
+**Konsekwencje:** Po przeładowaniu wchodzimy w „Edytuj” i „Przejdź dalej”; bieżący etap i zapisane odpowiedzi
+są przywracane. Niezapisane zmiany w bieżącym polu nie są autosave. Ta warstwa nie przechowuje jeszcze
+plików, geometrii ani zatwierdzeń i nie może służyć do automatycznego przedmiaru.

@@ -3,6 +3,27 @@
 Zasada: zapisujemy **dokładne komendy**, **datę**, **środowisko** i **rzeczywisty wynik** (PASS/FAIL/BLOCKED/NOT RUN).
 Nigdy nie wpisujemy ogólnego „działa” bez dowodu z uruchomienia.
 
+## Sesja 23 — 12 października 2026
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|---|
+| `pnpm --filter @asystent/geometry build`, `pnpm --filter @asystent/schemas build`, `pnpm --filter @asystent/domain build`, `node --test packages\schemas\test\construction-documentation.test.mjs packages\schemas\test\cad-import.test.mjs packages\geometry\test\calibration.test.mjs packages\domain\test\cad-review.test.mjs` | nowe kontrakty i logika CAD | PASS | 19 nowych testów przed integracją UI |
+| `pnpm exec supabase migration up --local` | dwie migracje szkiców dokumentacji | PASS | bez resetu lub usuwania danych |
+| `Get-Content supabase\migrations\20261012130100_documentation_draft_validation.sql -Raw \| docker exec -i supabase_db_Aplikacja_Budowa psql -U postgres -d postgres -v ON_ERROR_STOP=1` | końcowa wersja niezacommitowanej walidacji | PASS | ponowiono idempotentną definicję funkcji i triggera; numeric version i string step |
+| `pnpm build`, `pnpm --filter web build` | pakiety i produkcyjny Web | PASS | Next.js i TypeScript |
+| `pnpm typecheck` | wszystkie workspace | PASS | 12 zadań Turbo |
+| `pnpm lint` | istniejące linters | PASS | 6 zadań Turbo |
+| `pnpm test` | wszystkie workspace | PASS | 51 testów Node; schemas 32, domain 7, geometria 7, kalkulatory 3, tokeny 2 |
+| `pnpm db:test` | pierwsze uruchomienie | FAIL | fixture nowego testu nie zawierał wymaganych pól raportu; uzupełniono fixture |
+| `pnpm exec supabase test db supabase\tests\documentation_drafts.test.sql --local` | testy nowego RPC/RLS | PASS | 9 asercji przed dodaniem testu typu wersji |
+| `pnpm db:test` | końcowy schemat lokalny | PASS | 93 asercje w 4 plikach, w tym 10 nowych |
+| `pnpm exec supabase db lint --local --schema public --fail-on error` | funkcje i schemat | PASS | brak błędów |
+| `pnpm test:e2e`, `pnpm --filter web exec playwright test --grep work-specific` | pierwsze iteracje nowego scenariusza | FAIL | poprawiono etykiety select/textarea i selektor alertu, który obejmował również komunikator Next.js |
+| `pnpm test:e2e` | końcowy produkcyjny build, Microsoft Edge | PASS | 6/6; nowe kroki, zapis/powrót, refresh, awaria RPC/retry, dach bez rzutów domu |
+| `git diff --check` | końcowe zmiany | PASS | ostrzeżenia Git tylko o LF/CRLF |
+| `GET http://127.0.0.1:3010/` | podgląd po restarcie z aktualnym buildem | PASS | HTTP 200 |
+| Pełny edytor/import, rozpoznawanie OpenAI, MCP i dokładność przedmiaru | pełne nowe żądanie | NOT RUN | niezaimplementowane; istniejące testy nie są ich substytutem |
+
 ## Środowisko (11 października 2026)
 
 - System: Windows, PowerShell.
