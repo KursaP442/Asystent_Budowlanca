@@ -112,3 +112,180 @@ przepływ. ADR-007 nadal obowiązuje dla wyboru panelu, ale nie dla kroku utworz
 
 **Konsekwencje:** Dodano lokalne pgTAP i Playwright E2E wszystkich trzech przepływów. Pełne CAD, marketplace,
 ofertowanie i mobile pozostają osobnymi etapami; nie są deklarowane jako ukończone.
+
+## ADR-009: Osobna, przeszukiwalna ankieta materiałów i technologii
+
+**Kontekst:** Użytkownik nie chce ręcznie wpisywanych wymagań wykonawczych ani kryteriów odbioru. Wybór rozwiązań
+technicznych ma być osobną ankietą podzieloną według etapów budowy i rodzaju prac, z możliwością wyszukiwania na
+każdej liście.
+
+**Decyzja:** Formularz ma zakładki „Dane budowy” i „Materiały i technologia”. Katalog typowych rozwiązań i walidacja
+znajdują się we wspólnym pakiecie `@asystent/schemas`; UI wyświetla filtrowalne listy, dostosowane do budowy domu,
+rozbudowy, remontu i innych prac. Wybory zapisujemy jako JSON w istniejącej kolumnie `construction_jobs.materials`
+(zwiększono jej limit długości, bez dodawania danych do schematu publicznego). Historyczne tekstowe notatki
+materiałowe są zachowywane przy edycji.
+
+Nowe zlecenia otrzymują automatyczne, nieedytowalne wymagania zgodności z dokumentacją projektową, przepisami i
+zasadami wiedzy technicznej oraz analogiczny warunek odbioru. Opcje w ankiecie są preferencjami, nie instrukcją
+konstrukcyjną; zawierają wariant „Zgodnie z projektem” i wymagają weryfikacji dla konkretnego obiektu. Katalog
+obejmuje popularne rozwiązania wraz z wariantem „inne”, nie deklaruje wyczerpania wszystkich produktów i
+specyfikacji producentów.
+
+**Konsekwencje:** Raport zlecenia zawiera wybrane technologie. Źródła branżowe doboru kategorii są linkowane w
+interfejsie i wymienione w `packages/schemas/src/construction-technology.ts`. Migracja limitu jest lokalna i
+addytywna; starsze wymagane przez bazę pola pozostają kompatybilne i są wypełniane automatycznie przez formularz.
+
+## ADR-010: Ankieta technologii z wyszukiwaniem i etapami warunkowymi
+
+**Kontekst:** Kontrola formularza pokazała, że wcześniejsza wyszukiwarka stała obok natywnego selecta, więc nie
+filtrowała menu wyboru. Użytkownik wymaga wyszukiwania wewnątrz menu, wielu sposobów posadowienia, warunkowego
+szalowania, odrębnych warstw dachu oraz etapów dopasowanych do standardu i zakresu prac.
+
+**Decyzja:** Zastąpiono natywne selecty wyszukiwanymi, rozwijanymi listami. Sposób posadowienia jest listą
+wielokrotnego wyboru. Wspólny helper `getConstructionTechnologyStages` steruje widocznymi i wymaganymi polami
+według wybranego rodzaju i postępu ankiety:
+
+- Dom/rozbudowa rozpoczyna się od standardu realizacji (stan surowy otwarty/zamknięty, deweloperski, pod klucz lub
+  inny). Izolacja, stolarka zewnętrzna, instalacje i wykończenia pojawiają się zgodnie ze standardem i wybranym
+  układem ściany.
+- Szalowanie fundamentów pokazuje się tylko dla monolitycznej ściany betonowej wymagającej szalunku; w elementach
+  szalunkowych forma jest tracona i nie wymaga oddzielnego wyboru.
+- Folia kubełkowa i ocieplenie fundamentów są niezależne od izolacji przeciwwilgociowej.
+- Dach ma oddzielne pola: płyta skośna, deskowanie/poszycie, warstwa wstępnego krycia, pokrycie końcowe oraz
+  ocieplenie. Etapy warstw dachu nie pokazują się, jeśli zakres wyklucza prace przy dachu.
+- Remont rozpoczyna się od zakresu (odświeżenie, pomieszczenia, remont generalny, termomodernizacja). Wyższy
+  zakres odsłania stolarkę i instalacje; termomodernizacja dodaje izolacje fundamentów/ścian i warstwy dachu.
+- Inne prace rozwijają się na etapy właściwe dla wybranej kategorii: przygotowanie i fundament/konstrukcja/
+  wykończenie ogrodzenia, podbudowa i odwodnienie podjazdu, system i odbiornik odwodnienia, mur oporowy z
+  odwodnieniem albo przygotowanie/ocieplenie/warstwa elewacyjna.
+- Każda wybrana opcja o wartości `other-*` wymaga opisu. Walidacja i formularz wymagają tego warunku, a opis trafia
+  do raportu. Zapis nadal używa istniejącego JSON w polu `materials`; legacy pojedyncza wartość posadowienia
+  jest odczytywana jako lista jednoelementowa.
+
+**Konsekwencje:** Ankieta odzwierciedla wybrany zakres, a pominięte etapy nie są obowiązkowe przy zapisie.
+Preferencje nadal nie zastępują projektu ani doboru projektanta/kierownika. Walidacja schematu oraz lokalne E2E
+sprawdzają wybór wielu posadowień, filtrowanie w menu, warunkowe szalowanie, warstwy i zapis raportu.
+
+## ADR-011: Szczegółowe wykończenia dekarskie zależne od pokrycia
+
+**Kontekst:** Ankieta dachu nie rozróżniała profili blachodachówki, systemów blachy płaskiej i trapezowej ani
+kominów z obróbką i odwodnienia dachu.
+
+**Decyzja:** Dla blachodachówki, blachy na rąbek / płaskiej oraz blachy trapezowej pokazujemy odrębne wybory
+profilu lub systemu. Każdy dach objęty ankietą pyta o komin, rynny i rury spustowe; sposób i materiał obróbki
+komina są wymagane tylko wtedy, gdy wybrano komin lub istniejący przewód. Wybory pozostają preferencjami,
+podlegają weryfikacji zgodnie z projektem i trafiają do dotychczasowego raportu/JSON materiałów.
+
+**Konsekwencje:** Zmiana pokrycia odsłania tylko zgodny z nim detal blacharski. Wybór „brak komina” albo
+„zakres nie obejmuje kominów” pomija pytania o obróbkę. Walidacja schematu i lokalne E2E obejmują profile,
+system kominowy, obróbkę i odwodnienie.
+
+## ADR-012: Wybory wielokrotne i szczegóły zakresu pomieszczeń oraz terenu
+
+**Kontekst:** Wykonanie może się różnić między pokojami i częściami budynku, a pojedynczy wybór nie opisywał
+różnych podłóg, wykończeń ścian, schodów, elewacji ani łączonych prac wokół domu.
+
+**Decyzja:** Wspólny katalog deklaruje wielokrotność per etap; walidacja, formularz i raport zachowują listy
+wyborów. Wielokrotne są posadzki, wykończenia ścian/sufitów, schodów i balustrad, wykończenia elewacji,
+elementy kuchenne i łazienkowe podczas remontu, kategorie pozostałych prac oraz materiały nawierzchni i obrzeży.
+Konstrukcja schodów jest osobnym polem. Instalacja wodno-kanalizacyjna pojawia się już w ankiecie stanu surowego.
+Wybrane prace „Inne” mogą być łączone, po czym ujawniają wymagane dla nich podbudowy, nawierzchnie, obrzeża,
+odwodnienie i inne etapy. Starsze zapisane tekstowo wybory są normalizowane do list przy odczycie.
+
+**Konsekwencje:** Użytkownik może opisać różne materiały dla pomieszczeń/stref bez dopisywania ich do notatki.
+Wybór „zgodnie z projektem” i wartości wykluczające zakresu nie mogą być łączone z innymi opcjami tego samego
+pola wielokrotnego. Schemat, raport i E2E weryfikują łączenie wyborów i kompatybilność odczytu.
+
+## ADR-013: Opis wymagany dla pozostałych prac
+
+**Kontekst:** Kategoria „Inne prace” dopuszczała odpowiedź „zgodnie z projektem” zamiast określenia zakresu, przez
+co zlecenie mogło nie wyjaśniać wykonawcom, jakich robót dotyczy.
+
+**Decyzja:** Usunięto tę odpowiedź ze wszystkich kategorii i etapów ankiety „Inne”. Formularz wymaga konkretnego
+opisu prac i wyboru co najmniej jednej kategorii; etykieta i wskazówki ankiety podkreślają ten obowiązek.
+„Inne prace specjalistyczne” wymuszają osobne doprecyzowanie, a starsze zapisane odpowiedzi „zgodnie z projektem”
+są czyszczone przy odczycie, aby użytkownik mógł zastąpić je konkretnym wyborem.
+
+**Konsekwencje:** Raport zachowuje opis zakresu oraz wybrane konkretne kategorie. Zgodność wykonania z projektem,
+przepisami i zasadami wiedzy technicznej pozostaje warunkiem ogólnym, nie odpowiedzią opisującą zamawiane prace.
+
+## ADR-014: Walidacja onboardingu i skrót administratora
+
+**Kontekst:** Rejestracja oraz wypełnianie wniosku wymagają walidacji, a administrator potrzebuje szybkiego
+przechodzenia między zakładkami formularza podczas testowania.
+
+**Decyzja:** Dane Auth są walidowane wspólnymi schematami Zod (`SignInInputSchema`, `SignUpInputSchema`).
+Wyjątkowy skrót przejścia między sekcjami jest widoczny wyłącznie dla sesji z `app_metadata.role === "admin"`,
+metadanymi zarządzanymi serwerowo przez Supabase Auth. Skrót omija walidację nawigacji, ale nie zapis: każde
+zlecenie nadal przechodzi pełną walidację przed utrwaleniem. Rola członkostwa `admin` w pojedynczej organizacji
+nie nadaje tego uprawnienia; nie wolno ustawiać go przez `user_metadata` ani przez klienta.
+
+**Konsekwencje:** Konta zwykłe nie widzą skrótu. Nadanie uprawnienia wymaga zaufanego procesu administracyjnego
+wykorzystującego serwerowy klucz Supabase; nie dodano formularza samodzielnego nadawania roli ani skrótu
+zmieniającego walidację danych zapisywanych w bazie.
+
+## ADR-015: Interaktywna mapa lokalizacji OpenStreetMap
+
+**Kontekst:** Osadzona mapa Google zwracała HTTP 200, ale w lokalnym podglądzie kończyła nawigację ramki
+`ERR_ABORTED` i nie renderowała mapy. Samo sprawdzanie adresu `iframe` nie potwierdzało widoczności ani działania
+mapy.
+
+**Decyzja:** Podgląd formularza używa Leaflet i kafelków OpenStreetMap, marker wskazuje wynik wyszukania adresu,
+kodu pocztowego i miejscowości przez Nominatim. Wyszukiwanie jest opóźnione względem wpisywania, wymaga
+uwierzytelnionej sesji w API aplikacji, odpowiedzi z lokalizacją nie są buforowane przez przeglądarkę, a
+zapasowe wyszukanie kodu i miejscowości jest oddzielone odstępem zgodnym z limitem publicznego geokodera.
+Jeśli pełny adres nie zostanie znaleziony, mapa pokazuje jawnie oznaczone przybliżenie; puste dane kierują mapę
+na Warszawę. UI pokazuje źródło mapy i zapewnia osobny link do Google Maps. Kafelków OSM i geokodera używamy
+zgodnie z ich atrybucją i przeznaczeniem; mapa wymaga połączenia z Internetem.
+
+**Konsekwencje:** E2E sprawdza widoczne kafelki i marker, przybliżony wynik dla adresu, zapis raportu oraz odmowę
+anonimowego wywołania geokodera. Hosting pozostaje niewłączony; przed publicznym wdrożeniem trzeba ponownie
+ocenić skalowanie i limity publicznych usług mapowych.
+
+## ADR-016: Warunkowe pytania dla innych prac i trwały punkt mapy
+
+**Kontekst:** Kategoria „Inne prace” obejmuje wiele niezależnych zakresów robót. Stały zestaw pytań utrudniał
+szczegółowy opis, a geokoder może zwrócić jedynie przybliżenie miejscowości, gdy konkretny numer budynku nie jest
+dostępny.
+
+**Decyzja:** Współdzielony katalog technologii dobiera etapy ankiety do zaznaczonych zakresów; dalsze pytania mogą
+zależeć również od wybranej technologii (np. kolor i powłoka elewacji tylko dla tynku lub malowania). Dla adresu
+z numerem geokoder preferuje wynik z tym samym numerem domu. Użytkownik może skorygować lokalizację kliknięciem
+mapy, a punkt zapisuje się w istniejącym JSON `materials` jako `locationPin`, bez migracji bazy.
+
+**Konsekwencje:** Zmiana adresu czyści ręcznie wskazany punkt, a zapisane zlecenie odtwarza go po ponownym otwarciu.
+Geokoder nie gwarantuje dokładnego wyniku dla każdego adresu; jeśli numer nie zostanie dopasowany, lokalizacja
+pozostaje przybliżona do czasu ręcznego wskazania budynku.
+
+## ADR-017: Ogólne kategorie pozostałych prac i ścisłe dopasowanie adresu
+
+**Kontekst:** Kategorie „Inne prace” mieszały zakres robót z materiałem (np. ogrodzenie drewniane jako osobna
+kategoria), a kliknięcie zakładki technologii wymagało wcześniej uzupełnienia danych budowy. Geokoder mógł też
+po braku dopasowania numeru domu ustawić marker na środku miejscowości.
+
+**Decyzja:** Główne kategorie opisują ogólny rodzaj robót (np. ogrodzenie, podjazd/nawierzchnie, fasada); materiał
+i technologia są wybierane wyłącznie w etapach szczegółowych. Między zakładkami można przechodzić bez walidacji;
+pełny formularz jest walidowany dopiero przy zapisie. Ulica/nazwa miejsca i numer budynku/działki są osobnymi
+polami, łączonymi do istniejącego pola adresowego. Gdy podano numer, geokoder zwraca wynik tylko przy zgodnym
+`house_number`, bez fallbacku do miejscowości. Brak dopasowania nie ustawia markera; użytkownik może wskazać
+punkt ręcznie.
+
+**Konsekwencje:** Przy odczycie starych zapisów dawne kategorie materiałowe są mapowane do nowych ogólnych
+kategorii, zachowując zapisane szczegóły technologii. Brak dokładnego adresu wymaga ręcznego wskazania punktu,
+zamiast prezentowania nieprecyzyjnego środka miejscowości jako adresu inwestycji.
+
+## ADR-018: Osadzona mapa Google do wyszukiwania adresu
+
+**Kontekst:** Publiczny geokoder OpenStreetMap nie rozpoznaje wszystkich nowych lub niepełnych adresów, w tym
+adresów, których numer budynku nie znajduje się w jego danych. Dla inwestora ważniejsze jest sprawdzenie adresu
+bezpośrednio w Google Maps niż blokowanie podglądu przez ścisłe dopasowanie zewnętrznego geokodera.
+
+**Decyzja:** Podgląd formularza korzysta z osadzonego wyszukiwania Google Maps przez adres URL z parametrem `q`,
+złożonym z nazwy miejsca, numeru, miejscowości i kodu pocztowego. Wpisy są opóźnione przed przeładowaniem mapy,
+a link obok otwiera pełną wersję Google Maps. Usuwamy zależność Leaflet, kafelki OSM i własny endpoint Nominatim.
+Zachowujemy odczyt już zapisanych współrzędnych `locationPin` jako wyszukiwania punktu w Google Maps.
+
+**Konsekwencje:** Iframe Google Maps nie udostępnia aplikacji współrzędnych kliknięcia; nie obiecujemy więc zapisu
+nowego punktu przez kliknięcie mapy. Integracja zapisu punktów wymagałaby osobnej decyzji, klucza Google Maps
+Platform i konfiguracji rozliczeń. Zapytanie lokalizacyjne jest przekazywane Google. Ta decyzja zastępuje
+wyświetlanie mapy z ADR-015 oraz sposób geokodowania opisany w ADR-016 i ADR-017.

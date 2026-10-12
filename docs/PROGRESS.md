@@ -6,8 +6,9 @@ i od czego zacząć kolejną sesję. **To jest pierwszy plik, który agent powin
 ## Stan ogólny
 
 - **Aktualny etap:** ETAP 2 — podstawowy Auth, trzy ścieżki onboardingu, konta pracowników i izolacja RLS
-  zweryfikowane lokalnie; pgTAP i Playwright **PASS**. ETAP 3 — podstawowe zlecenia i panel klienta wdrożone,
-  pełny kreator i rynek ofert pozostają do wykonania. Nie ma kroku tworzenia organizacji w UI.
+  zweryfikowane lokalnie; pgTAP i Playwright **PASS**. ETAP 3 — bazowy wniosek budowy z walidacją, ankietą
+  materiałów/technologii, raportem i panelem klienta zweryfikowano lokalnie. Rozbudowany rynek, składanie ofert,
+  RFQ/katalog oraz dalsze etapy specyfikacji pozostają do wykonania. Nie ma kroku tworzenia organizacji w UI.
   Ograniczenia usług pomocniczych Supabase opisano w `docs/TEST_REPORT.md`.
 - **Tryb pracy:** wyłącznie lokalny (bez hostingu/wdrożenia). Repozytorium Git istnieje tylko lokalnie
   (`C:\Users\Patryk\Desktop\Aplikacja_Budowa`), bez zdalnego remote na GitHub.
@@ -419,3 +420,354 @@ Wznowienie: uruchom Docker, `pnpm db:status`, potem `pnpm --filter web build` i 
 Jeśli w otwartej karcie nadal widać starą wersję, wykonać twarde odświeżenie `Ctrl+F5` pod
 `http://127.0.0.1:3010/`. Dalsza praca pozostaje lokalna; pełny kreator, filtrowanie rynku i ofertowanie są nadal
 do wykonania zgodnie z sesją 10.
+
+## Sesja 12 — 12 października 2026
+
+### Zrobione
+
+1. Zastąpiono sekcję z ręcznymi polami „Wymagania szczegółowe” i „Kryteria odbioru” automatycznymi warunkami
+   zgodności z projektem, przepisami i zasadami wiedzy technicznej.
+2. Dodano w formularzu osobne zakładki „Dane budowy” oraz „Materiały i technologia”. Ankieta dostosowuje etapy do
+   budowy domu, rozbudowy, remontu albo innych prac; każda lista ma własną wyszukiwarkę i wymagany wybór.
+3. Dodano katalog wyborów dla fundamentów, szalunków fundamentowych i stropowych, ścian i ich ocieplenia, stropów,
+   dachu/pokrycia, instalacji, wykończenia remontu oraz pozostałych prac. Obejmuje m.in. bloczki szalunkowe 25/30 cm,
+   szalunki tradycyjne i systemowe, stropy monolityczne/prefabrykowane/gęstożebrowe, blachę płaską na rąbek i
+   rozwiązania membranowe.
+4. Technologie zapisują się w dotychczasowym polu materiałów, są odtwarzane przy edycji i trafiają do raportu
+   wyświetlanego przy zleceniu. Zachowano stare notatki tekstowe; limit tekstowy bazy rozszerzono migracją
+   `20261012122000_construction_technology_catalog.sql`.
+5. Przejrzano źródła ITB oraz poradniki branżowe dotyczące fundamentów, ścian, stropów, pokryć dachowych,
+   ocieplenia, wentylacji, ogrzewania i systemów podłogowych. Odnośniki do źródeł są dostępne w ankiecie.
+6. Udokumentowano ograniczenie katalogu: zawiera typowe rozwiązania i wybór „zgodnie z projektem/inne”, ale nie
+   jest zamkniętą listą wszystkich systemów i produktów producentów. Wybór inwestora pozostaje preferencją, a nie
+   projektem konstrukcyjnym.
+
+### Weryfikacja
+
+- `pnpm exec supabase migration up --local` — **PASS**
+- `pnpm db:test` — **PASS** (83 asercje; sprawdzono również zapis materiałów ponad dotychczasowy limit 2000 znaków)
+- `pnpm exec supabase db lint --local --schema public --fail-on error` — **PASS**
+- `pnpm --filter @asystent/schemas test` — **PASS** (10/10)
+- `pnpm test` — **PASS**
+- `pnpm build` — **PASS** (8 zadań workspace, w tym produkcyjny build Web)
+- `pnpm typecheck` — **PASS**
+- `pnpm lint` — **PASS**
+- `pnpm test:e2e` — **PASS** (4 scenariusze; filtrowanie wyszukiwarki, warunkowe szalowanie stropu, zapis i odtworzenie wyborów)
+- `GET http://127.0.0.1:3010/` — **PASS** (HTTP 200); w aktywnej sesji klienta widać nową nawigację zakładek
+- `git diff --check` — **PASS**
+
+### Kontynuacja
+
+Katalog technologii jest wersją bazową z odnośnikami, nie gwarantuje kompletności każdej technologii/produktu.
+Kolejne prace: weryfikacja list z fachowcami i rozbudowa etapów pod dokładny zakres projektu, następnie filtrowanie
+rynku oraz ofertowanie. Pełna aplikacja nadal nie jest ukończona; hosting i usługi chmurowe pozostają wyłączone.
+
+## Sesja 13 — 12 października 2026
+
+### Zrobione
+
+1. Wymieniono osobne pole wyszukiwania i natywną listę na rozwijane menu z wyszukiwarką umieszczoną wewnątrz
+   menu. Każda lista ma filtrowanie, wybór klawiaturą przez pola i czytelny stan wybranych wartości.
+2. Sposób posadowienia obsługuje zaznaczenie więcej niż jednej technologii i zapisuje listę wartości; istniejące
+   zapisane posadowienie w formacie pojedynczego tekstu jest automatycznie odczytywane jako lista jednoelementowa.
+3. Wybór ściany monolitycznej ujawnia szalowanie fundamentów; ściany z bloczków betonowych lub szalunkowych nie
+   wymagają oddzielnego pola szalowania.
+4. Dodano osobne pytania o folię kubełkową (bąbelkową) i ocieplenie fundamentów (m.in. XPS, EPS fundamentowy,
+   PIR, szkło piankowe), niezależne od hydroizolacji.
+5. Dach rozbito na płytę skośną, poszycie/deskowanie, warstwę wstępnego krycia, pokrycie końcowe i ocieplenie.
+   Etapy warstw nie wyświetlają się, jeśli użytkownik oznaczy, że zakres nie obejmuje prac przy dachu.
+6. Dla budowy domu i rozbudowy dodano standard realizacji: stan surowy otwarty, zamknięty, deweloperski albo pod
+   klucz. Izolacja ścian/dachu, stolarka, instalacje i wykończenia ujawniają się zgodnie z poziomem realizacji oraz
+   wybranym układem ściany; dodano ankietę okien, montażu, drzwi, podłóg, ścian, sufitów oraz schodów.
+7. Dla remontu wprowadzono wybór zakresu od odświeżenia po remont generalny i termomodernizację. Kolejne etapy
+   (instalacje, stolarka, izolacje i dach) zależą od wybranego zakresu.
+8. Dla „Innych prac” dodano etapy zależne od kategorii: ogrodzenie (przygotowanie, fundament, konstrukcja,
+   wykończenie), podjazd (podbudowa i odwodnienie), drenaż (system i odbiornik), mur oporowy oraz elewacja.
+9. Każda aktywnie wybrana pozycja „Inne” pokazuje wymagane pole opisu; walidacja wymaga jego treści, a raport
+   zawiera nazwę wybranej technologii i opis. Formularz nadal zapisuje wybory w dotychczasowej kolumnie `materials`.
+10. Rozszerzono testy schematu i E2E o menu wyszukiwane w środku, multi-select, szalowanie warunkowe, etapy domu,
+    remontu i pozostałych prac, warstwy dachu, opis „Inne” i raport po zapisie. Uaktualniono specyfikację i ADR-010.
+
+### Weryfikacja
+
+- `pnpm build` — **PASS** (8 zadań workspace; produkcyjny build Web)
+- `pnpm typecheck` — **PASS** (11 zadań Turbo)
+- `pnpm lint` — **PASS** (5 zadań Turbo)
+- `pnpm test` — **PASS** (15 testów schematów oraz wszystkie pozostałe testy workspace)
+- `pnpm test:e2e` — **PASS** (4 scenariusze w Microsoft Edge; przetestowany zapis wielu posadowień i raportu)
+- Kontrola wizualna nowego menu i wyszukiwarki wewnątrz niego — **PASS** (lokalny Web; menu nakłada się na formularz)
+- `GET http://127.0.0.1:3010/` — **PASS** (HTTP 200)
+- `git diff --check` — **PASS**
+
+### Kontynuacja
+
+Nowy model etapów i wyszukiwania działa lokalnie i zachowuje zgodność zapisu w JSON z dotychczasowym polem.
+Następny zakres to ekspercka weryfikacja doboru list technologii oraz dalszy rozwój pełnego kreatora i rynku
+ofert. Aplikacja pozostaje nieukończona i wyłącznie lokalna; nie zmieniono hostingu ani usług chmurowych.
+
+## Sesja 14 — 12 października 2026
+
+### Zrobione
+
+1. Rozszerzono ankietę dachu o profile blachodachówki (m.in. fala, panel płaski, modułowa i cięta na wymiar),
+   systemy rąbka dla blachy płaskiej oraz profile blachy trapezowej.
+2. Dodano wybór systemu kominowego, warunkowy sposób obróbki i jej materiał; przy braku komina lub poza zakresem
+   pola obróbki nie są wymagane.
+3. Dodano niezależne wybory systemu rynnowego oraz rur spustowych i sposobu odprowadzenia wody.
+4. Wszystkie nowe wybory korzystają z dotychczasowej walidacji, zapisu JSON w `materials` i generowania raportu;
+   nie dodano migracji ani zmian usług zewnętrznych.
+5. Uzupełniono testy schematu, scenariusze E2E, specyfikację i ADR-011.
+
+### Weryfikacja
+
+- `pnpm --filter @asystent/schemas test` — **PASS** (15/15)
+- `pnpm build` — **PASS** (8 zadań workspace)
+- `pnpm typecheck` — **PASS** (11 zadań Turbo)
+- `pnpm lint` — **PASS** (5 zadań Turbo)
+- `pnpm test` — **PASS** (wszystkie testy workspace; schemas 15/15)
+- `pnpm test:e2e` — **PASS** (4 scenariusze w Microsoft Edge; profil blachy, system kominowy, obróbka, rynny i rury spustowe w raporcie i edycji)
+- `git diff --check` — **PASS**
+- `GET http://127.0.0.1:3010/` — **PASS** (HTTP 200)
+
+### Kontynuacja
+
+Katalog dachowy nadal jest zestawem typowych rozwiązań, a nie zamkniętą listą wszystkich produktów. Wybory wymagają
+potwierdzenia z projektem i instrukcjami producentów. Aplikacja pozostaje lokalna i nieukończona.
+
+## Sesja 15 — 12 października 2026
+
+### Zrobione
+
+1. Rozszerzono wybory wielokrotne na podłogi, wykończenie ścian i sufitów, wykończenia schodów/balustrad,
+   elewację, wybrane wykończenia remontowe i elementy montowane w kuchni/łazience.
+2. Konstrukcja schodów jest osobną odpowiedzią (m.in. żelbet wylewany na miejscu, prefabrykat, stal, drewno,
+   istniejące schody lub brak schodów); wykończenie i balustrady wybiera się oddzielnie.
+3. Instalacja wodno-kanalizacyjna, w tym kanalizacja, jest wymagana już w ankiecie stanu surowego.
+4. Kategoria „Inne prace” pozwala łączyć zakresy. Dodano szczegóły nawierzchni/obrzeży i odwodnienia podjazdu,
+   ścieżek, tarasu oraz kostki/opaski wokół domu.
+5. Odczyt JSON normalizuje wcześniej zapisane pojedyncze wartości wielokrotnych do list; raport zachowuje wszystkie
+   aktywne wybory. Uzupełniono specyfikację, ADR-012, testy schematu i E2E.
+
+### Weryfikacja
+
+- `pnpm --filter @asystent/schemas test` — **PASS** (15/15)
+- `pnpm build` — **PASS** (8 zadań workspace)
+- `pnpm typecheck` — **PASS** (11 zadań Turbo)
+- `pnpm lint` — **PASS** (5 zadań Turbo)
+- `pnpm test` — **PASS** (wszystkie testy workspace; schemas 15/15)
+- `pnpm test:e2e` — **PASS** (4 scenariusze w Microsoft Edge; multi-select, raport, kuchnia/łazienka, instalacja wod-kan i łączone prace terenowe)
+- `git diff --check` — **PASS**
+- `GET http://127.0.0.1:3010/` — **PASS** (HTTP 200)
+
+### Kontynuacja
+
+Uruchomić pozostałe bramki po przebudowie aktualnego worktree. Aplikacja nadal pozostaje lokalna i nieukończona.
+
+## Sesja 16 — 12 października 2026
+
+### Zrobione
+
+1. Usunięto „zgodnie z projektem” z wyboru kategorii „Inne prace”; schemat odrzuca tę odpowiedź jako zakres
+   pozostałych prac.
+2. Dla typu „Inne” pole opisu jest wyraźnie nazwane „Opis prac do wykonania”; ankieta informuje, że opis i co
+   najmniej jedna konkretna kategoria są wymagane.
+3. Zmieniono nazwę pozycji „Inne prace specjalistyczne” tak, aby wymagała doprecyzowania; jej opis zapisuje się
+   w raporcie. Zaktualizowano test schematu, E2E, specyfikację i ADR-013.
+
+### Weryfikacja
+
+- `pnpm --filter @asystent/schemas test` — **PASS** (15/15)
+- `pnpm test` — **PASS** (26 testów jednostkowych)
+- `pnpm typecheck` — **PASS** (11 zadań Turbo)
+- `pnpm lint` — **PASS** (5 zadań Turbo)
+- `pnpm build` — **PASS** (8 zadań Turbo)
+- `pnpm test:e2e` — **PASS** (4 scenariusze w Microsoft Edge)
+- `git diff --check` — **PASS**
+- `GET http://127.0.0.1:3010/` — **PASS** (HTTP 200)
+
+### Kontynuacja
+
+Praca nadal lokalna, bez wdrożenia i commita. Kategorie i etapy „Inne” wymagają konkretnych wyborów i opisu;
+sprawdź tę regułę ponownie przy kolejnych rozszerzeniach katalogu.
+
+## Sesja 17 — 12 października 2026
+
+### Zrobione
+
+1. Ujednolicono walidację rejestracji i logowania we wspólnych schematach Zod:
+   normalizacja e-maila, poprawny format, wymagane hasło oraz limit długości; rejestracja wymaga też nazwy.
+   Formularz Auth pokazuje błędy walidacji bez wysyłania niepoprawnego żądania.
+2. Naprawiono inicjalizację Auth: jeżeli zdarzenie `onAuthStateChange` nadejdzie przed zakończeniem
+   `getSession()`, spóźniony odczyt sesji nie nadpisuje już nowszego stanu. Widok logowania czeka jawnie
+   na inicjalizację, a odczyt sesji ujawnia błędy zamiast pozostawiać niejednoznaczny ekran.
+3. Skrót nawigacji w formularzu budowy widzi tylko administrator z serwerowo zarządzanym
+   `app_metadata.role === "admin"`. Zwykłe konto przechodzi walidację danych przed wejściem do zakładki
+   technologii; administrator może pominąć wyłącznie tę walidację nawigacji. Zapis nadal wymaga całej walidacji
+   schematu. Rola `admin` organizacji nie jest traktowana jako globalny administrator.
+4. Dodano E2E dla rzeczywistej rejestracji w UI, błędnego e-maila/hasła, dalszej ścieżki do formularza klienta
+   i zakładki technologii, a także obecności/nieobecności skrótu i walidacji zapisu admina.
+5. Zrzut „This page couldn’t load” nie odtworzył się w działającym środowisku: lokalny podgląd zwraca HTTP 200.
+   Oprócz smoke testu przepływ uwierzytelniania i onboardingu przetestowano w E2E na lokalnym Supabase.
+
+### Weryfikacja
+
+- `pnpm --filter @asystent/schemas test` — **PASS** (17/17).
+- `pnpm typecheck` — **PASS** (11 zadań Turbo).
+- `pnpm --filter web lint` — **PASS**.
+- `pnpm build` — **PASS** (8 zadań Turbo).
+- `pnpm test` — **PASS** (11 zadań Turbo).
+- `pnpm test:e2e` — **PASS** (6 scenariuszy w Microsoft Edge).
+- `git diff --check` — **PASS** (ostrzeżenie Git tylko o normalizacji LF/CRLF).
+- `GET http://127.0.0.1:3010/` — **PASS** (HTTP 200).
+
+### Kontynuacja
+
+Przepływ od rejestracji do danych budowy i technologii jest gotowy do dalszego sprawdzenia przez użytkownika.
+Praca pozostaje lokalna, bez wdrożenia i commita. Skrót administratora wymaga nadania `app_metadata.role`
+przez zaufany proces serwerowy; zwykłe konta i każdy zapis nadal podlegają walidacji.
+
+## Sesja 18 — 12 października 2026
+
+### Zrobione
+
+1. Potwierdzono błąd mapy Google w lokalnej przeglądarce: iframe kończył się `ERR_ABORTED` i pozostawał pusty mimo
+   HTTP 200 dostawcy. Zastąpiono go interaktywnym Leaflet/OpenStreetMap z widocznymi kafelkami i markerem.
+2. Dodano uwierzytelniony endpoint wyszukiwania lokalizacji przez Nominatim. Zmiany zapytania są opóźniane podczas
+   wpisywania; przy nieznalezieniu numeru/adresu mapa pokazuje jawne przybliżenie według kodu i miejscowości.
+   Przy pustych polach pozostaje Warszawa; dane lokalizacji są ujawnione jako wysyłane do OpenStreetMap, a link
+   do Google Maps nadal jest dostępny.
+3. Uzupełniono wymagane wod-kan dla czterech standardów domu/rozbudowy oraz walidację braku tego wyboru w każdym
+   standardzie. Dodano wymagany wybór systemu nawierzchni żywiczno-żwirowej, pełne warstwy pytań dla elewacji
+   oraz prace: taras, przyłącza zewnętrzne, zieleń i rozbiórki.
+4. E2E sprawdza renderowanie kafelków i markera, przybliżenie geokodera, ochronę endpointu przed anonimowym
+   użyciem, wszystkie standardy wod-kan, wybór żywicznej nawierzchni/fasady oraz raport zapisany w Supabase.
+5. Rozszerzono katalog „Inne prace” o szczegółowe, zależne od zakresu etapy dla fundamentów, żelbetu, murowania,
+   dachu, fasady, instalacji, stolarki oraz robót zewnętrznych. Pytania o powłokę i kolor fasady są pokazywane
+   wyłącznie po wyborze tynku lub malowania; okładziny nie wymagają tych odpowiedzi.
+6. Geokoder preferuje wynik z pasującym numerem domu. Mapa pozwala wskazać dokładny budynek kliknięciem, zapisuje
+   współrzędne w istniejącym polu JSON `materials.locationPin` i odtwarza je przy ponownej edycji; zmiana adresu
+   kasuje przypięty wcześniej punkt. Dokładny wynik z Nominatim dla Grabie 156a nie został osobno zweryfikowany.
+7. Pozostawiono pracę lokalną. Nie konfigurowano hostingu, nie kasowano danych użytkowników i nie tworzono commita.
+
+### Weryfikacja
+
+- `pnpm exec supabase migration up --local` — **PASS** (brak nowych, niezaaplikowanych migracji).
+- `pnpm --filter @asystent/schemas test` — **PASS** (17/17 testów).
+- `pnpm typecheck` — **PASS** (11 zadań Turbo).
+- `pnpm lint` — **PASS** (5 zadań Turbo).
+- `pnpm test` — **PASS** (11 zadań Turbo).
+- `pnpm db:test` — **PASS** (83 testy pgTAP).
+- `pnpm exec supabase db lint --local --schema public --fail-on error` — **PASS**.
+- `pnpm test:e2e` — **PASS** (6 scenariuszy w Microsoft Edge; mapa, geokodowanie, formularz i raport).
+- `pnpm build` — **PASS** (8 zadań Turbo; dynamiczna trasa geokodowania używa `connection()`).
+- `git diff --check` — **PASS** (bez błędów whitespace; Git ostrzega o normalizacji LF/CRLF).
+- Dodatkowa regresja warunkowych pytań fasady: `pnpm --filter @asystent/schemas test` — **PASS** (19/19),
+  `pnpm --filter web build` — **PASS**, `pnpm test:e2e` po świeżym buildzie — **PASS** (6/6 scenariuszy).
+- Lokalny podgląd `http://127.0.0.1:3010/` — **PASS** po uruchomieniu końcowego buildu; HTTP 200, na mapie
+  Warszawy widocznych 6 kafelków i 1 marker.
+
+### Kontynuacja
+
+Następnym krokiem jest sprawdzenie przez użytkownika przejścia od logowania przez formularz budowy do raportu
+oraz ręczne wskazanie budynku Grabie 156a na mapie, jeśli Nominatim nadal zwraca tylko przybliżenie.
+Wszystkie pozostałe etapy aplikacji nadal są w toku; nie wdrażać aplikacji na hosting.
+
+## Sesja 21 — 12 października 2026
+
+### Zrobione
+
+1. Zweryfikowano istniejący katalog „Inne prace” bez nadpisywania zmian w worktree: kategorie ogólne prowadzą do
+   zależnych etapów dla fundamentów i zbrojenia, żelbetu, murowania, konstrukcji/pokrycia dachu, fasady, instalacji,
+   stolarki, ogrodzeń, nawierzchni, odwodnienia, tarasów, przyłączy, zieleni i rozbiórek.
+2. Dodano regresję E2E, która po zapisaniu zlecenia z wieloma zakresami „Innych prac” odświeża stronę i sprawdza,
+   że kategorie, zbrojenie fundamentu, pokrycie dachu, kolor elewacji i wielokrotny wybór nawierzchni są odtworzone.
+3. Potwierdzono, że raport obejmuje zapisane opisy i wybory technologiczne. Aplikacja pozostała lokalna; bez migracji,
+   wdrożenia i commita.
+
+### Weryfikacja
+
+- `pnpm --filter @asystent/schemas test` — **PASS** (19/19).
+- `pnpm typecheck` — **PASS** (11 zadań Turbo).
+- `pnpm build` — **PASS** (8 zadań Turbo).
+- `pnpm lint` — **PASS** (5 zadań Turbo, ponownie po zmianie E2E).
+- `pnpm test` — **PASS** (11 zadań Turbo).
+- `pnpm test:e2e` — **PASS** (6/6; w tym trwałość szczegółów „Innych prac” po pełnym odświeżeniu).
+- `git diff --check` — **PASS** (bez błędów whitespace; ostrzeżenia Git dotyczą normalizacji LF/CRLF).
+- `GET http://127.0.0.1:3010/` — **PASS** (HTTP 200).
+- Testy bazy — **NOT RUN** (brak zmian schematu bazy lub migracji).
+
+### Kontynuacja
+
+Poprosić użytkownika o sprawdzenie ankiety „Inne prace” w lokalnym podglądzie i zebrać brakujące kategorie lub etapy.
+Nie wdrażać aplikacji ani nie wykonywać commita bez prośby użytkownika.
+
+## Sesja 19 — 12 października 2026
+
+### Zrobione
+
+1. Uogólniono kategorie „Inne prace”: lista główna zawiera teraz m.in. „Ogrodzenie”, „Podjazd, ścieżki i
+   nawierzchnie” oraz „Fasada / elewacja”. Materiały i wykonanie wybiera się dopiero w zależnych etapach ankiety.
+   Starsze zapisane kategorie (np. ogrodzenie drewniane, nawierzchnia żywiczna) są mapowane do nowej kategorii,
+   bez utraty zapisanych odpowiedzi technologicznych.
+2. Umożliwiono swobodne przejście z „Dane budowy” do „Materiałów i technologii”. Walidacja kompletnego wniosku
+   (obu zakładek) pozostaje przy przycisku „Zapisz budowę i przejdź do panelu”.
+3. Rozdzielono pole ulicy/nazwy miejsca od numeru budynku/działki; przed zapisem są składane do dotychczasowego
+   pola adresowego. Jeśli podano numer, endpoint przyjmuje tylko wynik geokodera z dokładnie takim numerem
+   `house_number`, nie wykonuje fallbacku do centrum miejscowości i nie zapisuje przybliżonego punktu. Gdy
+   dokładnego dopasowania brak, marker jest usuwany, a użytkownik może wskazać lokalizację ręcznie.
+4. Zapisany ręcznie punkt nadal jest przechowywany w `materials.locationPin`. Nie dodano migracji bazy ani
+   nowych zależności; zachowano istniejące niezacommitowane zmiany repozytorium.
+
+### Weryfikacja
+
+- `pnpm --filter @asystent/schemas test` — **PASS** (19/19).
+- `pnpm --filter web build` — **PASS**.
+- `pnpm typecheck` — **PASS** (11 zadań Turbo).
+- `pnpm lint` — **PASS** (5 zadań Turbo).
+- `pnpm test` — **PASS** (11 zadań Turbo).
+- `pnpm build` — **PASS** (8 zadań Turbo).
+- `pnpm test:e2e` — **PASS** (6 scenariuszy; ogólne kategorie, swobodne przejście zakładek, walidacja przy zapisie,
+  brak fallbacku/markera dla niedopasowanego numeru oraz ręczne wskazanie i trwałość punktu).
+- `git diff --check` — **PASS** (brak błędów whitespace; ostrzeżenia wyłącznie o normalizacji LF/CRLF).
+- `GET http://127.0.0.1:3010/` — **PASS** (HTTP 200); po przebudowaniu zrestartowano lokalny podgląd, aby
+  serwował aktualny build.
+
+### Kontynuacja
+
+Sprawdzić w lokalnym podglądzie wpisanie `Grabie` i `156a` w oddzielnych polach. Jeśli OpenStreetMap nie ma
+dokładnego numeru domu, mapa celowo nie wskaże centrum Grabia; należy wskazać dokładny punkt kliknięciem.
+
+## Sesja 22 — 12 października 2026
+
+### Zrobione
+
+1. Zastąpiono wyszukiwanie przez Nominatim osadzoną mapą Google, która otrzymuje pełne zapytanie z ulicą/nazwą
+   miejsca, numerem budynku, miejscowością i kodem pocztowym. Wpisy są opóźniane o 700 ms, żeby nie przeładowywać
+   mapy przy każdym znaku.
+2. Link obok mapy otwiera Google Maps w nowej karcie. Zapisany wcześniej `locationPin` nadal wyszukuje w mapie
+   współrzędne; edycja adresu czyści poprzedni punkt.
+3. Usunięto endpoint Nominatim, zależności Leaflet i arkusz CSS Leaflet. Osadzona mapa Google nie udostępnia
+   klikniętych współrzędnych aplikacji; tworzenie nowych punktów wymaga osobnej integracji Maps Platform.
+4. E2E sprawdza zapytanie mapy dla adresu `Grabie 156a, Łapanów, 32-740, Polska` oraz jego aktualizację po zmianie
+   adresu. Nie wysyła w teście adresu do Google, ponieważ żądania mapy są mockowane.
+
+### Weryfikacja
+
+- `pnpm typecheck` — **PASS** (11 zadań Turbo).
+- `pnpm lint` — **PASS** (5 zadań Turbo).
+- `pnpm test` — **PASS** (11 zadań Turbo; schemas 19/19).
+- `pnpm install --frozen-lockfile` — **PASS**.
+- `pnpm --filter web build` — **PASS**.
+- `pnpm build` — **PASS** (8 zadań Turbo).
+- `pnpm test:e2e` — **PASS** (6/6 scenariuszy).
+- `git diff --check` — **PASS**.
+- `GET http://127.0.0.1:3010/` — **PASS** (HTTP 200; lokalny podgląd po przebudowie).
+- Dokładność wskazania domu przez Google Maps — **NOT VERIFIED**; E2E weryfikuje przekazane zapytanie, nie dane
+  geograficzne ani właściwy marker Google.
+- Testy bazy — **NOT RUN** (bez zmian schematu bazy lub migracji).
+
+### Kontynuacja
+
+Sprawdzić mapę w lokalnym podglądzie dla Grabie 156a i potwierdzić, czy wynik Google Maps wskazuje właściwy budynek.
+Jeśli aplikacja ma zapisywać nowe współrzędne po kliknięciu Google Maps, wymaga to osobnej decyzji o Google Maps
+Platform API i jej konfiguracji rozliczeń.

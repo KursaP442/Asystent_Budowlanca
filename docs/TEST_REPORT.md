@@ -88,6 +88,158 @@ Scenariusze E2E sesji 10:
 Wskazówka dla starej karty przeglądarki: wymusić przeładowanie przez `Ctrl+F5`. Nie zmieniano konfiguracji
 hostingu ani usług chmurowych.
 
+## Sesja 12 — 12 października 2026
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm exec supabase migration up --local` | rozszerzenie limitu pola materiałów | PASS | zastosowano migrację `20261012122000_construction_technology_catalog.sql` |
+| `pnpm db:test` | lokalny Supabase | PASS | 83 asercje; nowy test potwierdza zapis treści o długości 3000 znaków |
+| `pnpm exec supabase db lint --local --schema public --fail-on error` | schemat aplikacji | PASS | brak błędów |
+| `pnpm --filter @asystent/schemas test` | wymagane wybory technologiczne i walidacja zlecenia | PASS | 10/10 testów |
+| `pnpm test` | wszystkie workspace | PASS | wszystkie jednostkowe scenariusze test runnera Node |
+| `pnpm build` | wszystkie workspace | PASS | 8 zadań Turbo; produkcyjny build Web przeszedł po końcowych zmianach |
+| `pnpm typecheck` | wszystkie workspace | PASS | 11 zadań Turbo |
+| `pnpm lint` | wszystkie workspace | PASS | 5 zadań Turbo |
+| `pnpm test:e2e` | lokalny build Web na 3011, Microsoft Edge | PASS | 4 scenariusze; wybory technologiczne wyszukują się, zapisują i wczytują przy edycji |
+| `GET http://127.0.0.1:3010/` | lokalny podgląd | PASS | HTTP 200; widoczne osobne zakładki formularza |
+| `git diff --check` | końcowe pliki i dokumentacja | PASS | brak błędów whitespace |
+
+## Sesja 13 — 12 października 2026
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm build` | wszystkie workspace | PASS | 8 zadań Turbo; build Next.js po zmianie ankiety |
+| `pnpm typecheck` | wszystkie workspace | PASS | 11 zadań Turbo |
+| `pnpm lint` | wszystkie workspace | PASS | 5 zadań Turbo |
+| `pnpm test` | wszystkie workspace | PASS | 15/15 testów schemas, pozostałe pakiety bez regresji |
+| `pnpm test:e2e` | lokalny build Web, Microsoft Edge | PASS | 4 scenariusze; nowy przebieg wyszukiwania, wielu posadowień, szalowania, etapów dachu/remontu i zapisu raportu |
+| Kontrola wizualna menu wyboru | lokalny Web, Microsoft Edge | PASS | wyszukiwarka znajduje się wewnątrz rozwijanego menu, które nakłada się na formularz |
+| `GET http://127.0.0.1:3010/` | lokalny podgląd produkcyjnego builda | PASS | HTTP 200 |
+| `git diff --check` | końcowe pliki kodu i dokumentacji | PASS | brak błędów whitespace |
+
+## Sesja 14 — 12 października 2026
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/schemas test` | profile blachy, kominy, obróbki i odwodnienie | PASS | 15/15 testów schemas |
+| `pnpm build` | wszystkie workspace | PASS | 8 zadań Turbo; produkcyjny build Web |
+| `pnpm typecheck` | wszystkie workspace | PASS | 11 zadań Turbo |
+| `pnpm lint` | wszystkie workspace | PASS | 5 zadań Turbo |
+| `pnpm test` | wszystkie workspace | PASS | testy wszystkich workspace, schemas 15/15 |
+| `pnpm test:e2e` | lokalny build Web, Microsoft Edge | PASS | 4 scenariusze; profile blachy, warunkowa obróbka kominów, system rynnowy/spustowy i raport/edycja |
+| `git diff --check` | końcowe pliki kodu i dokumentacji | PASS | brak błędów whitespace |
+| `GET http://127.0.0.1:3010/` | lokalny podgląd produkcyjnego builda | PASS | HTTP 200 po końcowym buildzie |
+
+## Sesja 15 — 12 października 2026
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/schemas test` | wielokrotne wykończenia, schody, kanalizacja, kuchnia/łazienka i łączone prace terenowe | PASS | 15/15 testów schemas |
+| `pnpm build` | wszystkie workspace | PASS | 8 zadań Turbo; produkcyjny build Web |
+| `pnpm typecheck` | wszystkie workspace | PASS | 11 zadań Turbo |
+| `pnpm lint` | wszystkie workspace | PASS | 5 zadań Turbo |
+| `pnpm test` | wszystkie workspace | PASS | testy wszystkich workspace, schemas 15/15 |
+| `pnpm test:e2e` | lokalny build Web, Microsoft Edge | PASS | 4 scenariusze; multi-select, raport, wybory kuchni/łazienki, kanalizacja i kostka/odwodnienie |
+| `git diff --check` | końcowe pliki kodu i dokumentacji | PASS | brak błędów whitespace |
+| `GET http://127.0.0.1:3010/` | lokalny podgląd produkcyjnego builda | PASS | HTTP 200 po końcowym buildzie |
+
+## Sesja 16 — 12 października 2026
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/schemas test` | wymagany opis i konkretna kategoria dla „Innych prac” | PASS | 15/15 testów |
+| `pnpm test` | wszystkie workspace | PASS | 26 testów jednostkowych |
+| `pnpm typecheck` | wszystkie workspace | PASS | 11 zadań Turbo |
+| `pnpm lint` | wszystkie workspace | PASS | 5 zadań Turbo |
+| `pnpm build` | wszystkie workspace | PASS | 8 zadań Turbo |
+| `pnpm test:e2e` | lokalny Web, Microsoft Edge | PASS | 4 scenariusze; brak „zgodnie z projektem”, obowiązkowy opis i raport prac |
+| `git diff --check` | końcowe pliki kodu i dokumentacji | PASS | ostrzeżenie Git o konwersji LF/CRLF w istniejącym pliku schemas; bez błędów whitespace |
+| `GET http://127.0.0.1:3010/` | lokalny podgląd | PASS | HTTP 200 |
+
+## Sesja 17 — 12 października 2026
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/schemas test` | walidacja auth oraz danych przed przejściem do technologii | PASS | 17/17 testów |
+| `pnpm typecheck` | wszystkie workspace | PASS | 11 zadań Turbo |
+| `pnpm --filter web lint` | aplikacja Web | PASS | ESLint |
+| `pnpm build` | wszystkie workspace | PASS | 8 zadań Turbo |
+| `pnpm test` | wszystkie workspace | PASS | 11 zadań Turbo |
+| `pnpm test:e2e` | lokalny Supabase + Microsoft Edge | PASS | 6 scenariuszy, w tym rejestracja UI i skrót admina |
+| `git diff --check` | końcowe zmiany | PASS | ostrzeżenie Git o LF/CRLF w istniejącym pliku schemas |
+| `GET http://127.0.0.1:3010/` | lokalny Web | PASS | HTTP 200; zrzut „This page couldn’t load” nieodtworzony |
+
+## Sesja 18 — 12 października 2026
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm install --frozen-lockfile` | workspace i zależność Leaflet | PASS | lockfile aktualny |
+| `pnpm exec supabase migration up --local` | lokalna baza | PASS | brak nowych migracji do zastosowania |
+| `pnpm --filter @asystent/schemas test` | standardy domu/rozbudowy oraz technologie pozostałych prac | PASS | 17/17 testów; wod-kan wymagany dla każdego standardu |
+| `pnpm typecheck` | wszystkie workspace | PASS | 11 zadań Turbo |
+| `pnpm lint` | wszystkie workspace | PASS | 5 zadań Turbo |
+| `pnpm test` | wszystkie workspace | PASS | 11 zadań Turbo |
+| `pnpm db:test` | lokalny Supabase / pgTAP | PASS | 83 testy w 3 plikach |
+| `pnpm exec supabase db lint --local --schema public --fail-on error` | schemat aplikacji | PASS | brak błędów |
+| `pnpm build` | wszystkie workspace | PASS | 8 zadań Turbo; lokalna mapa Leaflet/OSM i dynamiczny endpoint geokodowania |
+| `pnpm test:e2e` | lokalny Supabase, Microsoft Edge | PASS | 6 scenariuszy; widoczne kafelki i marker, geokodowanie/przybliżenie, brak dostępu anonimowego, raport |
+| `curl` do Nominatim i serwera kafelków OSM | zewnętrzne usługi mapowe | PASS | Nominatim zwrócił wynik dla kodu/miejscowości; kafelek HTTP 200 |
+| `GET /api/geocode?query=Warszawa` bez tokenu | lokalny Web | PASS | endpoint zwraca HTTP 401 |
+| `GET http://127.0.0.1:3010/` | lokalny Web po restarcie finalnego buildu | PASS | HTTP 200 |
+| Widok mapy po pełnym przeładowaniu | lokalna przeglądarka | PASS | domyślna Warszawa, 6 załadowanych kafelków OSM i 1 marker |
+| `git diff --check` | wszystkie zmienione pliki | PASS | bez błędów whitespace; Git ostrzega o normalizacji LF/CRLF |
+| `pnpm --filter @asystent/schemas test` | warunkowe etapy elewacji i punkt mapy | PASS | 19/19 testów; kolor/powłoka tylko dla tynku lub malowania |
+| `pnpm test:e2e` | pierwsze uruchomienie po zmianie warunków ankiety | FAIL | uruchomiono istniejący build Next.js; zawierał poprzedni zestaw etapów |
+| `pnpm --filter web build` | odświeżenie produkcyjnego builda Web | PASS | świeży build zawiera aktualny współdzielony schemat |
+| `pnpm test:e2e` | świeży build Web, lokalny Supabase, Microsoft Edge | PASS | 6/6 scenariuszy; fasadowe pytania warunkowe oraz zapis/odtworzenie punktu mapy |
+
+## Sesja 19 — 12 października 2026
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/schemas test` | ogólne kategorie „Inne prace” i etapy szczegółowe | PASS | 19/19 testów |
+| `pnpm --filter web build` | pola adresu, nawigacja zakładek i ścisły geokoder | PASS | kompilacja Next.js i TypeScript |
+| `pnpm test:e2e` | pierwsze uruchomienie po zmianie mapy | FAIL | test odczytał zapis przed zakończeniem drugiego mockowanego wyszukiwania; dodano oczekiwanie na numer żądania |
+| `pnpm test:e2e` | świeży build Web, lokalny Supabase, Microsoft Edge | PASS | 6/6 scenariuszy; pusta lokalizacja wskazuje Warszawę, niedopasowany numer nie uruchamia fallbacku/markera, ręczny pin i trwałość zapisu |
+| `pnpm typecheck` | wszystkie workspace | PASS | 11 zadań Turbo |
+| `pnpm lint` | wszystkie workspace | PASS | 5 zadań Turbo |
+| `pnpm test` | wszystkie workspace | PASS | 11 zadań Turbo; schemas 19/19 |
+| `pnpm build` | wszystkie workspace | PASS | 8 zadań Turbo |
+| `git diff --check` | końcowe zmiany kodu i dokumentacji | PASS | brak błędów whitespace; ostrzeżenia Git wyłącznie o LF/CRLF |
+| `GET http://127.0.0.1:3010/` | lokalny Web po restarcie aktualnego builda | PASS | HTTP 200 |
+
+## Sesja 20 — 12 października 2026
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/schemas test` | katalog technologii „Inne prace” | PASS | 19/19 testów |
+| `pnpm typecheck` | wszystkie workspace | PASS | 11 zadań Turbo |
+| `pnpm build` | wszystkie workspace | PASS | 8 zadań Turbo |
+| `pnpm lint` | wszystkie workspace, ponownie po zmianie E2E | PASS | 5 zadań Turbo |
+| `pnpm test` | wszystkie workspace | PASS | 11 zadań Turbo |
+| `pnpm test:e2e` | zapis i ponowne otwarcie zlecenia „Inne prace” | PASS | 6/6 scenariuszy; nowe asercje potwierdzają odtworzenie wielu kategorii i szczegółowych wyborów po `page.reload()` |
+| `git diff --check` | końcowe zmiany testu i dokumentacji | PASS | brak błędów whitespace; ostrzeżenia Git wyłącznie o LF/CRLF |
+| `GET http://127.0.0.1:3010/` | lokalny podgląd | PASS | HTTP 200 |
+| Testy bazy danych | zakres bez zmian schematu/migracji | NOT RUN | nie były wymagane |
+
+## Sesja 22 — 12 października 2026
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter web remove leaflet @types/leaflet` | usunięcie zależności starej mapy | PASS | manifest i lockfile aktualizowane przez pnpm |
+| `pnpm install --frozen-lockfile` | aktualny lockfile | PASS | brak rozbieżności |
+| `pnpm typecheck` | wszystkie workspace | PASS | 11 zadań Turbo |
+| `pnpm lint` | wszystkie workspace | PASS | 5 zadań Turbo |
+| `pnpm test` | wszystkie workspace | PASS | 11 zadań Turbo; schemas 19/19 |
+| `pnpm --filter web build` | produkcyjny Web, iframe Google Maps | PASS | zniknął endpoint `/api/geocode` |
+| `pnpm build` | wszystkie workspace | PASS | 8 zadań Turbo |
+| `pnpm test:e2e` | lokalny Supabase i Microsoft Edge | PASS | 6/6; test kontroluje zapytanie Google Maps dla `Grabie 156a, Łapanów, 32-740, Polska` |
+| Kontrola osadzonej strony Google Maps | iframe z wyszukiwaniem adresu | PASS | Google przekierował URL wyszukiwania do `/maps/embed`; potwierdzono region mapy w drzewie dostępności |
+| Dokładne wskazanie budynku `Grabie 156a` | zewnętrzne dane Google Maps | NOT VERIFIED | E2E mockuje iframe; nie potwierdzono, czy Google ma pin pod dokładnym numerem |
+| `git diff --check` | końcowe zmiany i dokumentacja | PASS | ostrzeżenie Git wyłącznie o normalizacji LF/CRLF |
+| `GET http://127.0.0.1:3010/` | lokalny Web po restarcie buildu | PASS | HTTP 200 |
+| Testy bazy danych | zakres bez zmian schematu/migracji | NOT RUN | nie były wymagane |
+
 ## Sesja 7 — 11 października 2026
 
 | Komenda / kontrola | Kontekst | Wynik | Uwagi |

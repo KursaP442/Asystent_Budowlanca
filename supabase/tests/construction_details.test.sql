@@ -9,6 +9,8 @@ select set_config('request.jwt.claim.sub','20000000-0000-4000-8000-000000000001'
 select lives_ok($$insert into public.construction_jobs(id,title,city,address,postal_code,description,building_type,area_m2,floors,basement,rooms,existing_condition,requirements,acceptance_criteria,report_summary,start_date)
  values('20000000-0000-4000-8000-000000000010','Remont','City','Address','30-001','Scope','renovation',40,null,null,'Kitchen','Old tiles','Steps','Acceptance','Report','2026-11-20')$$,
  'Renovation saves rooms instead of building floors');
+select lives_ok($$update public.construction_jobs set materials=repeat('x',3000) where id='20000000-0000-4000-8000-000000000010'$$,
+ 'Structured technology selections can exceed the legacy 2000-character notes limit');
 select throws_ok($$update public.construction_jobs set floors=2$$,'23514',null,'Renovation rejects building floors');
 select throws_ok($$update public.construction_jobs set rooms=''$$,'23514',null,'Renovation requires room details');
 select throws_ok($$update public.construction_jobs set postal_code=''$$,'23514',null,'Postal code is required');

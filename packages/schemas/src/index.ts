@@ -1,4 +1,13 @@
 import { z } from "zod";
+import {
+  ConstructionTechnologySchema,
+  constructionTechnologyCatalog,
+  getConstructionTechnologyStages,
+  requiresTechnologyOptionDescription,
+} from "./construction-technology.js";
+import type { ConstructionTechnologyKey } from "./construction-technology.js";
+
+export * from "./construction-technology.js";
 
 export const OrganizationKindSchema = z.enum(["client", "contractor", "store"]);
 export type OrganizationKind = z.infer<typeof OrganizationKindSchema>;
@@ -46,8 +55,24 @@ export const MembershipSchema = z.object({
 export type Membership = z.infer<typeof MembershipSchema>;
 
 const requiredText = (max: number) => z.string().trim().min(1, "To pole jest wymagane.").max(max);
+const authEmail = z.string().trim().toLowerCase().max(254).pipe(z.email("Podaj poprawny adres e-mail."));
 
-export const ConstructionInputSchema = z.object({
+export const SignInInputSchema = z.object({
+  email: authEmail,
+  password: z.string().min(1, "Podaj hasło.").max(128, "Hasło może mieć maksymalnie 128 znaków."),
+});
+export type SignInInput = z.infer<typeof SignInInputSchema>;
+
+export const SignUpInputSchema = z.object({
+  display_name: requiredText(120),
+  email: authEmail,
+  password: z.string()
+    .min(8, "Hasło musi mieć co najmniej 8 znaków.")
+    .max(128, "Hasło może mieć maksymalnie 128 znaków."),
+});
+export type SignUpInput = z.infer<typeof SignUpInputSchema>;
+
+const constructionDetailsFields = z.object({
   title: requiredText(120),
   city: requiredText(120),
   address: requiredText(240),
@@ -63,12 +88,14 @@ export const ConstructionInputSchema = z.object({
   work_category: z.string().trim().max(120).default(""),
   site_access: z.string().trim().max(1000).default(""),
   utilities: z.string().trim().max(1000).default(""),
-  requirements: requiredText(2000),
-  acceptance_criteria: requiredText(2000),
-  materials: z.string().trim().max(2000),
   start_date: z.iso.date(),
   budget_pln: z.number().positive().max(1000000000).nullable(),
-}).superRefine((input, ctx) => {
+});
+
+function validateConstructionDetails(
+  input: z.infer<typeof constructionDetailsFields>,
+  ctx: z.RefinementCtx,
+) {
   const issue = (path: string, message: string) => ctx.addIssue({ code: "custom", path: [path], message });
   if (input.building_type === "house" || input.building_type === "extension") {
     if (input.floors === null || input.basement === null) issue("floors", "Uzupełnij parametry budynku.");
@@ -77,6 +104,27 @@ export const ConstructionInputSchema = z.object({
     if (input.floors !== null || input.basement !== null || input.plot_area_m2 !== null) issue("floors", "Te parametry nie dotyczą wybranego rodzaju prac.");
     if (input.building_type === "renovation" && (!input.rooms || !input.existing_condition)) issue("rooms", "Opisz pomieszczenia i ich obecny stan.");
     if (input.building_type === "other" && !input.work_category) issue("work_category", "Podaj kategorię prac.");
+  }
+}
+
+export const ConstructionDetailsInputSchema = constructionDetailsFields.superRefine(validateConstructionDetails);
+export type ConstructionDetailsInput = z.infer<typeof ConstructionDetailsInputSchema>;
+
+export const ConstructionInputSchema = constructionDetailsFields.extend({
+  technology_selections: ConstructionTechnologySchema,
+}).superRefine((input, ctx) => {
+  validateConstructionDetails(input, ctx);
+  const issue = (path: string, message: string) => ctx.addIssue({ code: "custom", path: [path], message });
+  const requiredStages: readonly ConstructionTechnologyKey[] = getConstructionTechnologyStages(input.building_type, input.technology_selections);
+  for (const key of requiredStages) {
+    const selected = input.technology_selections[key];
+    const values = Array.isArray(selected) ? selected : selected ? [selected] : [];
+    if (values.length === 0) {
+      issue("technology_selections", `Wybierz technologię: ${constructionTechnologyCatalog[key].label}.`);
+    }
+    if (values.some((value) => requiresTechnologyOptionDescription(key, value)) && !input.technology_selections.otherDescriptions[key]?.trim()) {
+      issue("technology_selections", `Opisz wybraną opcję „Inne”: ${constructionTechnologyCatalog[key].label}.`);
+    }
   }
 });
 export type ConstructionInput = z.infer<typeof ConstructionInputSchema>;

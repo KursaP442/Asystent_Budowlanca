@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { Session } from "@supabase/supabase-js";
 import type { OrganizationKind } from "@asystent/api-client";
+import { SignInInputSchema, SignUpInputSchema } from "@asystent/schemas";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase";
 import { RoleWorkspace } from "@/components/role-workspace";
 
@@ -64,6 +65,7 @@ function AccountTypeIllustration({
 export default function Home() {
   const configured = isSupabaseConfigured();
   const [session, setSession] = useState<Session | null>(null);
+  const [authInitialized, setAuthInitialized] = useState(!configured);
   const [profileAccountType, setProfileAccountType] =
     useState<OrganizationKind | null>(null);
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
@@ -83,22 +85,15 @@ export default function Home() {
     if (!configured) return;
 
     const supabase = getSupabaseClient();
-    void supabase.auth.getSession().then(({ data, error: sessionError }) => {
-      if (sessionError) {
-        setError(sessionError.message);
-        return;
-      }
-      setSession(data.session);
-      if (data.session) {
-        authUserId.current = data.session.user.id;
-        setLoadingProfile(true);
-      }
-    });
+    let active = true;
+    let authEventReceived = false;
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      authEventReceived = true;
       setSession(nextSession);
+      setAuthInitialized(true);
       const changedUser = nextSession?.user.id !== authUserId.current;
       authUserId.current = nextSession?.user.id ?? null;
       if (nextSession && changedUser) {
@@ -116,7 +111,30 @@ export default function Home() {
       setNotice("");
     });
 
-    return () => subscription.unsubscribe();
+    void supabase.auth.getSession().then(({ data, error: sessionError }) => {
+      if (!active || authEventReceived) return;
+      setAuthInitialized(true);
+      if (sessionError) {
+        setError(`Nie udało się odczytać sesji: ${sessionError.message}`);
+        return;
+      }
+      setSession(data.session);
+      if (data.session) {
+        authUserId.current = data.session.user.id;
+        setLoadingProfile(true);
+      }
+    }).catch((sessionError: unknown) => {
+      if (!active || authEventReceived) return;
+      setAuthInitialized(true);
+      setError(`Nie udało się odczytać sesji: ${
+        sessionError instanceof Error ? sessionError.message : "nieznany błąd"
+      }`);
+    });
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
   }, [configured]);
 
   useEffect(() => {
@@ -159,15 +177,34 @@ export default function Home() {
     event.preventDefault();
     setError("");
     setNotice("");
+    const form = new FormData(event.currentTarget);
+    const parsed = authMode === "signup"
+      ? SignUpInputSchema.safeParse({
+          display_name: form.get("display_name"),
+          email: form.get("email"),
+          password: form.get("password"),
+        })
+      : SignInInputSchema.safeParse({
+          email: form.get("email"),
+          password: form.get("password"),
+        });
+    if (!parsed.success) {
+      setError(parsed.error.issues.map((issue) => issue.message).join(" "));
+      return;
+    }
     setBusy(true);
 
     try {
       const supabase = getSupabaseClient();
       if (authMode === "signup") {
+        if (!("display_name" in parsed.data)) {
+          throw new Error("Nie udało się zweryfikować danych rejestracji.");
+        }
+        const input = parsed.data;
         const { data, error: signUpError } = await supabase.auth.signUp({
-          email: email.trim(),
-          password,
-          options: { data: { display_name: displayName.trim() } },
+          email: input.email,
+          password: input.password,
+          options: { data: { display_name: input.display_name } },
         });
         if (signUpError) throw signUpError;
         if (!data.session) {
@@ -178,9 +215,10 @@ export default function Home() {
           setNotice("Konto utworzone. Wybierz, jak chcesz korzystać z aplikacji.");
         }
       } else {
+        const input = parsed.data;
         const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
-          password,
+          email: input.email,
+          password: input.password,
         });
         if (signInError) throw signInError;
       }
@@ -297,6 +335,11 @@ export default function Home() {
           <span className="loading-spinner" aria-hidden="true" />
           <p>Przygotowujemy Twoje miejsce pracy…</p>
         </section>
+      ) : !authInitialized ? (
+        <section className="workspace-loading" role="status">
+          <span className="loading-spinner" aria-hidden="true" />
+          <p>Sprawdzamy Twoją sesję…</p>
+        </section>
       ) : session && profileFailed ? (
         <section className="workspace">
           <div className="alert alert-error" role="alert">{error}</div>
@@ -346,6 +389,7 @@ export default function Home() {
           key={`${session.user.id}:${profileAccountType}`}
           session={session}
           kind={profileAccountType}
+          isAdministrator={session.user.app_metadata.role === "admin"}
           onChangeType={handleChangeAccountType}
         />
         </>
@@ -391,16 +435,16 @@ export default function Home() {
               {error && <div className="alert alert-error" role="alert">{error}</div>}
               {notice && <div className="alert alert-success" role="status">{notice}</div>}
 
-              <form className="form-stack auth-form" onSubmit={handleAuthSubmit}>
+              <form className="form-stack auth-form" noValidate onSubmit={handleAuthSubmit}>
                 {authMode === "signup" && (
                   <label>
                     Imię lub nazwa
                     <input
                       autoComplete="name"
+                      name="display_name"
                       maxLength={120}
                       onChange={(event) => setDisplayName(event.target.value)}
                       placeholder="Jak mamy się do Ciebie zwracać?"
-                      required
                       value={displayName}
                     />
                   </label>
@@ -409,9 +453,9 @@ export default function Home() {
                   Adres e-mail
                   <input
                     autoComplete="email"
+                    name="email"
                     onChange={(event) => setEmail(event.target.value)}
                     placeholder="twoj@email.pl"
-                    required
                     type="email"
                     value={email}
                   />
@@ -420,10 +464,10 @@ export default function Home() {
                   Hasło
                   <input
                     autoComplete={authMode === "signin" ? "current-password" : "new-password"}
-                    minLength={8}
+                    name="password"
+                    maxLength={128}
                     onChange={(event) => setPassword(event.target.value)}
                     placeholder="Minimum 8 znaków"
-                    required
                     type="password"
                     value={password}
                   />

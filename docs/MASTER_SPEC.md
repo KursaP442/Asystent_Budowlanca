@@ -95,9 +95,44 @@ Statusy: **PASS** / **FAIL** / **BLOCKED** (brak emulatora/sekretu/usługi) / **
 
 ## 6. Ekrany i przepływy (skrót)
 
-**Klient:** rejestracja (e-mail/hasło, Google, Facebook), dashboard, kreator zlecenia (dane ogólne → fundamenty/piwnica
-→ parter → piętra → poddasze → dach → materiały → podsumowanie), autosave, wersjonowanie, publikacja i zaproszenie
-wykonawców.
+**Klient:** rejestracja (e-mail/hasło, Google, Facebook), dashboard, kreator zlecenia z osobnymi zakładkami „Dane
+budowy” oraz „Materiały i technologia”. Ankieta technologiczna grupuje wyszukiwalne opcje według etapów oraz rodzaju
+prac. Każda lista otwiera rozwijane menu z wyszukiwarką; posadowienie dopuszcza zaznaczenie wielu rozwiązań.
+Dalsze etapy zależą od zakresu: budowa/rozbudowa pyta o stan surowy otwarty/zamknięty, deweloperski lub pod klucz,
+remont o odświeżenie/remont pomieszczeń/generalny/termomodernizację, a pozostałe prace mają oddzielny katalog.
+Ankieta domu rozróżnia fundamenty i izolacje, konstrukcję, strop i wymagane podparcie, płytę skośną, deskowanie,
+warstwę wstępnego krycia i finalne pokrycie dachu, stolarkę, instalacje i wykończenia. Remont termomodernizacyjny
+odsłania dodatkowo adekwatne etapy budynku. Pozostałe prace (np. ogrodzenie, podjazd, odwodnienie, mur oporowy,
+elewacja) mają własne pytania o przygotowanie i charakterystyczne technologie. Szalowanie ścian fundamentowych
+jest wymagane tylko dla ściany
+monolitycznej; ściany z bloczków szalunkowych mają formę traconego elementu. Folia kubełkowa i ocieplenie
+fundamentów są osobnymi wyborami. Każda wybrana pozycja „Inne” wymaga opisu, a wartości i opis trafiają do raportu.
+Wybór jest preferencją inwestora, nie projektem technicznym; nieznane rozwiązanie można oznaczyć jako zgodne z
+dokumentacją. Formularz narzuca wspólne wymagania zgodności z projektem, przepisami i zasadami wiedzy technicznej
+oraz generuje raport. Detale dachu obejmują profile blachodachówki, system rąbka i profile blachy trapezowej,
+system kominowy z warunkową obróbką (sposób i materiał), a także osobne systemy rynien i rur spustowych.
+Autosave, wersjonowanie i zaproszenia wykonawców pozostają wymaganiami docelowymi.
+Wykończenia podłóg, ścian, sufitów, schodów/balustrad i elewacji mogą obejmować kilka wariantów dla różnych
+pomieszczeń lub części budynku. Konstrukcja schodów (w tym żelbet monolityczny wylewany na budowie albo elementy
+prefabrykowane) jest pytana osobno od ich wykończenia. Przy stanie surowym ankieta obejmuje już instalację
+wodno-kanalizacyjną, w tym kanalizację wewnętrzną. Remont wybranych pomieszczeń może zbierać wiele elementów
+montażowych kuchni i łazienki. Kategoria „Inne prace” pozwala łączyć zakresy i doprecyzować ich technologie,
+np. materiały nawierzchni i obrzeży dla podjazdu, ścieżek, tarasu i opaski/kostki wokół domu oraz odwodnienie.
+Wymaga konkretnego opisu zakresu prac i jednej lub kilku konkretnych kategorii; opcja „zgodnie z projektem” nie
+jest dostępna w kategoriach ani etapach ankiety „Inne”.
+Prace dodatkowe obejmują m.in. fundamenty i zbrojenie, żelbet, murowanie, dach, fasadę, stolarkę, instalacje,
+ogrodzenie, podjazdy i nawierzchnie, odwodnienie, mur oporowy, taras, przyłącza zewnętrzne, zieleń i rozbiórki.
+Główna kategoria opisuje wyłącznie rodzaj robót (np. „Ogrodzenie”), a materiał i wykonanie wybiera się w dalszych,
+zależnych etapach (np. metal, drewno, panel lub mur). Szczegóły nie mogą być wymagane przy przejściu między
+zakładkami „Dane budowy” i „Materiały i technologia”; kompletność całego wniosku jest walidowana dopiero przy
+zapisie do panelu. Nawierzchnia żywiczno-żwirowa wymaga wskazania systemu; pytania o powłokę i kolor fasady
+pojawiają się tylko dla tynku lub malowania, nie dla okładzin. Wybory te są częścią raportu.
+Podgląd lokalizacji osadza mapę Google i przekazuje jej pełny adres z osobnych pól ulicy/nazwy miejsca, numeru
+budynku/działki, miejscowości oraz kodu pocztowego. Wyszukiwanie wymaga Internetu; wpisany adres jest wysyłany
+do Google Maps. Przy pustym formularzu mapa pokazuje Warszawę, a obok znajduje się link do pełnej wersji Google
+Maps. Aplikacja nie odczytuje współrzędnych kliknięć z osadzonej mapy. Zapisane wcześniej współrzędne
+`materials.locationPin` mogą być pokazane jako punkt w Google Maps, ale dodanie nowego punktu przez Maps JavaScript
+API wymaga osobnej konfiguracji klucza i rozliczeń.
 
 **Firma wykonawcza:** rejestracja organizacji (NIP, specjalizacje, obszar działania), feed zleceń z filtrami, oferty
 (cena netto/brutto, VAT, zakres, harmonogram, ważność), licytacja z audytem, realizacja zleceń.

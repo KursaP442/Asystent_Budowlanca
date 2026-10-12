@@ -64,8 +64,8 @@ async function serverRequest(path: string, body: unknown) {
   return result;
 }
 
-export function RoleWorkspace({ session, kind, onChangeType }: {
-  session: Session; kind: OrganizationKind; onChangeType: () => Promise<void>;
+export function RoleWorkspace({ session, kind, isAdministrator, onChangeType }: {
+  session: Session; kind: OrganizationKind; isAdministrator: boolean; onChangeType: () => Promise<void>;
 }) {
   const [data, setData] = useState<WorkspaceData | null>(null);
   const [error, setError] = useState("");
@@ -153,7 +153,7 @@ export function RoleWorkspace({ session, kind, onChangeType }: {
         <p>Zapisz zakres prac. W panelu klienta wrócisz do danych budowy i przygotujesz kolejne zlecenia.</p>
         <ol><li>Lokalizacja inwestycji</li><li>Parametry budynku</li><li>Zakres i termin</li></ol>
         <small>Zapis nie wysyła danych do wykonawców. Publikację wybierzesz osobno.</small></aside>
-      <ConstructionForm key={job?.id ?? "new"} job={job} userId={session.user.id}
+      <ConstructionForm key={job?.id ?? "new"} job={job} userId={session.user.id} isAdministrator={isAdministrator}
         onCancel={data.jobs.length > 0 ? () => setEditingJob(null) : undefined}
         onSaved={() => { setEditingJob(null); setNotice("Dane zlecenia i zdjęcia zostały zapisane."); reload(); }} />
     </div> : showBusinessForm ? <div className="workflow-layout">

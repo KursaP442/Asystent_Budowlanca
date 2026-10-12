@@ -2,19 +2,37 @@
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import type { ConstructionJob } from "@asystent/api-client";
-import { ConstructionInputSchema } from "@asystent/schemas";
+import {
+  ConstructionInputSchema,
+  ConstructionTechnologySchema,
+  constructionTechnologyCatalog,
+  emptyConstructionTechnologySelections,
+  getConstructionTechnologyStages,
+  multiSelectTechnologyKeys,
+  otherWorkTechnologyKeys,
+  requiresTechnologyOptionDescription,
+  type ConstructionTechnologySelections,
+} from "@asystent/schemas";
 import { getSupabaseClient } from "@/lib/supabase";
+import { TechnologyQuestionnaire } from "@/components/technology-questionnaire";
+import { ConstructionLocationMap } from "@/components/construction-location-map";
 
 type Photo = { path: string; url: string };
 type PendingPhoto = Photo & { file: File };
 const bucket = "job-photos";
+const constructionRequirements = "Wszystkie roboty muszą być prowadzone zgodnie z aktualną dokumentacją projektową, obowiązującymi przepisami i zasadami wiedzy technicznej. Zmiany technologii wymagają uzgodnienia z projektantem.";
+const constructionAcceptance = "Odbiór robót odbywa się zgodnie z dokumentacją projektową, właściwymi wymaganiami technicznymi i zasadami sztuki budowlanej; roboty zanikające należy zgłaszać do odbioru przed ich zakryciem.";
 
-export function ConstructionForm({ job, userId, onSaved, onCancel }: {
-  job: ConstructionJob | null; userId: string; onSaved: () => void; onCancel?: () => void;
+export function ConstructionForm({ job, userId, isAdministrator, onSaved, onCancel }: {
+  job: ConstructionJob | null; userId: string; isAdministrator: boolean; onSaved: () => void; onCancel?: () => void;
 }) {
   const [id] = useState(() => job?.id ?? crypto.randomUUID());
   const [persisted, setPersisted] = useState(!!job);
   const [kind, setKind] = useState<ConstructionJob["building_type"]>(job?.building_type ?? "house");
+  const [activeTab, setActiveTab] = useState<"details" | "technology">("details");
+  const [technologySelections, setTechnologySelections] = useState<ConstructionTechnologySelections>(
+    () => readTechnologySelections(job?.materials, job?.building_type ?? "house"),
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [photos, setPhotos] = useState<Photo[]>([]);
@@ -24,34 +42,21 @@ export function ConstructionForm({ job, userId, onSaved, onCancel }: {
   const [photoRevision, setPhotoRevision] = useState(0);
   const [city, setCity] = useState(job?.city ?? "");
   const [postalCode, setPostalCode] = useState(job?.postal_code ?? "");
-  const [address, setAddress] = useState(job?.address ?? "");
+  const initialAddress = splitAddress(job?.address ?? "");
+  const [address, setAddress] = useState(initialAddress.address);
+  const [buildingNumber, setBuildingNumber] = useState(initialAddress.number);
   const objectUrls = useRef<string[]>([]);
+  const formRef = useRef<HTMLFormElement>(null);
   const building = kind === "house" || kind === "extension";
   const prefix = `${userId}/${id}`;
   const mapQuery = useMemo(() => {
-    const query = [address.trim(), postalCode.trim(), city.trim()].filter(Boolean).join(", ");
-    return query || "Warszawa, Polska";
-  }, [address, city, postalCode]);
-  const typeGuidance = kind === "house"
-    ? {
-      steps: ["Zakres stanu surowego i fundamentów", "Instalacje i harmonogram ekip", "Kryteria odbioru i jakość materiałów"],
-      placeholder: "Opisz kolejność robót: fundamenty, mury, strop, instalacje, wykończenie.",
-    }
-    : kind === "extension"
-      ? {
-        steps: ["Powiązanie z istniejącym budynkiem", "Zakres konstrukcyjny i instalacje", "Wymagania odbioru końcowego"],
-        placeholder: "Opisz połączenie nowej części z istniejącą i wymagane przebudowy instalacji.",
-      }
-      : kind === "renovation"
-        ? {
-          steps: ["Demontaże i przygotowanie pomieszczeń", "Nowe wykończenia i ewentualne instalacje", "Kryteria odbioru estetyki i działania"],
-          placeholder: "Opisz kolejność remontu pomieszczeń i standard wykończenia po odbiorze.",
-        }
-        : {
-          steps: ["Przygotowanie miejsca robót", "Główne prace i zabezpieczenia", "Warunki odbioru oraz testy końcowe"],
-          placeholder: "Opisz plan realizacji i sposób odbioru nietypowego zakresu.",
-        };
-
+    const streetAndNumber = [address.trim(), buildingNumber.trim()].filter(Boolean).join(" ");
+    const locationParts = [streetAndNumber, city.trim(), postalCode.trim()].filter(Boolean);
+    return locationParts.length ? [...locationParts, "Polska"].join(", ") : "Warszawa, Polska";
+  }, [address, buildingNumber, city, postalCode]);
+  const googleMapsQuery = technologySelections.locationPin
+    ? `${technologySelections.locationPin.lat},${technologySelections.locationPin.lng}`
+    : mapQuery;
   useEffect(() => {
     const urls = objectUrls.current;
     return () => { urls.forEach((url) => URL.revokeObjectURL(url)); };
@@ -80,12 +85,10 @@ export function ConstructionForm({ job, userId, onSaved, onCancel }: {
     return () => { active = false; };
   }, [prefix, persisted, photoRevision]);
 
-  async function save(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
+  function readFormInput(form: FormData) {
     const number = (name: string) => form.get(name) ? Number(form.get(name)) : null;
-    const parsed = ConstructionInputSchema.safeParse({
-      title: form.get("title"), city, address, postal_code: postalCode,
+    return {
+      title: form.get("title"), city, address: joinAddress(address, buildingNumber), postal_code: postalCode,
       building_type: kind, area_m2: number("area_m2"), description: form.get("description"),
       floors: building ? number("floors") : null, basement: building ? form.get("basement") === "on" : null,
       plot_area_m2: building ? number("plot_area_m2") : null,
@@ -93,14 +96,36 @@ export function ConstructionForm({ job, userId, onSaved, onCancel }: {
       existing_condition: kind === "renovation" ? form.get("existing_condition") : "",
       work_category: kind === "other" ? form.get("work_category") : "",
       site_access: form.get("site_access"), utilities: form.get("utilities"),
-      requirements: form.get("requirements"), acceptance_criteria: form.get("acceptance_criteria"),
-      materials: form.get("materials"), start_date: String(form.get("start_date") || ""), budget_pln: number("budget_pln"),
-    });
-    if (!parsed.success) { setError(parsed.error.issues.map((issue) => issue.message).join(" ")); return; }
+      technology_selections: technologySelections,
+      start_date: String(form.get("start_date") || ""), budget_pln: number("budget_pln"),
+    };
+  }
+
+  function continueToTechnology() {
+    setError("");
+    setActiveTab("technology");
+  }
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const parsed = ConstructionInputSchema.safeParse(readFormInput(new FormData(event.currentTarget)));
+    if (!parsed.success) {
+      if (parsed.error.issues.some((issue) => issue.path[0] === "technology_selections")) setActiveTab("technology");
+      setError(parsed.error.issues.map((issue) => issue.message).join(" "));
+      return;
+    }
     setBusy(true); setError("");
     try {
       const db = getSupabaseClient();
-      const payload = { ...parsed.data, report_summary: buildReport(parsed.data) };
+      const { technology_selections, ...jobInput } = parsed.data;
+      const materials = JSON.stringify(technology_selections);
+      const payload = {
+        ...jobInput,
+        requirements: constructionRequirements,
+        acceptance_criteria: constructionAcceptance,
+        materials,
+        report_summary: buildReport({ ...jobInput, materials, technology_selections }),
+      };
       const { error: saveError } = await (persisted
         ? db.from("construction_jobs").update(payload).eq("id", id).select("id").single()
         : db.from("construction_jobs").insert({ ...payload, id }).select("id").single());
@@ -126,42 +151,61 @@ export function ConstructionForm({ job, userId, onSaved, onCancel }: {
     finally { setBusy(false); }
   }
 
-  return <form className="panel workflow-form form-stack" onSubmit={save}>
+  return <form ref={formRef} className="panel workflow-form form-stack" onSubmit={save}>
     {error && <div className="alert alert-error" role="alert">{error}</div>}
     <fieldset disabled={busy}>
       <legend>Dane ogólne budowy</legend>
+      <div className="construction-tabs" role="tablist" aria-label="Sekcje wniosku">
+        <button id="construction-details-tab" type="button" role="tab" aria-selected={activeTab === "details"} aria-controls="construction-details-panel" onClick={() => setActiveTab("details")}>Dane budowy</button>
+        <button id="construction-technology-tab" type="button" role="tab" aria-selected={activeTab === "technology"} aria-controls="construction-technology-panel" onClick={continueToTechnology}>Materiały i technologia</button>
+      </div>
+      {isAdministrator && activeTab === "details" && (
+        <button className="quiet-button admin-shortcut" type="button" onClick={() => setActiveTab("technology")}>
+          Pomiń walidację i przejdź do materiałów i technologii
+        </button>
+      )}
+      <section id="construction-details-panel" role="tabpanel" aria-labelledby="construction-details-tab" hidden={activeTab !== "details"}>
       <div className="form-grid">
-        <label className="span-two">Nazwa budowy<input name="title" required maxLength={120} defaultValue={job?.title} placeholder="np. Budowa domu / remont mieszkania" /></label>
+        <label className="span-two">Nazwa budowy<input name="title" required={activeTab === "details"} maxLength={120} defaultValue={job?.title} placeholder="np. Budowa domu / remont mieszkania" /></label>
         <div><label htmlFor="job-kind">Rodzaj prac</label><select id="job-kind" name="building_type" value={kind} onChange={(e) => setKind(e.target.value as ConstructionJob["building_type"])}><option value="house">Budowa domu</option><option value="extension">Rozbudowa</option><option value="renovation">Remont</option><option value="other">Inne prace</option></select></div>
-        <label>Kod pocztowy<input name="postal_code" required pattern="[0-9]{2}-[0-9]{3}" maxLength={6} value={postalCode} onChange={(e) => setPostalCode(e.target.value)} placeholder="00-000" /></label>
-        <label>Miejscowość<input name="city" required maxLength={120} value={city} onChange={(e) => setCity(e.target.value)} autoComplete="address-level2" /></label>
-        <label>Adres lub numer działki<input name="address" required maxLength={240} value={address} onChange={(e) => setAddress(e.target.value)} /></label>
+        <label>Kod pocztowy<input name="postal_code" required={activeTab === "details"} pattern="[0-9]{2}-[0-9]{3}" maxLength={6} value={postalCode} onChange={(e) => {
+          setPostalCode(e.target.value);
+          setTechnologySelections((current) => ({ ...current, locationPin: null }));
+        }} placeholder="00-000" /></label>
+        <label>Miejscowość<input name="city" required={activeTab === "details"} maxLength={120} value={city} onChange={(e) => {
+          setCity(e.target.value);
+          setTechnologySelections((current) => ({ ...current, locationPin: null }));
+        }} autoComplete="address-level2" /></label>
+        <label>Ulica lub nazwa miejsca<input name="address" required={activeTab === "details"} maxLength={200} value={address} onChange={(e) => {
+          setAddress(e.target.value);
+          setTechnologySelections((current) => ({ ...current, locationPin: null }));
+        }} placeholder="np. Grabie" /></label>
+        <label>Nr budynku / działki<input name="building_number" maxLength={32} value={buildingNumber} onChange={(e) => {
+          setBuildingNumber(e.target.value);
+          setTechnologySelections((current) => ({ ...current, locationPin: null }));
+        }} placeholder="np. 156a" /></label>
         <div className="span-two location-preview">
-          <h3>Lokalizacja na Google Maps</h3>
-          <p>Podgląd jest aktualizowany automatycznie po zmianie kodu, miejscowości i adresu. Jeśli pola są puste, pokazujemy Warszawę.</p>
-          <iframe title="Podgląd lokalizacji w Google Maps" src={`https://maps.google.com/maps?q=${encodeURIComponent(mapQuery)}&output=embed`} referrerPolicy="no-referrer" loading="lazy" />
-          <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery)}`} target="_blank" rel="noopener noreferrer">Otwórz Google Maps w nowej karcie</a>
+          <h3>Podgląd lokalizacji na mapie</h3>
+          <p>Adres wyszukujemy bezpośrednio w Google Maps. Sprawdź, czy mapa wskazuje właściwą miejscowość i numer budynku; możesz też otworzyć wynik w pełnej wersji Google Maps.</p>
+          <ConstructionLocationMap
+            query={mapQuery}
+            locationPin={technologySelections.locationPin}
+          />
+          <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(googleMapsQuery)}`} target="_blank" rel="noopener noreferrer">Otwórz Google Maps w nowej karcie</a>
         </div>
-        <div><label htmlFor="job-area">Powierzchnia (m²)</label><input id="job-area" name="area_m2" aria-describedby="job-area-help" type="number" required min="0.01" max={100000} step="0.01" defaultValue={job?.area_m2} /><small id="job-area-help">{building ? "Powierzchnia planowanej budowy / rozbudowy." : "Powierzchnia objęta pracami, nie całego budynku."}</small></div>
+        <div><label htmlFor="job-area">Powierzchnia (m²)</label><input id="job-area" name="area_m2" aria-describedby="job-area-help" type="number" required={activeTab === "details"} min="0.01" max={100000} step="0.01" defaultValue={job?.area_m2} /><small id="job-area-help">{building ? "Powierzchnia planowanej budowy / rozbudowy." : "Powierzchnia objęta pracami, nie całego budynku."}</small></div>
         {building && <>
           <label>Powierzchnia działki (m², opcjonalnie)<input name="plot_area_m2" type="number" min="0.01" max={10000000} step="0.01" defaultValue={job?.plot_area_m2 ?? ""} /></label>
-          <label>Liczba kondygnacji<input name="floors" type="number" required min={1} max={100} defaultValue={job?.floors ?? 1} /></label>
+          <label>Liczba kondygnacji<input name="floors" type="number" required={activeTab === "details"} min={1} max={100} defaultValue={job?.floors ?? 1} /></label>
           <label className="checkbox-field"><input name="basement" type="checkbox" defaultChecked={job?.basement ?? false} /> Budynek z piwnicą</label>
         </>}
-        {kind === "renovation" && <label className="span-two">Pomieszczenia do remontu<input name="rooms" required maxLength={500} defaultValue={job?.rooms} placeholder="np. Kuchnia, łazienka, dwa pokoje" /></label>}
-        {kind === "renovation" && <label className="span-two">Stan istniejący<textarea name="existing_condition" required maxLength={2000} rows={3} defaultValue={job?.existing_condition} placeholder="Opisz stan ścian, podłóg, instalacji i elementów do naprawy." /></label>}
-        {kind === "other" && <label className="span-two">Kategoria prac<input name="work_category" required maxLength={120} defaultValue={job?.work_category} placeholder="np. Ogrodzenie, podjazd, zagospodarowanie terenu" /></label>}
-        <label className="span-two">Zakres prac<textarea name="description" required maxLength={4000} rows={4} defaultValue={job?.description} placeholder={building ? "Opisz zakres budowy i oczekiwany etap zakończenia." : "Opisz prace do wykonania i oczekiwany efekt."} /></label>
-        <section className="span-two plan-section" aria-label="Plan realizacji">
-          <h3>Plan realizacji i etapy wniosku</h3>
-          <ol>{typeGuidance.steps.map((step) => <li key={step}>{step}</li>)}</ol>
-          <label>Wymagania szczegółowe<textarea name="requirements" required maxLength={2000} rows={3} defaultValue={job?.requirements} placeholder={typeGuidance.placeholder} /></label>
-          <label>Kryteria odbioru<textarea name="acceptance_criteria" required maxLength={2000} rows={3} defaultValue={job?.acceptance_criteria} placeholder="Opisz, po czym poznasz, że prace zostały wykonane poprawnie." /></label>
-        </section>
+        {kind === "renovation" && <label className="span-two">Pomieszczenia do remontu<input name="rooms" required={activeTab === "details"} maxLength={500} defaultValue={job?.rooms} placeholder="np. Kuchnia, łazienka, dwa pokoje" /></label>}
+        {kind === "renovation" && <label className="span-two">Stan istniejący<textarea name="existing_condition" required={activeTab === "details"} maxLength={2000} rows={3} defaultValue={job?.existing_condition} placeholder="Opisz stan ścian, podłóg, instalacji i elementów do naprawy." /></label>}
+        {kind === "other" && <label className="span-two">Kategoria prac<input name="work_category" required={activeTab === "details"} maxLength={120} defaultValue={job?.work_category} placeholder="np. Ogrodzenie, podjazd, zagospodarowanie terenu" /></label>}
+        <label className="span-two">{kind === "other" ? "Opis prac do wykonania" : "Zakres prac"}<textarea name="description" required={activeTab === "details"} maxLength={4000} rows={4} defaultValue={job?.description} placeholder={building ? "Opisz zakres budowy i oczekiwany etap zakończenia." : kind === "other" ? "Konkretnie opisz, jakie prace mają zostać wykonane i gdzie." : "Opisz prace do wykonania i oczekiwany efekt."} /></label>
         <label className="span-two">Dostęp i warunki prowadzenia prac<textarea name="site_access" maxLength={1000} rows={2} defaultValue={job?.site_access} placeholder={building ? "Dojazd, miejsce na sprzęt, składowanie materiałów." : "Piętro, winda, godziny prac, czy lokal będzie zamieszkany."} /></label>
         <label className="span-two">Media i instalacje<textarea name="utilities" maxLength={1000} rows={2} defaultValue={job?.utilities} placeholder="Dostęp do prądu, wody, kanalizacji; zakres zmian instalacji." /></label>
-        <label className="span-two">Materiały i technologia (opcjonalnie)<textarea name="materials" maxLength={2000} rows={2} defaultValue={job?.materials} /></label>
-        <label>Planowany termin<input name="start_date" required type="date" defaultValue={job?.start_date ?? ""} /></label>
+        <label>Planowany termin<input name="start_date" required={activeTab === "details"} type="date" defaultValue={job?.start_date ?? ""} /></label>
         <label>Budżet w PLN (opcjonalnie)<input name="budget_pln" type="number" min="0.01" max={1000000000} step="0.01" defaultValue={job?.budget_pln ?? ""} /></label>
         <section className="span-two photo-section" aria-label="Zdjęcia miejsca prac">
           <h3>Zdjęcia {building ? "działki i budynku" : kind === "renovation" ? "pomieszczeń do remontu" : "miejsca prac"}</h3>
@@ -195,8 +239,24 @@ export function ConstructionForm({ job, userId, onSaved, onCancel }: {
           </figure>)}</div>
         </section>
       </div>
+      </section>
+      <section id="construction-technology-panel" className="span-two technology-panel" role="tabpanel" aria-labelledby="construction-technology-tab" hidden={activeTab !== "technology"}>
+        <h2>Materiały i technologia</h2>
+        <TechnologyQuestionnaire
+          workType={kind}
+          selections={technologySelections}
+          onChange={(key, value) => setTechnologySelections((current) => ({ ...current, [key]: value }))}
+          onOtherDescriptionChange={(key, value) => setTechnologySelections((current) => ({
+            ...current,
+            otherDescriptions: { ...current.otherDescriptions, [key]: value },
+          }))}
+        />
+        {technologySelections.legacyNotes && <p className="technology-legacy">
+          Zachowano notatkę materiałową z poprzedniej wersji wniosku: {technologySelections.legacyNotes}
+        </p>}
+      </section>
     </fieldset>
-    <div className="form-actions">{onCancel && <button type="button" className="quiet-button" disabled={busy} onClick={onCancel}>Wróć do panelu</button>}
+    <div className="form-actions">{isAdministrator && activeTab === "technology" && <button type="button" className="quiet-button admin-shortcut" disabled={busy} onClick={() => setActiveTab("details")}>Wróć do danych bez walidacji</button>}{onCancel && <button type="button" className="quiet-button" disabled={busy} onClick={onCancel}>Wróć do panelu</button>}
       <button className="primary-button" disabled={busy || loadingPhotos || photoLoadError}>{busy ? "Zapisywanie…" : "Zapisz budowę i przejdź do panelu"}</button></div>
   </form>;
 }
@@ -205,8 +265,87 @@ function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : error && typeof error === "object" && "message" in error && typeof error.message === "string" ? error.message : "Nie udało się wykonać operacji. Spróbuj ponownie.";
 }
 
-function buildReport(input: Pick<ConstructionJob, "title" | "building_type" | "city" | "postal_code" | "address" | "description" | "requirements" | "acceptance_criteria" | "area_m2" | "start_date" | "budget_pln" | "materials" | "site_access" | "utilities" | "rooms" | "existing_condition" | "work_category">) {
+function splitAddress(value: string) {
+  const match = value.trim().match(/^(.+?)\s+(\d+[a-z]?(?:\/\d+[a-z]?)?)$/i);
+  return match ? { address: match[1], number: match[2] } : { address: value, number: "" };
+}
+
+function joinAddress(address: string, number: string) {
+  return [address.trim(), number.trim()].filter(Boolean).join(" ");
+}
+
+function readTechnologySelections(materials: string | undefined, workType: ConstructionJob["building_type"]): ConstructionTechnologySelections {
+  if (!materials) return { ...emptyConstructionTechnologySelections };
+  try {
+    const value: unknown = JSON.parse(materials);
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return { ...emptyConstructionTechnologySelections, legacyNotes: materials };
+    }
+    const saved = value as Record<string, unknown>;
+    const normalized = {
+      ...emptyConstructionTechnologySelections,
+      ...saved,
+      ...Object.fromEntries(multiSelectTechnologyKeys.map((key) => {
+        const legacyValue = saved[key];
+        return [key, Array.isArray(legacyValue)
+          ? legacyValue
+          : typeof legacyValue === "string" && legacyValue
+            ? [legacyValue]
+            : []];
+      })),
+    } as Record<string, unknown>;
+    if (workType === "other") {
+      const legacyCategories: Record<string, string> = {
+        "fence-masonry": "fencing",
+        "fence-panel": "fencing",
+        "fence-wood": "fencing",
+        "fence-wrought-iron": "fencing",
+        "fence-concrete": "fencing",
+        "driveway-pavers": "driveway-paving",
+        "driveway-slabs": "driveway-paving",
+        "driveway-asphalt": "driveway-paving",
+        "driveway-resin-gravel": "driveway-paving",
+        "paving-around-house": "driveway-paving",
+        "facade-insulation": "facade-work",
+        "external-insulation": "facade-work",
+      };
+      const categories = normalized.otherWorkTechnology;
+      if (Array.isArray(categories)) {
+        normalized.otherWorkTechnology = [...new Set(categories.map((category) =>
+          typeof category === "string" ? legacyCategories[category] ?? category : category,
+        ))];
+      }
+      for (const key of otherWorkTechnologyKeys) {
+        const value = normalized[key];
+        if (Array.isArray(value)) normalized[key] = value.filter((item) => item !== "project");
+        else if (value === "project") normalized[key] = null;
+      }
+    }
+    const parsed = ConstructionTechnologySchema.safeParse(normalized);
+    if (parsed.success) return parsed.data;
+  } catch {
+    return { ...emptyConstructionTechnologySelections, legacyNotes: materials };
+  }
+  return { ...emptyConstructionTechnologySelections, legacyNotes: materials };
+}
+
+function buildReport(input: Pick<ConstructionJob, "title" | "building_type" | "city" | "postal_code" | "address" | "description" | "area_m2" | "start_date" | "budget_pln" | "materials" | "site_access" | "utilities" | "rooms" | "existing_condition" | "work_category"> & {
+  technology_selections: ConstructionTechnologySelections;
+}) {
   const typeLabel = input.building_type === "house" ? "Budowa domu" : input.building_type === "extension" ? "Rozbudowa" : input.building_type === "renovation" ? "Remont" : "Inne prace";
+  const technologyReport = getConstructionTechnologyStages(input.building_type, input.technology_selections)
+    .map((key) => {
+      const stage = constructionTechnologyCatalog[key];
+      const values = input.technology_selections[key];
+      const selectedValues = Array.isArray(values) ? values : values ? [values] : [];
+      const choices = selectedValues.map((value) => {
+        const choice = stage.options.find((option) => option.value === value);
+        const description = input.technology_selections.otherDescriptions[key];
+        return `${choice?.label ?? "nie wybrano"}${requiresTechnologyOptionDescription(key, value) && description ? ` — ${description}` : ""}`;
+      });
+      return `${stage.label}: ${choices.length ? choices.join("; ") : "nie wybrano"}`;
+    })
+    .join("\n");
   const optional = input.building_type === "renovation"
     ? `Pomieszczenia: ${input.rooms || "nie podano"}\nStan istniejący: ${input.existing_condition || "nie podano"}`
     : input.building_type === "other"
@@ -219,9 +358,10 @@ Termin rozpoczęcia: ${input.start_date}
 Powierzchnia: ${input.area_m2} m²
 Budżet: ${input.budget_pln ? `${input.budget_pln} PLN` : "nie określono"}
 Zakres: ${input.description}
-Plan realizacji: ${input.requirements}
-Kryteria odbioru: ${input.acceptance_criteria}
-Materiały i technologia: ${input.materials || "nie określono"}
+Dane techniczne: zgodność z dokumentacją projektową, obowiązującymi przepisami i zasadami wiedzy technicznej.
+Materiały i technologie:
+${technologyReport}
+${input.technology_selections.legacyNotes ? `Notatka materiałowa z poprzedniej wersji: ${input.technology_selections.legacyNotes}` : ""}
 Dostęp i warunki: ${input.site_access || "nie określono"}
 Media i instalacje: ${input.utilities || "nie określono"}
 Szczegóły rodzaju prac: ${optional}`;

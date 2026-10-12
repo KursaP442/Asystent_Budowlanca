@@ -19,9 +19,15 @@ async function unusedNip() {
     if (data.length === 0) return nip;
   }
 }
-async function createAccount() {
+async function createAccount({ administrator = false } = {}) {
   const email = `e2e-${randomUUID()}@example.test`;
-  const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { display_name: "Test lokalny" } });
+  const { data, error } = await admin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    user_metadata: { display_name: "Test lokalny" },
+    app_metadata: administrator ? { role: "admin" } : {},
+  });
   if (error) throw error;
   userIds.push(data.user.id);
   return { email, id: data.user.id };
@@ -58,6 +64,66 @@ async function login(page, email, secret = password) {
   await page.getByRole("textbox", { name: "Hasło", exact: true }).fill(secret);
   await page.getByRole("button", { name: "Zaloguj się", exact: true }).click();
 }
+test("registration validates input and completes client onboarding", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Utwórz konto", exact: true }).first().click();
+  await expect(page.locator(".auth-submit")).toHaveText(/Utwórz konto/);
+  await page.getByLabel("Imię lub nazwa", { exact: true }).fill("Test E2E");
+  await page.getByLabel("Adres e-mail", { exact: true }).fill("invalid-email");
+  await page.getByLabel("Hasło", { exact: true }).fill("short");
+  await page.locator(".auth-submit").click();
+  await expect(page.locator(".auth-card .alert-error")).toContainText("Podaj poprawny adres e-mail.");
+  await expect(page.locator(".auth-card .alert-error")).toContainText("Hasło musi mieć co najmniej 8 znaków.");
+
+  const email = `e2e-signup-${randomUUID()}@example.test`;
+  await page.getByLabel("Adres e-mail", { exact: true }).fill(email);
+  await page.getByLabel("Hasło", { exact: true }).fill(password);
+  await page.locator(".auth-submit").click();
+  await expect(page.getByRole("heading", { name: "Jak chcesz korzystać z aplikacji?" })).toBeVisible();
+  const { data: listedUsers, error: listUsersError } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  if (listUsersError) throw listUsersError;
+  const owner = listedUsers.users.find((user) => user.email === email);
+  if (!owner) throw new Error("Konto zarejestrowane w UI nie zostało znalezione do sprzątania testu.");
+  userIds.push(owner.id);
+  await page.locator(".account-type-card.type-client").click();
+  await expect(page.getByRole("tab", { name: "Dane budowy" })).toHaveAttribute("aria-selected", "true");
+  await page.getByRole("tab", { name: "Materiały i technologia" }).click();
+  await expect(page.getByRole("tab", { name: "Materiały i technologia" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("heading", { name: "Materiały i technologia" })).toBeVisible();
+  await page.getByRole("button", { name: "Zapisz budowę i przejdź do panelu" }).click();
+  await expect(page.locator(".workflow-form .alert-error")).toContainText("To pole jest wymagane.");
+  await expect(page.getByRole("tab", { name: "Materiały i technologia" })).toHaveAttribute("aria-selected", "true");
+  await page.getByRole("tab", { name: "Dane budowy" }).click();
+  await page.getByLabel("Nazwa budowy", { exact: true }).fill("Budowa E2E");
+  await page.getByLabel("Kod pocztowy", { exact: true }).fill("30-001");
+  await page.getByLabel("Miejscowość", { exact: true }).fill("Kraków");
+  await page.getByLabel("Ulica lub nazwa miejsca", { exact: true }).fill("Działka");
+  await page.getByLabel("Nr budynku / działki", { exact: true }).fill("1");
+  await page.getByLabel("Powierzchnia (m²)", { exact: true }).fill("100");
+  await page.getByLabel("Zakres prac", { exact: true }).fill("Zakres testowy");
+  await page.getByLabel("Planowany termin", { exact: true }).fill("2026-12-01");
+  await page.getByRole("tab", { name: "Materiały i technologia" }).click();
+  await expect(page.getByRole("heading", { name: "Materiały i technologia" })).toBeVisible();
+  await page.getByRole("tab", { name: "Dane budowy" }).click();
+  await page.getByRole("button", { name: "Zapisz budowę i przejdź do panelu" }).click();
+  await expect(page.locator(".workflow-form .alert-error")).toContainText("Wybierz technologię:");
+});
+test("admin shortcut is granted only through app metadata and does not bypass save validation", async ({ page }) => {
+  const regular = await createAccount();
+  await login(page, regular.email);
+  await page.locator(".account-type-card.type-client").click();
+  await expect(page.getByRole("button", { name: "Pomiń walidację i przejdź do materiałów i technologii" })).toHaveCount(0);
+  await signout(page);
+
+  const administrator = await createAccount({ administrator: true });
+  await login(page, administrator.email);
+  await page.locator(".account-type-card.type-client").click();
+  await expect(page.getByRole("button", { name: "Pomiń walidację i przejdź do materiałów i technologii" })).toBeVisible();
+  await page.getByRole("button", { name: "Pomiń walidację i przejdź do materiałów i technologii" }).click();
+  await expect(page.getByRole("tab", { name: "Materiały i technologia" })).toHaveAttribute("aria-selected", "true");
+  await page.getByRole("button", { name: "Zapisz budowę i przejdź do panelu" }).click();
+  await expect(page.locator(".workflow-form .alert-error")).toBeVisible();
+});
 async function signout(page) {
   await page.getByRole("button", { name: "Wyloguj", exact: true }).click();
   await expect(page.getByRole("button", { name: "Zaloguj się", exact: true })).toBeVisible();
@@ -85,20 +151,179 @@ async function fillConstruction(page, title) {
   await page.getByLabel("Nazwa budowy", { exact: true }).fill(title);
   await page.getByLabel("Kod pocztowy", { exact: true }).fill("30-001");
   await page.getByLabel("Miejscowość", { exact: true }).fill("Kraków");
-  await page.getByLabel("Adres lub numer działki", { exact: true }).fill("Działka 42");
+  await page.getByLabel("Ulica lub nazwa miejsca", { exact: true }).fill("Działka");
+  await page.getByLabel("Nr budynku / działki", { exact: true }).fill("42");
   await page.getByLabel("Powierzchnia (m²)", { exact: true }).fill("120");
   await page.getByLabel("Zakres prac", { exact: true }).fill("Fundamenty i stan surowy domu");
-  await fillPlanSection(page, "Kierownik budowy i cotygodniowy raport postępów.", "Odbiór stanu surowego bez usterek i zgodność z projektem.");
   await page.getByLabel("Planowany termin", { exact: true }).fill("2026-12-01");
+  await fillTechnology(page, "house");
   await page.getByRole("button", { name: "Zapisz budowę i przejdź do panelu" }).click();
   await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
 }
 
-async function fillPlanSection(page, requirements, acceptance) {
-  await page.locator('textarea[name="requirements"]').fill(requirements);
-  await page.locator('textarea[name="acceptance_criteria"]').fill(acceptance);
+async function fillTechnology(page, workType) {
+  await page.getByRole("tab", {name:"Materiały i technologia"}).click();
+  if (workType === "house" || workType === "extension") {
+    await selectTechnology(page, "completionStandard", "turnkey", "Pod klucz");
+    for (const [value, label] of [
+      ["shell-open", "Stan surowy otwarty"],
+      ["shell-closed", "Stan surowy zamknięty"],
+      ["developer", "Stan deweloperski"],
+      ["turnkey", "Pod klucz"],
+    ]) {
+      await selectTechnology(page, "completionStandard", value, label);
+      await expect(page.locator('[data-technology-stage="waterSewerInstallation"]')).toBeVisible();
+    }
+    const foundation = page.locator('[data-technology-stage="foundationType"]');
+    await foundation.locator(".technology-select-trigger").click();
+    const foundationSearch = foundation.getByRole("searchbox", {name:"Szukaj: Sposób posadowienia"});
+    await foundationSearch.fill("ławy");
+    await expect(foundation.getByRole("option")).toHaveCount(2);
+    await foundation.getByRole("option").filter({hasText:"Ławy fundamentowe żelbetowe"}).click();
+    await foundationSearch.fill("płyta");
+    await foundation.getByRole("option").filter({hasText:"Płyta fundamentowa żelbetowa"}).click();
+    await expect(foundation.locator(".technology-select-trigger")).toContainText("Ławy fundamentowe żelbetowe");
+    await expect(foundation.locator(".technology-select-trigger")).toContainText("Płyta fundamentowa żelbetowa");
+    await foundationSearch.press("Escape");
+    await expect(foundation.locator(".technology-select-trigger")).toBeFocused();
+    await selectTechnology(page, "foundationWalls", "monolithic-foundation-wall", "Ściana monolityczna");
+    const foundationFormwork = page.locator('[data-technology-stage="foundationFormwork"]');
+    await expect(foundationFormwork).toBeVisible();
+    await selectTechnology(page, "foundationFormwork", "foundation-system-formwork", "Szalunek systemowy");
+    await selectTechnology(page, "foundationWalls", "concrete-block-24", "Bloczki betonowe murowane");
+    await expect(foundationFormwork).toHaveCount(0);
+    await selectTechnology(page, "foundationWalls", "monolithic-foundation-wall", "Ściana monolityczna");
+    await selectTechnology(page, "floorStructure", "monolithic", "Strop monolityczny");
+    await selectTechnology(page, "roofStructure", "rafter-roof", "Więźba krokwiowa");
+    await selectTechnology(page, "roofSlopePlate", "sloped-plate-yes", "Tak — żelbetowa płyta skośna");
+    await selectTechnology(page, "roofDecking", "full-board-decking", "Pełne deskowanie z desek");
+    await selectTechnology(page, "roofUnderlayment", "roofing-felt-underlay", "Papa podkładowa na pełnym poszyciu");
+    await selectTechnology(page, "roofCovering", "metal-roof-tile", "Blachodachówka modułowa");
+    await selectTechnology(page, "roofMetalTileProfile", "metal-tile-modular", "Blachodachówka modułowa, krótkie arkusze");
+    await selectTechnology(page, "roofChimneySystem", "chimney-ceramic-system", "Systemowy komin ceramiczny");
+    await selectTechnology(page, "roofChimneyFlashing", "chimney-flashing-system-kit", "Kompletna obróbka systemowa");
+    await selectTechnology(page, "roofChimneyFlashingMaterial", "chimney-flashing-coated-steel", "Blacha stalowa powlekana");
+    await selectTechnology(page, "roofGutterSystem", "gutter-pvc-semicircular", "Rynny PVC — półokrągłe");
+    await selectTechnology(page, "roofDownspoutSystem", "downspout-pvc-round", "Rury PVC — okrągłe");
+    await selectTechnology(page, "stairStructure", "stair-structure-cast-in-place-concrete", "Schody żelbetowe monolityczne");
+    await selectTechnology(page, "waterSewerInstallation", "plastic-drainage", "System kanalizacji wewnętrznej");
+    await selectTechnology(page, "interiorFloorFinish", "finish-floor-tile", "Płytki ceramiczne / gres");
+    await selectTechnology(page, "interiorFloorFinish", "finish-floor-engineered-wood", "Deska warstwowa / parkiet");
+    await selectTechnology(page, "interiorWallFinish", "finish-wall-paint", "Gładź i malowanie");
+    await selectTechnology(page, "interiorWallFinish", "finish-wall-tile", "Płytki ceramiczne / gres");
+    await selectTechnology(page, "stairFinish", "stair-finish-wood", "Okładzina drewniana");
+    await selectTechnology(page, "stairFinish", "stair-railing-metal", "Balustrada stalowa / metalowa");
+    await selectTechnology(page, "exteriorFacadeFinish", "facade-finish-thin-coat-render", "Tynk cienkowarstwowy");
+    await selectTechnology(page, "exteriorFacadeFinish", "facade-finish-brick-slip", "Płytki klinkierowe");
+  }
+  if (workType !== "other") {
+    if (workType === "renovation") {
+      await selectTechnology(page, "renovationScope", "room-renovation", "Remont wybranych pomieszczeń");
+      await expect(page.locator('[data-technology-stage="renovationKitchenFitout"]')).toBeVisible();
+      await selectTechnology(page, "renovationKitchenFitout", "kitchen-cabinets", "Meble kuchenne");
+      await selectTechnology(page, "renovationKitchenFitout", "kitchen-worktop", "Blat kuchenny");
+      await selectTechnology(page, "renovationBathroomFitout", "bathroom-shower", "Prysznic");
+      await selectTechnology(page, "renovationBathroomFitout", "bathroom-basin-cabinet", "Umywalka");
+      await selectTechnology(page, "renovationFloor", "floor-ceramic-tile", "Płytki ceramiczne / gres");
+      await selectTechnology(page, "renovationFloor", "floor-vinyl", "Panele winylowe");
+      await selectTechnology(page, "renovationWall", "wall-paint", "Gładź i farba");
+      await selectTechnology(page, "renovationWall", "wall-ceramic-tile", "Płytki ceramiczne / gres ścienny");
+      await selectTechnology(page, "renovationScope", "thermal-modernization", "Remont z termomodernizacją");
+      await selectTechnology(page, "roofStructure", "rafter-roof", "Więźba krokwiowa");
+      await selectTechnology(page, "roofSlopePlate", "sloped-plate-no", "Nie — dach bez płyty skośnej");
+      await selectTechnology(page, "roofDecking", "other-roof-decking", "Inne poszycie — opisz");
+      const otherDecking = page.getByLabel("Opisz wybraną opcję „Inne” — Poszycie i deskowanie dachu");
+      await expect(otherDecking).toHaveAttribute("required", "");
+      await otherDecking.fill("Deski impregnowane o grubości 25 mm");
+      await selectTechnology(page, "roofUnderlayment", "roof-membrane-high-permeable", "Wysokoparoprzepuszczalna membrana dachowa");
+      await selectTechnology(page, "roofCovering", "flat-sheet-metal", "Płaska blacha łączona na rąbek lub zwoje");
+      await selectTechnology(page, "roofStandingSeamSystem", "standing-seam-double-lock", "Rąbek stojący podwójny");
+      await selectTechnology(page, "roofChimneySystem", "chimney-ceramic-system", "Systemowy komin ceramiczny");
+      await selectTechnology(page, "roofChimneyFlashing", "chimney-flashing-apron-counterflashing", "Obróbka z fartuchami");
+      await selectTechnology(page, "roofChimneyFlashingMaterial", "chimney-flashing-zinc-titanium", "Blacha cynkowo-tytanowa");
+      await selectTechnology(page, "roofGutterSystem", "gutter-hidden-box", "Rynna ukryta / gzymsowa");
+      await selectTechnology(page, "roofDownspoutSystem", "downspout-hidden", "Ukryte rury spustowe");
+    }
+  } else {
+    const workTechnology = page.locator('[data-technology-stage="otherWorkTechnology"]');
+    await workTechnology.locator(".technology-select-trigger").click();
+    await expect(workTechnology.getByRole("option", { name: /zgodnie z projektem/i })).toHaveCount(0);
+    await workTechnology.locator('input[type="search"]').press("Escape");
+    await selectTechnology(page, "otherWorkTechnology", "driveway-paving", "Podjazd, ścieżki i nawierzchnie");
+    await selectTechnology(page, "otherWorkTechnology", "site-drainage", "Odwodnienie terenu / drenaż");
+    await selectTechnology(page, "otherWorkTechnology", "foundation-construction", "Fundamenty, ławy");
+    await selectTechnology(page, "otherWorkTechnology", "roof-structure", "Konstrukcja dachu");
+    await selectTechnology(page, "otherWorkTechnology", "roof-covering", "Pokrycie, naprawa");
+    await selectTechnology(page, "otherWorkTechnology", "facade-work", "Fasada / elewacja");
+    await expect(page.locator('[data-technology-stage="otherResinGravelSystem"]')).toHaveCount(0);
+    await expect(page.locator('[data-technology-stage="otherFacadePreparation"]')).toBeVisible();
+    await expect(page.locator('[data-technology-stage="otherFoundationReinforcement"]')).toBeVisible();
+    await expect(page.locator('[data-technology-stage="otherRoofCovering"]')).toBeVisible();
+    await expect(page.locator('[data-technology-stage="otherFacadeInsulation"]')).toBeVisible();
+    await expect(page.locator('[data-technology-stage="otherFacadeReinforcement"]')).toBeVisible();
+    await expect(page.locator('[data-technology-stage="otherFacadeColor"]')).toHaveCount(0);
+    await expect(page.locator('[data-technology-stage="otherFacadeFinish"]')).toBeVisible();
+    await selectTechnology(page, "otherFacadePreparation", "facade-cleaning", "Czyszczenie i gruntowanie podłoża");
+    await selectTechnology(page, "otherFoundationScope", "foundation-rebar-placement", "montaż zbrojenia");
+    await selectTechnology(page, "otherFoundationType", "other-foundation-strip", "Ławy fundamentowe");
+    await selectTechnology(page, "otherFoundationReinforcement", "reinforcement-prefabricated-cages", "Gotowe kosze");
+    await selectTechnology(page, "otherFoundationFormwork", "other-formwork-system", "Szalunek systemowy");
+    await selectTechnology(page, "otherFoundationConcrete", "concrete-ready-mix-pump", "Beton towarowy z pompy");
+    await selectTechnology(page, "otherRoofStructure", "other-roof-rafter", "Więźba krokwiowa");
+    await selectTechnology(page, "otherRoofDecking", "other-roof-full-boarding", "Pełne deskowanie");
+    await selectTechnology(page, "otherRoofCovering", "other-roof-metal-tile", "Blachodachówka");
+    await selectTechnology(page, "otherRoofUnderlayment", "other-underlayment-high-permeable", "Membrana wysokoparoprzepuszczalna");
+    await selectTechnology(page, "otherRoofInsulation", "other-roof-mineral-wool", "Wełna mineralna");
+    await selectTechnology(page, "otherRoofDrainage", "other-roof-gutters", "Rynny i rury spustowe");
+    await selectTechnology(page, "otherFacadeInsulation", "other-facade-eps-white", "Styropian biały EPS");
+    await selectTechnology(page, "otherFacadeFixing", "other-facade-adhesive", "Mocowanie klejem");
+    await selectTechnology(page, "otherFacadeReinforcement", "other-facade-mesh-standard", "Jedna warstwa siatki");
+    await selectTechnology(page, "otherFacadeReinforcement", "other-facade-opening-reinforcement", "Wzmocnienia diagonalne");
+    await selectTechnology(page, "otherFacadeFinish", "facade-thin-coat-render", "Tynk cienkowarstwowy w systemie ocieplenia");
+    await expect(page.locator('[data-technology-stage="otherFacadeColor"]')).toBeVisible();
+    await selectTechnology(page, "otherFacadeCoating", "other-facade-silicone-render", "Tynk silikonowy");
+    await selectTechnology(page, "otherFacadeColor", "other-facade-color-white", "Biały / złamana biel");
+    await selectTechnology(page, "otherDrivewaySurface", "paving-resin-gravel", "Nawierzchnia żywiczno-żwirowa");
+    await selectTechnology(page, "otherDrivewaySurface", "paving-concrete-block", "Kostka betonowa brukowa");
+    await selectTechnology(page, "otherDrivewaySurface", "paving-natural-stone", "Kostka lub bruk z kamienia naturalnego");
+    await expect(page.locator('[data-technology-stage="otherResinGravelSystem"]')).toBeVisible();
+    await selectTechnology(page, "otherResinGravelSystem", "resin-bound-permeable", "Kruszywo związane żywicą — system przepuszczalny");
+  }
+  const fields = page.locator(".technology-field");
+  for (let index = 0; index < await fields.count(); index += 1) {
+    const field = fields.nth(index);
+    const stageKey = await field.getAttribute("data-technology-stage");
+    if (stageKey === "foundationType") continue;
+    const trigger = field.locator(".technology-select-trigger");
+    if ((await trigger.innerText()).includes("Wybierz technologię")) {
+      const options = field.getByRole("option");
+      await trigger.click();
+      const project = options.filter({hasText:"Zgodnie z projektem"});
+      if (await project.count()) await project.first().click();
+      else {
+        const first = field.getByRole("option").first();
+        await first.click();
+      }
+      const listbox = field.locator('[role="listbox"]');
+      if (await listbox.count() && await listbox.getAttribute("aria-multiselectable") === "true") {
+        await field.getByRole("searchbox").press("Escape");
+      }
+    }
+  }
+  await page.getByRole("tab", {name:"Dane budowy"}).click();
 }
 
+async function selectTechnology(page, stageKey, value, label) {
+  const field = page.locator(`[data-technology-stage="${stageKey}"]`);
+  const trigger = field.locator(".technology-select-trigger");
+  if (await trigger.getAttribute("aria-expanded") !== "true") await trigger.click();
+  await field.getByRole("option").filter({hasText:label}).click();
+  await expect(trigger).toContainText(label);
+  const listbox = field.locator('[role="listbox"]');
+  if (await listbox.count() && await listbox.getAttribute("aria-multiselectable") === "true") {
+    await field.getByRole("searchbox").press("Escape");
+  }
+}
 test.afterEach(async () => {
   for (const id of userIds.splice(0).reverse()) {
     const { data: jobs, error: jobsError } = await admin.from("construction_jobs").select("id").eq("client_id", id);
@@ -131,6 +356,9 @@ test("work-specific details, consent map, private photos and upload retry persis
   await expect(page.getByRole("button", {name:"Pokaż na mapie"})).toHaveCount(0);
   await expect(page.getByLabel("Kod pocztowy", {exact:true})).toHaveAttribute("required", "");
   await expect(page.getByLabel("Planowany termin", {exact:true})).toHaveAttribute("required", "");
+  await expect(page.getByRole("tab", {name:"Materiały i technologia"})).toBeVisible();
+  await expect(page.getByLabel("Wymagania szczegółowe")).toHaveCount(0);
+  await expect(page.getByLabel("Kryteria odbioru")).toHaveCount(0);
   await page.getByLabel("Rodzaj prac", {exact:true}).selectOption("extension");
   await expect(page.getByLabel("Powierzchnia istniejącego budynku (m²)", {exact:true})).toHaveCount(0);
   await page.getByLabel("Rodzaj prac", {exact:true}).selectOption("other");
@@ -138,20 +366,45 @@ test("work-specific details, consent map, private photos and upload retry persis
   await expect(page.getByLabel("Liczba kondygnacji", {exact:true})).toHaveCount(0);
   await page.getByLabel("Rodzaj prac", {exact:true}).selectOption("renovation");
   await expect(page.getByRole("checkbox", {name:"Budynek z piwnicą"})).toHaveCount(0);
-  await expect(page.locator("iframe")).toHaveAttribute("src", /q=Warszawa%2C%20Polska/);
+  const map = page.locator(".construction-location-map");
+  const mapStatus = page.locator(".location-map-status");
+  await expect(map).toBeVisible();
+  await expect(map).toHaveAttribute("src", /maps\.google\.com\/maps\?q=/);
+  await expect(mapStatus).toContainText("Google Maps: Warszawa, Polska");
+  const googleMapQueries = [];
+  await page.route("**://maps.google.com/**", async (route) => {
+    googleMapQueries.push(route.request().url());
+    await route.fulfill({status:200,contentType:"text/html",body:"<!doctype html><title>Google Maps test</title>"});
+  });
   await page.getByLabel("Nazwa budowy", {exact:true}).fill("Remont mieszkania");
+  await page.getByLabel("Kod pocztowy", {exact:true}).fill("32-740");
+  await page.getByLabel("Miejscowość", {exact:true}).fill("Łapanów");
+  await page.getByLabel("Ulica lub nazwa miejsca", {exact:true}).fill("Grabie");
+  await page.getByLabel("Nr budynku / działki", {exact:true}).fill("156a");
+  await expect.poll(() => {
+    const latest = googleMapQueries.at(-1);
+    return latest ? new URL(latest).searchParams.get("q") : null;
+  }).toBe("Grabie 156a, Łapanów, 32-740, Polska");
+  await expect(mapStatus).toContainText("Grabie 156a, Łapanów, 32-740, Polska");
   await page.getByLabel("Kod pocztowy", {exact:true}).fill("30-001");
   await page.getByLabel("Miejscowość", {exact:true}).fill("Kraków");
-  await page.getByLabel("Adres lub numer działki", {exact:true}).fill("Testowa 1");
-  await expect(page.locator("iframe")).toHaveAttribute("src", /q=Testowa%201%2C%2030-001%2C%20Krak%C3%B3w/);
-  await page.getByLabel("Adres lub numer działki", {exact:true}).fill("Testowa 2");
-  await expect(page.locator("iframe")).toHaveAttribute("src", /q=Testowa%202%2C%2030-001%2C%20Krak%C3%B3w/);
+  await page.getByLabel("Ulica lub nazwa miejsca", {exact:true}).fill("Testowa");
+  await page.getByLabel("Nr budynku / działki", {exact:true}).fill("1");
+  await expect.poll(() => {
+    const latest = googleMapQueries.at(-1);
+    return latest ? new URL(latest).searchParams.get("q") : null;
+  }).toBe("Testowa 1, Kraków, 30-001, Polska");
+  await page.getByLabel("Nr budynku / działki", {exact:true}).fill("2");
+  await expect.poll(() => {
+    const latest = googleMapQueries.at(-1);
+    return latest ? new URL(latest).searchParams.get("q") : null;
+  }).toBe("Testowa 2, Kraków, 30-001, Polska");
   await page.getByLabel("Powierzchnia (m²)", {exact:true}).fill("40");
   await page.getByLabel("Pomieszczenia do remontu", {exact:true}).fill("Kuchnia i łazienka");
   await page.getByLabel("Stan istniejący", {exact:true}).fill("Stare płytki i instalacja");
   await page.getByLabel("Zakres prac", {exact:true}).fill("Wymiana płytek, malowanie");
-  await fillPlanSection(page, "Codzienne sprzątanie i zabezpieczenie przejść.", "Równe fugi, brak pęknięć i pełna sprawność instalacji.");
   await page.getByLabel("Planowany termin", { exact: true }).fill("2026-11-20");
+  await fillTechnology(page, "renovation");
   const pixel = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aM1sAAAAASUVORK5CYII=", "base64");
   await page.getByLabel("Dodaj zdjęcia", {exact:true}).setInputFiles({name:"invalid.svg",mimeType:"image/svg+xml",buffer:Buffer.from("<svg/>")});
   await expect(page.locator(".alert-error")).toContainText("JPEG, PNG lub WebP");
@@ -179,11 +432,39 @@ test("work-specific details, consent map, private photos and upload retry persis
   expect(jobs).toHaveLength(1);
   expect(jobs[0]).toMatchObject({floors:null,basement:null,rooms:"Kuchnia i łazienka",postal_code:"30-001",start_date:"2026-11-20"});
   expect(jobs[0].report_summary).toContain("Raport wniosku");
+  expect(jobs[0].report_summary).toContain("Poszycie i deskowanie dachu: Inne poszycie — opisz — Deski impregnowane o grubości 25 mm");
+  expect(jobs[0].report_summary).toContain("Warstwa wstępnego krycia dachu: Wysokoparoprzepuszczalna membrana dachowa");
+  expect(jobs[0].report_summary).toContain("Płaska blacha łączona na rąbek lub zwoje");
+  expect(jobs[0].report_summary).toContain("System blachy płaskiej / rąbka: Rąbek stojący podwójny");
+  expect(jobs[0].report_summary).toContain("Sposób obróbki komina: Obróbka z fartuchami");
+  expect(jobs[0].report_summary).toContain("Materiał obróbki komina: Blacha cynkowo-tytanowa");
+  expect(jobs[0].report_summary).toContain("System rynnowy: Rynna ukryta / gzymsowa");
+  expect(jobs[0].report_summary).toContain("Rury spustowe i odprowadzenie wody: Ukryte rury spustowe");
+  expect(jobs[0].report_summary).toContain("Posadzki i wykończenie podłóg: Płytki ceramiczne / gres; Panele winylowe / LVT");
+  expect(jobs[0].report_summary).toContain("Ściany wewnętrzne — wykończenie: Gładź i farba wewnętrzna; Płytki ceramiczne / gres ścienny");
+  const savedRenovationSelections = JSON.parse(jobs[0].materials);
+  expect(savedRenovationSelections.renovationKitchenFitout).toEqual(["kitchen-cabinets","kitchen-worktop"]);
+  expect(savedRenovationSelections.renovationBathroomFitout).toEqual(["bathroom-shower","bathroom-basin-cabinet"]);
+  expect(savedRenovationSelections.locationPin).toBeNull();
+  expect(jobs[0].requirements).toContain("zgodnie z aktualną dokumentacją projektową");
+  expect(jobs[0].acceptance_criteria).toContain("zasadami sztuki budowlanej");
+  await page.reload();
+  await expect(page.getByRole("heading", {name:"Remont mieszkania",exact:true})).toBeVisible();
   await page.getByRole("button", {name:"Edytuj",exact:true}).click();
+  await expect(page.locator(".location-map-status")).toContainText("Google Maps: Testowa 2, Kraków, 30-001, Polska");
   const savedPhoto = page.getByAltText("Zapisane zdjęcie miejsca prac 1");
   await expect(savedPhoto).toBeVisible();
   await expect.poll(() => savedPhoto.evaluate((img) => img.naturalWidth)).toBeGreaterThan(0);
   await expect(page.getByLabel("Pomieszczenia do remontu")).toHaveValue("Kuchnia i łazienka");
+  await page.getByRole("tab", {name:"Materiały i technologia"}).click();
+  await expect(page.locator('[data-technology-stage="roofCovering"] .technology-select-trigger'))
+    .toContainText("Płaska blacha łączona na rąbek lub zwoje");
+  await expect(page.locator('[data-technology-stage="roofStandingSeamSystem"] .technology-select-trigger'))
+    .toContainText("Rąbek stojący podwójny");
+  await expect(page.locator('[data-technology-stage="roofChimneyFlashingMaterial"] .technology-select-trigger'))
+    .toContainText("Blacha cynkowo-tytanowa");
+  await expect(page.locator('[data-technology-stage="renovationKitchenFitout"]')).toHaveCount(0);
+  await page.getByRole("tab", {name:"Dane budowy"}).click();
   const other = createClient(url, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY, {auth:{persistSession:false}});
   const {error:loginError} = await other.auth.signInWithPassword({email:outsider.email,password});
   if (loginError) throw loginError;
@@ -209,23 +490,65 @@ test("work-specific details, consent map, private photos and upload retry persis
   await page.getByLabel("Rodzaj prac", {exact:true}).selectOption("extension");
   await expect(page.getByLabel("Powierzchnia istniejącego budynku (m²)", {exact:true})).toHaveCount(0);
   await page.getByLabel("Liczba kondygnacji", {exact:true}).fill("2");
-  await fillPlanSection(page, "Nowa klatka schodowa i przebudowa wejścia.", "Pełna szczelność połączenia starej i nowej części.");
+  await fillTechnology(page, "extension");
   await page.getByLabel("Planowany termin", { exact: true }).fill("2026-12-10");
   await page.getByRole("button", {name:"Zapisz budowę i przejdź do panelu"}).click();
   await expect(page.getByRole("heading", {name:"Remont mieszkania",exact:true})).toBeVisible();
   const {data:extension,error:extensionError} = await admin.from("construction_jobs").select("*").eq("id",jobs[0].id).single();
   if (extensionError) throw extensionError;
-  expect(extension).toMatchObject({building_type:"extension",floors:2,rooms:"",requirements:"Nowa klatka schodowa i przebudowa wejścia."});
+  expect(extension).toMatchObject({building_type:"extension",floors:2,rooms:""});
+  expect(extension.requirements).toContain("zgodnie z aktualną dokumentacją projektową");
   await page.getByRole("button", {name:"Edytuj",exact:true}).click();
   await page.getByLabel("Rodzaj prac", {exact:true}).selectOption("other");
-  await page.getByLabel("Kategoria prac", {exact:true}).fill("Ogrodzenie");
-  await fillPlanSection(page, "Wykonać fundament i montaż paneli z siatką.", "Linia ogrodzenia prosta, słupki pionowe.");
+  await page.getByLabel("Kategoria prac", {exact:true}).fill("Kostka wokół domu i odwodnienie");
+  const otherDescription = page.locator('textarea[name="description"]');
+  await expect(otherDescription).toHaveAttribute("required", "");
+  await otherDescription.fill("Ułożenie kostki wokół domu i wykonanie odwodnienia terenu.");
+  await fillTechnology(page, "other");
   await page.getByLabel("Planowany termin", { exact: true }).fill("2026-12-20");
   await page.getByRole("button", {name:"Zapisz budowę i przejdź do panelu"}).click();
   await expect(page.getByRole("heading", {name:"Remont mieszkania",exact:true})).toBeVisible();
   const {data:otherJob,error:otherError} = await admin.from("construction_jobs").select("*").eq("id",jobs[0].id).single();
   if (otherError) throw otherError;
-  expect(otherJob).toMatchObject({building_type:"other",floors:null,basement:null,work_category:"Ogrodzenie"});
+  expect(otherJob).toMatchObject({building_type:"other",floors:null,basement:null,work_category:"Kostka wokół domu i odwodnienie"});
+  const otherSelections = JSON.parse(otherJob.materials);
+  expect(otherSelections.otherWorkTechnology).toEqual([
+    "driveway-paving",
+    "site-drainage",
+    "foundation-construction",
+    "roof-structure",
+    "roof-covering",
+    "facade-work",
+  ]);
+  expect(otherJob.description).toBe("Ułożenie kostki wokół domu i wykonanie odwodnienia terenu.");
+  expect(otherSelections.otherDrivewaySurface).toEqual(["paving-resin-gravel","paving-concrete-block","paving-natural-stone"]);
+  expect(otherJob.report_summary).toContain("Podjazd, ścieżki i nawierzchnie");
+  expect(otherJob.report_summary).toContain("Zakres: Ułożenie kostki wokół domu i wykonanie odwodnienia terenu.");
+  expect(otherJob.report_summary).toContain("Rodzaj nawierzchni: Nawierzchnia żywiczno-żwirowa; Kostka betonowa brukowa; Kostka lub bruk z kamienia naturalnego");
+  expect(otherJob.report_summary).toContain("System nawierzchni żywiczno-żwirowej: Kruszywo związane żywicą — system przepuszczalny");
+  expect(otherJob.report_summary).toContain("Przygotowanie elewacji: Czyszczenie i gruntowanie podłoża");
+  expect(otherJob.report_summary).toContain("Materiał i sposób ocieplenia fasady: Styropian biały EPS fasadowy");
+  expect(otherJob.report_summary).toContain("Warstwa zbrojona siatką: Jedna warstwa siatki zatopionej w zaprawie; Wzmocnienia diagonalne przy narożach otworów");
+  expect(otherJob.report_summary).toContain("Kolor i faktura elewacji: Biały / złamana biel");
+  expect(otherJob.report_summary).toContain("Warstwa elewacyjna: Tynk cienkowarstwowy w systemie ocieplenia");
+  expect(otherJob.report_summary).toContain("System odwodnienia / drenażu:");
+  await page.reload();
+  await expect(page.getByRole("heading", {name:"Remont mieszkania",exact:true})).toBeVisible();
+  await page.getByRole("button", {name:"Edytuj",exact:true}).click();
+  await page.getByRole("tab", {name:"Materiały i technologia"}).click();
+  await expect(page.locator('[data-technology-stage="otherWorkTechnology"] .technology-select-trigger'))
+    .toContainText("Podjazd, ścieżki i nawierzchnie");
+  await expect(page.locator('[data-technology-stage="otherWorkTechnology"] .technology-select-trigger'))
+    .toContainText("Fasada / elewacja");
+  await expect(page.locator('[data-technology-stage="otherFoundationReinforcement"] .technology-select-trigger'))
+    .toContainText("Gotowe kosze / szkielety zbrojeniowe");
+  await expect(page.locator('[data-technology-stage="otherRoofCovering"] .technology-select-trigger'))
+    .toContainText("Blachodachówka");
+  await expect(page.locator('[data-technology-stage="otherFacadeColor"] .technology-select-trigger'))
+    .toContainText("Biały / złamana biel");
+  await expect(page.locator('[data-technology-stage="otherDrivewaySurface"] .technology-select-trigger'))
+    .toContainText("Kostka betonowa brukowa");
+  await page.getByRole("button", {name:"Wróć do panelu",exact:true}).click();
 });
 
 test("client goes straight to construction, dashboard on next login and adds another job", async ({ page }) => {
@@ -256,6 +579,24 @@ test("client goes straight to construction, dashboard on next login and adds ano
   await page.screenshot({ path: test.info().outputPath("client-mobile.png"), fullPage: true });
   await page.setViewportSize({ width: 1440, height: 1000 });
   await fillConstruction(page, "Pierwsza budowa");
+  const {data:constructionJobs,error:constructionError} = await admin.from("construction_jobs").select("materials,report_summary").eq("client_id",account.id);
+  if (constructionError) throw constructionError;
+  const savedTechnology = JSON.parse(constructionJobs[0].materials);
+  expect(savedTechnology.foundationType).toEqual(["strip-footings","foundation-slab"]);
+  expect(savedTechnology.completionStandard).toBe("turnkey");
+  expect(savedTechnology.interiorFloorFinish).toEqual(["finish-floor-tile","finish-floor-engineered-wood"]);
+  expect(savedTechnology.interiorWallFinish).toEqual(["finish-wall-paint","finish-wall-tile"]);
+  expect(savedTechnology.stairFinish).toEqual(["stair-finish-wood","stair-railing-metal"]);
+  expect(savedTechnology.exteriorFacadeFinish).toEqual(["facade-finish-thin-coat-render","facade-finish-brick-slip"]);
+  expect(constructionJobs[0].report_summary).toContain("Sposób posadowienia: Ławy fundamentowe żelbetowe; Płyta fundamentowa żelbetowa");
+  expect(constructionJobs[0].report_summary).toContain("Wykończenie podłóg: Płytki ceramiczne / gres; Deska warstwowa / parkiet");
+  expect(constructionJobs[0].report_summary).toContain("Wykończenie ścian wewnętrznych: Gładź i malowanie; Płytki ceramiczne / gres");
+  expect(constructionJobs[0].report_summary).toContain("Konstrukcja schodów: Schody żelbetowe monolityczne, wylewane na budowie");
+  expect(constructionJobs[0].report_summary).toContain("Instalacja wodno-kanalizacyjna: System kanalizacji wewnętrznej z rur tworzywowych");
+  expect(constructionJobs[0].report_summary).toContain("Wykończenie elewacji: Tynk cienkowarstwowy w systemie ocieplenia; Płytki klinkierowe / cegła elewacyjna");
+  expect(constructionJobs[0].report_summary).toContain("Zakładany etap zakończenia budowy: Pod klucz");
+  expect(constructionJobs[0].report_summary).toContain("Pokrycie dachowe: Blachodachówka modułowa lub cięta na wymiar");
+  expect(constructionJobs[0].report_summary).toContain("Profil i kształt blachodachówki: Blachodachówka modułowa, krótkie arkusze");
   await page.getByRole("button", { name: "Edytuj", exact: true }).click();
   await page.getByLabel("Nazwa budowy", { exact: true }).fill("Pierwsza budowa po edycji");
   await page.getByRole("button", { name: "Zapisz budowę i przejdź do panelu" }).click();
