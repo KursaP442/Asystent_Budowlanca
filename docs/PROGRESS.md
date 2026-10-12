@@ -18,6 +18,8 @@ i od czego zacząć kolejną sesję. **To jest pierwszy plik, który agent powin
   Etapy mają podpunkty, narożniki ciągły podgląd, a fundamenty zależne ławy/płyty i izolacje.
   Graficzny kreator przekroju belki zapisuje położenie na podparciu; po zmianie długości wymaga sprawdzenia.
   Przyciąganie łączy narożniki i węzły T; canvas zajmuje pełną szerokość, z panelami pod płótnem i kolorami ról.
+  Parametry fundamentów są trwałe i automatyczne; dodano X, przyczepione podpory, oznaczenia, pola m²,
+  płytę denną między ławami, opisy prowadzące, bezkolizyjne etykiety oraz osobną skalę arkusza.
   MCP, 3D, korekcja perspektywy i pełny zweryfikowany przedmiar pozostają niezakończone.
 - **Tryb pracy:** wyłącznie lokalny (bez hostingu/wdrożenia). Repozytorium Git istnieje tylko lokalnie
   (`C:\Users\Patryk\Desktop\Aplikacja_Budowa`), bez zdalnego remote na GitHub.
@@ -1011,3 +1013,57 @@ Istniejąca publikacja zlecenia nadal publikuje bazowy raport, nie zatwierdzony 
 Pełny CAD 1:1, objętości po usunięciu nakładających się pasów, pionowe przekroje/poziomy, gięcie prętów
 i zatwierdzony przedmiar pozostają **NOT RUN**. Przy podziale ściany z przypisanym zbrojeniem trzeba
 usunąć układ i odtworzyć go na nowym podparciu; aplikacja nie zgaduje zmiany rozwiązania konstrukcyjnego.
+
+## Sesja 28 — 12 października 2026
+
+### Zrobione
+
+1. Parametry ściany/podparcia zapisują się przy wpisywaniu, także bez geometrii i przy niekompletnych polach.
+   Usunięto „Zastosuj do nowych ścian”. Nowe ściany używają poprawnych bieżących parametrów, istniejące
+   zmienia się jawnie. Kolejny rysunek dziedziczy zapisane ustawienia fundamentów; refresh ich nie resetuje.
+2. Strony wewnętrzna/zewnętrzna/obie dotyczą hydroizolacji. Ocieplenie jest niezależnie zewnętrzne,
+   z rombowym symbolem, rzeczywistą grubością i ciągłością na licach narożników. Przy otwartym obrysie
+   albo ścianach wewnętrznych aplikacja wymaga zamknięcia lub ręcznego wyboru strony.
+3. Wymiary mają globalne rozmieszczenie etykiet, białe maski i ekranowe minimum 13 px. Usunięto
+   redundantne powtórzenia jednakowych szerokości; gabaryty i pozycje podpór pozostają zwymiarowane.
+4. Węzły X dzielą obie ściany na cztery połączone końce. T i X zachowują otwory, podpory i ich referencje.
+   Stopa/słup dotykający ściany podąża za ruchem i obrotem. Wymiary rzeczywiste nie zmieniają się przez
+   obrót; prostokąt można także zmieniać liczbowo w jego lokalnych osiach.
+5. Oznaczenia W/SF/L/ST/S/P/B/WF/N są trwałe i edytowalne; walidacja nie dopuszcza duplikatów.
+   Starsze elementy otrzymują oznaczenia przy wczytaniu. Słupy/stopy mają rozmiar X × X wewnątrz symbolu,
+   wymiary względem hosta i X/Y względem gabarytu także dla podpór wolnostojących.
+6. Usunięcie ściany odczepia słup/stopę/opis bez kasowania symbolu. Undo odtwarza relacje.
+   Wykop rysuje się teraz pasem jak ścianę, z szerokością, głębokością i kolorem; stare obszary zachowano.
+7. Zamknięte pola pokazują m² w świetle ścian, także po podziale i ze ślepo zakończonymi ścianami.
+   Nowa opcja „Płyta denna między ławami” jest niezależna od płyty fundamentowej. Parametry wpisuje się
+   pod canvas; kliknięcie pola ław wstawia powiązaną płytę, która podąża za obwodem.
+8. Opis powstaje przez przeciągnięcie od elementu do wolnego miejsca. Tekst i czcionkę zmienia się
+   bezpośrednio przy canvas. Legenda w prawym dolnym rogu obejmuje technologie, parametry i referencje;
+   ma rezerwowany pas przy dopasowaniu widoku i przycisk ukrywania. Wyróżniono przyciski historii/widoku.
+9. Skala arkusza 1:10–1:1000 jest trwała i niezależna od zoomu/kalibracji. Eksport SVG otrzymuje fizyczne
+   wymiary według skali i tekst wymiarowy 2,5 mm na arkuszu.
+10. API odrzuca płytę denną bez wyboru technologii oraz niespójne położenie podpór/płyty.
+    Poprawiono race statusu autosave: zapis poprzedniej rewizji nie pokazuje sukcesu dla nowszych zmian.
+
+### Weryfikacja
+
+- Schemas / geometry / domain — **PASS**: 32/32 + 13/13 + 35/35.
+- Produkcyjny Web build, workspace typecheck i lint — **PASS**.
+- Pełny Playwright Edge — **PASS**: 12/12. Nowy scenariusz mierzy faktyczne ramki renderowanego tekstu
+  i ich brak kolizji, weryfikuje czytelność, pusty rysunek z zapisanymi ustawieniami po refresh, dziedziczenie,
+  symbole izolacji, słup podążający za ścianą, usunięcie hosta i undo, płytę kliknięciem, opis i skalę SVG,
+  niezmieniony zoom przy zmianie skali, ruch czterech końców X i mobile 390 px bez overflow.
+- API w E2E — **PASS**: HTTP 400 dla zmienionej geometrii płyty i starej ramy przyczepienia.
+- Iteracje — **FAIL**: nowy wymagany etap zakłócał stare ankiety; zachowano nieokreślony, opcjonalny wybór
+  i usunięto „zgodnie z projektem” z pytania tak/nie. Poprawiono kolejność kompilacji zależności, deklarację
+  rozmiaru tekstu i stare asercje symboli. Test belki wykrył przedwczesny status autosave — poprawiono przyczynę.
+- pgTAP — **NOT RUN**: bez zmian SQL; brak resetu danych.
+- Rzeczywiste AI — **BLOCKED**: bez klucza i płatnego wywołania.
+
+### Kontynuacja / granice
+
+Powierzchnie pól nie odliczają stóp, słupów ani otworów w podłodze. Zmiana podziału pola istniejącej płyty
+wymaga jej usunięcia i ponownego wskazania. Host z przypisanym zbrojeniem nadal wymaga usunięcia układu
+przed podziałem. Identyfikatory S1/ST1 przygotowują przyszłe projektowanie zbrojenia podpór, nie dobierają
+belki ani rozwiązania konstrukcyjnego. Pełny CAD 1:1, fizyczne gięcie, ujednolicone bryły i zatwierdzony
+przedmiar pozostają **NOT RUN**.

@@ -122,7 +122,7 @@ export const ConstructionInputSchema = constructionDetailsFields.extend({
   for (const key of requiredStages) {
     const selected = input.technology_selections[key];
     const values = Array.isArray(selected) ? selected : selected ? [selected] : [];
-    if (values.length === 0) {
+    if (values.length === 0 && key !== "foundationBottomSlab") {
       issue("technology_selections", `Wybierz technologię: ${constructionTechnologyCatalog[key].label}.`);
     }
     if (values.some((value) => requiresTechnologyOptionDescription(key, value)) && !input.technology_selections.otherDescriptions[key]?.trim()) {

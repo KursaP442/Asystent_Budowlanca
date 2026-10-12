@@ -1,5 +1,5 @@
 import { CadDocumentSchema, CadEntitySchema, type CadDocument, type CadEntity, type CadPoint } from "@asystent/schemas";
-import { calibrationScale, rectangleFromCorners } from "@asystent/geometry";
+import { calibrationScale, rectangleSize } from "@asystent/geometry";
 
 export function resizeCadRectangle(entity: CadEntity, lengthMm: number, widthMm: number): CadEntity {
   if (!("vertices" in entity.geometry) || entity.geometry.vertices.length !== 4
@@ -7,13 +7,14 @@ export function resizeCadRectangle(entity: CadEntity, lengthMm: number, widthMm:
     throw new Error("Podaj dodatnie wymiary prostokąta, maksymalnie 1 000 000 mm.");
   }
 
-  const xs = entity.geometry.vertices.map((point) => point.x), ys = entity.geometry.vertices.map((point) => point.y);
-  const x = Math.min(...xs), y = Math.min(...ys);
-  const corners = new Set(entity.geometry.vertices.map((point) => `${point.x},${point.y}`));
-  if (corners.size !== 4 || xs.some((value) => value !== x && value !== Math.max(...xs))
-    || ys.some((value) => value !== y && value !== Math.max(...ys))) throw new Error("Element nie jest prostokątem osiowym.");
+  const size = rectangleSize(entity.geometry.vertices);
+  if (!size) throw new Error("Element nie jest prostokątem.");
+  const a = entity.geometry.vertices[0]!, b = entity.geometry.vertices[1]!, d = entity.geometry.vertices[3]!;
+  const u = { x: (b.x - a.x) / size.length * lengthMm, y: (b.y - a.y) / size.length * lengthMm };
+  const v = { x: (d.x - a.x) / size.width * widthMm, y: (d.y - a.y) / size.width * widthMm };
   return CadEntitySchema.parse({ ...entity, reviewStatus: "draft",
-    geometry: { vertices: rectangleFromCorners({ x, y }, { x: x + lengthMm, y: y + widthMm }) } });
+    geometry: { vertices: [a, { x: a.x + u.x, y: a.y + u.y }, { x: a.x + u.x + v.x, y: a.y + u.y + v.y },
+      { x: a.x + v.x, y: a.y + v.y }] } });
 }
 
 export function resizeCadStrip(entity: CadEntity, exteriorLengthMm: number): CadEntity {
@@ -56,9 +57,22 @@ export function snapCadConnection(document: CadDocument, point: CadPoint, tolera
 
 export function connectCadWallJunctions(document: CadDocument, createId: () => string): CadDocument {
   let entities = [...document.entities];
-  const walls = document.entities.filter((entity) => entity.kind === "wall" || entity.kind === "construction-line"
-    && entity.attributes.role === "foundation-wall");
+  const walls = document.entities.filter((entity) => entity.kind === "wall" || entity.kind === "footing" && !entity.supportFor
+    || entity.kind === "construction-line" && entity.attributes.role === "foundation-wall");
   const junctions = walls.flatMap(entityPoints);
+  for (let i = 0; i < walls.length; i++) for (let j = i + 1; j < walls.length; j++) {
+    const a = walls[i]!, b = walls[j]!;
+    if (!("start" in a.geometry) || !("start" in b.geometry)) continue;
+    const r = { x: a.geometry.end.x - a.geometry.start.x, y: a.geometry.end.y - a.geometry.start.y };
+    const s = { x: b.geometry.end.x - b.geometry.start.x, y: b.geometry.end.y - b.geometry.start.y };
+    const cross = r.x * s.y - r.y * s.x;
+    if (Math.abs(cross) < 1e-8) continue;
+    const q = { x: b.geometry.start.x - a.geometry.start.x, y: b.geometry.start.y - a.geometry.start.y };
+    const t = (q.x * s.y - q.y * s.x) / cross, u = (q.x * r.y - q.y * r.x) / cross;
+    if (t >= 0 && t <= 1 && u >= 0 && u <= 1) junctions.push({
+      x: a.geometry.start.x + t * r.x, y: a.geometry.start.y + t * r.y,
+    });
+  }
   for (const wall of walls) {
     if (!("start" in wall.geometry)) continue;
     const { start, end } = wall.geometry;
@@ -71,8 +85,22 @@ export function connectCadWallJunctions(document: CadDocument, createId: () => s
       .filter((p, i, all) => i === 0 || !samePoint(p, all[i - 1]!));
     if (entities.some((e) => e.placement?.hostId === wall.id)) throw new Error("Ściana ma przypisane zbrojenie. Usuń układ przed dodaniem nowego węzła w środku ściany.");
     const parts = points.slice(0, -1).map((p, i) => CadEntitySchema.parse({ ...wall,
-      id: i === 0 ? wall.id : createId(), geometry: { start: p, end: points[i + 1] }, reviewStatus: "draft" }));
+      id: i === 0 ? wall.id : createId(), mark: i === 0 ? wall.mark : undefined,
+      geometry: { start: p, end: points[i + 1] }, reviewStatus: "draft" }));
     entities = entities.map((entity) => {
+      if (entity.infillFor?.includes(wall.id)) entity = { ...entity,
+        infillFor: entity.infillFor.flatMap((id) => id === wall.id ? parts.map((p) => p.id) : [id]) };
+      if (entity.attachment?.hostId === wall.id) {
+        const center = "vertices" in entity.geometry ? {
+          x: entity.geometry.vertices.reduce((s, p) => s + p.x, 0) / entity.geometry.vertices.length,
+          y: entity.geometry.vertices.reduce((s, p) => s + p.y, 0) / entity.geometry.vertices.length,
+        } : entity.kind === "annotation" ? entity.attributes.leader ?? entity.geometry.point : start;
+        const projection = projectPointOnSegment(center, start, end);
+        const part = parts.find((p) => "start" in p.geometry
+          && samePoint(projection, projectPointOnSegment(projection, p.geometry.start, p.geometry.end)));
+        if (part && "start" in part.geometry) entity = { ...entity,
+          attachment: { hostId: part.id, start: part.geometry.start, end: part.geometry.end } };
+      }
       if (entity.kind !== "opening" || entity.attributes.wallId !== wall.id) return entity;
       const part = parts.find((candidate) => "start" in candidate.geometry
         && samePoint(entity.geometry.start, projectPointOnSegment(entity.geometry.start, candidate.geometry.start, candidate.geometry.end))
@@ -146,6 +174,9 @@ export function copyCadGeometry(source: CadDocument, target: CadDocument, create
     ...(entity.supportFor ? { supportFor: entity.supportFor.map((id) => ids.get(id)) } : {}),
     ...(entity.placement ? { placement: { ...entity.placement, hostId: ids.get(entity.placement.hostId),
       groupId: groups.get(entity.placement.groupId) } } : {}),
+    ...(entity.attachment ? { attachment: { ...entity.attachment, hostId: ids.get(entity.attachment.hostId) } } : {}),
+    ...(entity.infillFor ? { infillFor: entity.infillFor.map((id) => ids.get(id)) } : {}),
+    mark: undefined,
   }));
   return CadDocumentSchema.parse({ ...to, status: "draft", entities: [...to.entities, ...entities],
     ...((from.documentReferences || to.documentReferences) ? { documentReferences: { ...from.documentReferences, ...to.documentReferences } } : {}) });
@@ -162,7 +193,7 @@ export function projectCadWallElevations(source: CadDocument, target: CadDocumen
   for (const wall of walls) {
     const { start, end } = wall.geometry;
     const length = Math.hypot(end.x - start.x, end.y - start.y);
-    const common = { ...wall, id: createId(), reviewStatus: "draft",
+    const common = { ...wall, id: createId(), mark: undefined, reviewStatus: "draft",
       derivedFrom: { documentId: from.id, entityId: wall.id, revision: from.revision } };
     entities.push(CadEntitySchema.parse({ ...common, kind: "construction-area", layerId: "elevation",
       geometry: { vertices: [{ x: offset, y: 0 }, { x: offset + length, y: 0 },
@@ -179,7 +210,7 @@ export function projectCadWallElevations(source: CadDocument, target: CadDocumen
         throw new Error("Otwór wykracza poza wymiary ściany. Popraw rzut przed wygenerowaniem rozwinięcia.");
       }
       entities.push(CadEntitySchema.parse({ ...opening, id: createId(), kind: "construction-area", layerId: "void",
-        reviewStatus: "draft", derivedFrom: { documentId: from.id, entityId: opening.id, revision: from.revision },
+        mark: undefined, reviewStatus: "draft", derivedFrom: { documentId: from.id, entityId: opening.id, revision: from.revision },
         geometry: { vertices: [{ x: x1, y: bottom }, { x: x2, y: bottom }, { x: x2, y: top }, { x: x1, y: top }] },
         attributes: { role: "void", thicknessMm: wall.attributes.thicknessMm, heightMm: opening.attributes.heightMm,
           material: "Otwór", designReference: "Otwór przeniesiony ze ściany źródłowej" },
@@ -214,7 +245,13 @@ export function calibrateCadSource(value: CadDocument, start: CadPoint, end: Cad
     const geometry = "vertices" in entity.geometry ? { vertices: entity.geometry.vertices.map(point) }
       : "start" in entity.geometry ? { start: point(entity.geometry.start), end: point(entity.geometry.end) }
         : { point: point(entity.geometry.point) };
-    return CadEntitySchema.parse({ ...entity, geometry, reviewStatus: "draft" });
+    return CadEntitySchema.parse({ ...entity, geometry, reviewStatus: "draft",
+      ...(entity.attachment ? { attachment: { ...entity.attachment, start: point(entity.attachment.start), end: point(entity.attachment.end) } } : {}),
+      ...(entity.placement ? { placement: { ...entity.placement, start: point(entity.placement.start), end: point(entity.placement.end) } } : {}),
+      ...(entity.kind === "annotation" && entity.attributes.leader ? {
+        attributes: { ...entity.attributes, leader: point(entity.attributes.leader) },
+      } : {}),
+    });
   });
   return CadDocumentSchema.parse({
     ...document, status: "draft", entities, sourceImage: { ...source, mmPerPixel: source.mmPerPixel * factor },

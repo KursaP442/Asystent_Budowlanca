@@ -1,5 +1,5 @@
 import { CadDocumentSchema, ConstructionTechnologySchema, cadEntityTool, getCadDrawingTools, getFoundationSupportOptions } from "@asystent/schemas";
-import { FoundationAssemblyError, synchronizeFoundationSupports } from "@asystent/domain";
+import { CadPlanError, FoundationAssemblyError, synchronizeCadAttachments, synchronizeCadInfill, synchronizeFoundationSupports } from "@asystent/domain";
 import { OutlineGeometryError } from "@asystent/geometry";
 import { apiError, createAdminClient } from "@/lib/server-supabase";
 import { findDrawingRequirement, requireCadOwner } from "@/lib/cad-api";
@@ -22,6 +22,13 @@ export async function POST(request: Request) {
     const technology = ConstructionTechnologySchema.parse(JSON.parse(access.job.materials));
     const allowed = getCadDrawingTools(drawingRequirement.requirement.kind, drawingRequirement.requirement.drawings[drawingRequirement.index], technology);
     const supportOptions = getFoundationSupportOptions(technology);
+    if (document.entities.some((e) => e.infillFor && !e.derivedFrom) && technology.foundationBottomSlab !== "bottom-slab-yes") {
+      return apiError("Płyta denna między ławami wymaga wyboru w danych budowy.", 400);
+    }
+    const synchronized = synchronizeCadInfill(synchronizeCadAttachments(document));
+    if (synchronized.entities.some((e, i) => JSON.stringify(e.geometry) !== JSON.stringify(document.entities[i]?.geometry))) {
+      return apiError("Przyczepione elementy i płyta denna muszą odpowiadać geometrii podparcia.", 400);
+    }
     if (document.entities.some((e) => e.foundationBase && !e.derivedFrom && !supportOptions.some((option) => option.value === e.foundationBase?.type))) {
       return apiError("Podparcie ściany nie odpowiada sposobowi posadowienia w danych budowy.", 400);
     }
@@ -63,7 +70,7 @@ export async function POST(request: Request) {
     }
     return Response.json({ revision: data }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
-    if (error instanceof FoundationAssemblyError || error instanceof OutlineGeometryError) return apiError(error.message, 400);
+    if (error instanceof FoundationAssemblyError || error instanceof OutlineGeometryError || error instanceof CadPlanError) return apiError(error.message, 400);
     if (error instanceof SyntaxError) return apiError("Nieprawidłowe dane rysunku.", 400);
     console.error("CAD save failed", { type: error instanceof Error ? error.name : "DatabaseError" });
     return apiError("Nie udało się zapisać rysunku. Ponów zapis.", 500);

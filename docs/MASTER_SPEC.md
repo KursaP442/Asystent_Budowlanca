@@ -185,10 +185,38 @@ wysokość, materiał i odniesienie do projektu wpisuje użytkownik. Płyta pows
 obwodu ścian, z jawnym wysunięciem poza lico; ściany wewnętrzne nie wyznaczają obwodu.
 Automatyczne podparcie aktualizuje się przy edycji ścian. Stopy, pale, posadowienie istniejące i nietypowe
 wymagają ręcznego przeniesienia rozwiązania konstrukcyjnego — nie zgadujemy ich rozstawu ani nośności.
-Ocieplenie i hydroizolację wybrane w ankiecie oznacza się na ścianie z projektową grubością i stroną.
+Ustawienia ściany i podparcia zapisują się automatycznie także przed rysowaniem, bez przycisku zastosowania.
+Nowy rysunek dziedziczy zapisane ustawienia z rysunku fundamentów tego projektu, jeżeli nie ma własnych.
+Strony „od wewnątrz / od zewnątrz / obie strony” dotyczą hydroizolacji; ocieplenie jest osobną warstwą
+zewnętrzną z projektową grubością i rombowym symbolem. Obrys wyznacza stronę niezależnie od kierunku
+rysowania. Pas ocieplenia łączy się na licach narożników, a nie kończy na osiach. Przy otwartym obrysie
+lub ścianie wewnętrznej trzeba go zamknąć albo wskazać stronę ręcznie we właściwościach.
 Rzut ma wymiary elementów i gabarytów oraz legendę materiałów. Fundamenty obejmują także osobny rysunek
 detali izolacji, odwodnienia i przejść. Lista referencji obejmuje rzut, przekroje/rzędne, zbrojenie, izolacje,
 geotechnikę, opis materiałów i przejścia branżowe; numer referencji nie oznacza weryfikacji jej treści.
+
+Wymiary mają wspólny układ unikający kolizji etykiet, z białym tłem tekstu i minimalną ekranową wielkością
+13 px. Identyczne szerokości elementów tej samej roli nie są powtarzane przy każdym odcinku.
+Ściany i samodzielne ławy dzielą się również przy przecięciu X; ruch węzła zmienia wszystkie cztery końce.
+Stopy i słupy dotykające ściany otrzymują relację położenia; podążają za jej przesunięciem i obrotem,
+zachowując rzeczywiste wymiary przekroju. Rozmiar X × X i oznaczenie (np. S1, ST1) są wewnątrz symbolu.
+Pozycję opisują wymiary od początku podparcia oraz współrzędne X/Y od zewnętrznego gabarytu rzutu;
+dotyczy to również podpór niezwiązanych ze ścianą. Usunięcie ściany odczepia symbol, zamiast go usuwać.
+Ściany, ławy, stopy, słupy, płyty i belki mają trwałe, unikalne, edytowalne oznaczenia.
+Wykop rysuje się pasem jak ścianę, z własną szerokością, głębokością i kolorem; starsze obszary zachowano.
+
+Zamknięte pola mają opis m² w świetle ścian, uwzględniający ściany dzielące i ślepo zakończone.
+Nie odlicza on stóp, słupów ani otworów podłogowych i nie jest zatwierdzonym przedmiarem.
+„Płyta denna między ławami” jest oddzielnym wyborem ankiety, niezależnym od płyty fundamentowej jako
+posadowienia. Po wpisaniu grubości i betonu narzędzie płyty wstawia ją kliknięciem zamkniętego pola ław.
+Wewnętrzny obrys aktualizuje się przy ruchu podparć. Podział istniejącego pola wymaga usunięcia
+i ponownego wskazania płyty, bez zgadywania zmiany rozwiązania konstrukcyjnego.
+
+Opis tworzy się przeciągnięciem od opisywanego miejsca do tekstu. Treść i rozmiar czcionki można edytować
+przy canvas. Legenda w prawym dolnym rogu zawiera technologie, parametry i referencje dokumentów,
+z możliwością ukrycia; dopasowanie widoku rezerwuje jej prawy pas. Przyciski historii i widoku są wyróżnione.
+Skala arkusza (np. 1:50, 1:100) zapisuje się osobno od zoomu i kalibracji. Eksport SVG ma fizyczne wymiary
+w mm według tej skali i tekst wymiarowy 2,5 mm na arkuszu. Płótno pozostaje modelem w mm.
 
 Graficzny kreator zbrojenia w osobnym oknie rozróżnia geometrię, parametry prętów/strzemion i położenie.
 Przekrój można zmieniać uchwytem lub liczbowo; podgląd pokazuje otulinę, strzemiona i pręty górne/dolne.

@@ -437,3 +437,48 @@ Jawne warianty technologii bloczków 24/25/30 cm ustawiają edytowalną gruboś�
 bloczka szalunkowego 24 cm. Materiały bez konkretnego wymiaru nie tworzą domyślnej grubości.
 Referencja dokumentacyjna jest opcjonalnym polem rozwijanym; brak pozostaje oznaczony „Do uzupełnienia
 z projektu”, bez zatwierdzenia. Wysokości, parametry podpór i grubości izolacji nadal wymagają danych projektu.
+
+## ADR-025: Trwałe parametry i topologiczny rzut fundamentów
+
+**Kontekst:** Użytkownik wymaga czytelnych wymiarów, automatycznego zapisu ustawień, węzłów T/X,
+przyczepionych podpór, oznaczeń konstrukcyjnych, powierzchni pól, płyty dennej, opisów i skali.
+Potwierdził niezależną skalę arkusza oraz oddzielny wybór płyty dennej między ławami.
+
+**Decyzja:** Opcjonalne `foundationSettings` przechowuje surowe pola, także niekompletne. Zmiana pola
+jest zapisywana przez istniejące wersjonowane autosave; nowa ściana wymaga poprawnych parametrów.
+Nie zmieniamy automatycznie wcześniejszych ścian. Rysunek bez własnych ustawień dziedziczy je z pierwszego
+zapisanego rysunku fundamentów tego projektu. Brak nowej odpowiedzi `foundationBottomSlab` pozostaje
+nieokreślony i nie blokuje starszych ankiet; nie jest traktowany jako „tak”.
+Poprawiono status autosave: potwierdzenie starszego snapshotu nie oznacza zapisania kolejnych zmian.
+
+Warstwy obsługują semantyczne strony `interior`/`exterior`, oprócz dawnych `left`/`right`/`both`.
+Strona hydroizolacji jest oddzielona od zewnętrznego ocieplenia. Wnętrze wynika z zamkniętych pól,
+nie kierunku ściany. Brak jednoznacznego wnętrza nie generuje zgadywanego pasa.
+Ocieplenie ma wielokątny pas na licach narożników i wzór rombowy dostosowany do grubości.
+
+Normalizacja rozcina również przecięcia X i samodzielne ławy. Węzły mają wspólne współrzędne;
+otwory i relacje przyczepionych symboli przechodzą na właściwy odcinek. Pozostaje blokada podziału
+wewnątrz otworu i hosta zbrojenia. `attachment` zapisuje host i jego poprzednią ramę. Przesunięcie/obrót
+przenosi symbol sztywno; zmiana długości zmienia względną pozycję, nie rozmiar. Wymiary prostokąta
+są mierzone w lokalnych osiach także po obrocie. Usunięcie hosta odczepia stopę/słup/opis.
+
+Zorientowane półkrawędzie wyznaczają zamknięte pola. Odsunięcie do wewnętrznych lic uwzględnia grubości
+oraz zakończenia ścian ślepych. Powierzchnia jest polem w świetle ścian, bez odliczania symboli podpór
+i otworów w podłodze. `infillFor` wiąże płytę denną ze wskazanym zamkniętym polem ław; geometria
+aktualizuje się po przesunięciu. Podział pola wymaga ponownego wskazania płyty. API kontroluje zgodność
+geometrii przyczepionych elementów/płyty i wymaga odpowiedzi „tak” w technologii.
+
+Wspólne rozmieszczenie wymiarów wyznacza bezkolizyjne ramki etykiet poza geometrią. Tekst ekranowy ma
+minimum 13 px; maska pod tekstem zachowuje czytelność przy krzyżowaniu linii pomocniczych.
+Powtarzalną grubość/szerokość tej samej roli opisuje się raz. Pozycje podpór mają wymiary od hosta
+oraz X/Y od zewnętrznego gabarytu. `mark` jest trwałym, unikalnym oznaczeniem do przyszłych powiązań
+zbrojenia; stare elementy dostają oznaczenia przy wczytaniu. Kopie otrzymują własne oznaczenia.
+
+`paperScale` nie zmienia zoomu ani kalibracji. SVG otrzymuje fizyczne wymiary mm / mianownik skali;
+tekst wymiarów w eksporcie ma 2,5 mm na arkuszu, niezależnie od ekranowego minimum.
+Legenda rezerwuje prawy pas dopasowanego widoku i może być ukryta. Opisy mają kotwicę, linię prowadzącą
+i rozmiar czcionki na arkuszu. Wykop jest teraz pasem `construction-line`; stare `construction-area`
+z tą rolą pozostają kompatybilne. Nie zmieniono SQL ani zależności.
+
+**Konsekwencje:** Rysunek pozostaje roboczy. Rozwiązania konstrukcyjne, przejścia powierzchniowe,
+pełne zestawienia gięcia, ujednolicone bryły oraz zatwierdzony przedmiar nie są ukończone.

@@ -33,7 +33,7 @@ export function createCadElement(tool: CadDrawingTool, points: CadPoint[], optio
     attributes: { pitchDegrees: 0, material: pending } });
   if (tool === "slab") return CadEntitySchema.parse({ ...common, kind: tool, geometry: { vertices: points },
     attributes: { thicknessMm: 200, material: pending } });
-  const area = ["column", "pad", "excavation", "section", "elevation", "paving", "finish", "ceiling", "terrain", "equipment", "void"].includes(tool);
+  const area = ["column", "pad", "section", "elevation", "paving", "finish", "ceiling", "terrain", "equipment", "void"].includes(tool);
   return CadEntitySchema.parse({ ...common, kind: area ? "construction-area" : "construction-line",
     geometry: area ? { vertices: points } : geometry,
     attributes: { role: tool, ...(area ? { thicknessMm: 200 } : { widthMm: 240 }),

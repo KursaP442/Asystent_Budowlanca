@@ -3,6 +3,30 @@
 Zasada: zapisujemy **dokładne komendy**, **datę**, **środowisko** i **rzeczywisty wynik** (PASS/FAIL/BLOCKED/NOT RUN).
 Nigdy nie wpisujemy ogólnego „działa” bez dowodu z uruchomienia.
 
+## Sesja 28 — 12 października 2026
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/schemas test` | nowe kontrakty, zgodność starszych ankiet | PASS | 32/32; nowy wybór płyty dennej może być nieokreślony w starszych danych |
+| `pnpm --filter @asystent/geometry test` | odsunięcia i zakończenia ścian | PASS | 13/13; dodatkowe insets/prostokąty obrócone objęte testami domain |
+| `pnpm --filter @asystent/domain test` | nowe helpery rzutu | PASS | 35/35; osiem nowych scenariuszy obejmuje X, pola/ślepe ściany, obrysy izolacji, przyczepienie/obrót/podział, płyty, oznaczenia i kolizje etykiet |
+| `pnpm --filter web build` | produkcyjny Web | PASS | typy, bundle, worker PDF |
+| `pnpm typecheck`, `pnpm lint` | cały workspace | PASS | 13 / 7 zadań Turbo |
+| `pnpm --filter web exec playwright test --grep 'CAD plan settings\|scoped CAD\|CAD smooth\|CAD connects nearby'` | układ i interakcje | PASS | 4/4 |
+| `pnpm --filter web exec playwright test --grep 'CAD plan settings\|foundation wall generates'` | zapis i precyzja | PASS | 2/2 |
+| `pnpm --filter web exec playwright test` | końcowa pełna regresja Edge | PASS | 12/12 |
+| Faktyczne ramki renderowanego tekstu wymiarów | nowy E2E | PASS | brak przecinających się etykiet, wysokość tekstu ≥11 px przy ekranowym font size minimum 13 px |
+| Parametry bez geometrii, dziedziczenie i reload | nowy E2E | PASS | wysokość, ława, hydroizolacja i skala zachowane; brak przycisku zastosowania |
+| Przyczepiony słup, usunięcie ściany i undo | nowy E2E | PASS | ruch symbolu, zachowanie symbolu po usunięciu hosta i odtworzenie płyty/relacji |
+| Węzeł X | nowy E2E + domain | PASS | wszystkie cztery końce zmieniają wspólną pozycję przed mouseup |
+| Eksport SVG / niezależny zoom | nowy E2E | PASS | szerokość SVG = szerokość viewBox / 50 w mm; zmiana skali nie zmienia viewBox |
+| API dla niespójnej płyty/ramy przyczepienia | nowy E2E | PASS | oba żądania odrzucone HTTP 400 |
+| Desktop screenshot / mobile 390 px | nowy E2E | PASS | legenda, izolacje, pola i opisy; brak poziomego overflow |
+| Pierwsze iteracje schemas / build / E2E | nowe pole, symbole i autosave | FAIL | zachowano kompatybilność starszych ankiet, poprawiono kolejność kompilacji i deklaracji, asercje dawnych symboli; wyścig statusu autosave poprawiony w kodzie |
+| pgTAP / SQL | brak migracji | NOT RUN | bez resetu lokalnej bazy |
+| Rzeczywiste OpenAI | klucz i zgoda | BLOCKED | bez płatnego wywołania |
+| Pełny CAD 1:1 / zatwierdzony przedmiar | wymagania docelowe | NOT RUN | m² pola nie odliczają symboli podpór/otworów; brak doboru konstrukcyjnego |
+
 ## Sesja 27 — 12 października 2026
 
 | Komenda / kontrola | Kontekst | Wynik | Uwagi |

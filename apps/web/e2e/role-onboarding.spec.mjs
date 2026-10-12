@@ -1,11 +1,161 @@
 import { test, expect } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 import { randomInt, randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const admin = createClient(url, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 const userIds = [];
 const password = "Local-test-password-2026!";
+
+test("CAD plan settings autosave, readable dimensions, insulation, attached columns, infill and paper scale persist", async ({page,request}) => {
+  test.setTimeout(120000);
+  await page.setViewportSize({width:1440,height:1200});
+  const owner=await createAccount(),title=`Czytelny rzut ${randomUUID()}`;
+  await login(page,owner.email); await page.locator(".account-type-card.type-client").click();
+  await fillConstruction(page,title);
+  await page.getByRole("button",{name:"Edytuj",exact:true}).click();
+  await page.getByRole("tab",{name:"Materiały i technologia",exact:true}).click();
+  await selectTechnology(page,"foundationBottomSlab","bottom-slab-yes","Tak — płyta denna");
+  await selectTechnology(page,"foundationInsulation","foundation-xps","Płyty XPS");
+  await selectTechnology(page,"foundationWaterproofing","kmb-coating","Grubowarstwowa masa");
+  await page.getByRole("button",{name:"Przejdź dalej",exact:true}).click();
+  const editor=page.locator(".cad-editor"),canvas=editor.getByRole("img",{name:/Płótno projektu/});
+  await editor.getByRole("button",{name:"Ściana fundamentowa",exact:true}).click();
+  await editor.getByLabel("Podparcie rysowanej ściany",{exact:true}).selectOption("strip");
+  for(const [label,value] of [
+    ["Grubość ściany fundamentowej (mm)","240"],["Wysokość ściany fundamentowej (mm)","1000"],
+    ["Materiał ściany fundamentowej","Bloczek"],["Szerokość automatycznej ławy (mm)","800"],
+    ["Wysokość automatycznej ławy (mm)","400"],["Grubość hydroizolacji ściany (mm)","4"],
+    ["Grubość ocieplenia ściany (mm)","100"],["Grubość płyty dennej (mm)","200"],["Beton płyty dennej","C25/30"],
+  ]) await editor.getByLabel(label,{exact:true}).fill(value);
+  await editor.getByLabel("Strona hydroizolacji",{exact:true}).selectOption("both");
+  await expect(editor.getByRole("button",{name:"Zastosuj do nowych ścian",exact:true})).toHaveCount(0);
+  await expect(editor.getByRole("status")).toContainText("Rysunek zapisany automatycznie");
+  await page.reload(); await page.getByRole("button",{name:"Edytuj",exact:true}).click();
+  await page.getByRole("button",{name:"Przejdź dalej",exact:true}).click();
+  await expect(editor.getByLabel("Wysokość ściany fundamentowej (mm)",{exact:true})).toHaveValue("1000");
+  await expect(canvas.locator(".cad-entity")).toHaveCount(0);
+  await editor.getByRole("button",{name:"Ściana fundamentowa",exact:true}).click();
+  const screen=async(p)=>{
+    await canvas.scrollIntoViewIfNeeded();
+    const r=await canvas.boundingBox(),v=(await canvas.getAttribute("viewBox")).split(" ").map(Number);
+    return {x:r.x+(p.x-v[0])/v[2]*r.width,y:r.y+(p.y-v[1])/v[3]*r.height};
+  };
+  const segment=async(a,b)=>{
+    const p=await screen(a),q=await screen(b);
+    await page.mouse.move(p.x,p.y); await page.mouse.down(); await page.mouse.move(q.x,q.y); await page.mouse.up();
+  };
+  const corners=[{x:1000,y:1500},{x:6500,y:1500},{x:6500,y:4500},{x:1000,y:4500}];
+  for(let i=0;i<4;i++)await segment(corners[i],corners[(i+1)%4]);
+  await expect(canvas.locator(".cad-room-area")).toContainText("14.52 m²");
+  await expect(canvas.locator(".cad-insulation-symbol")).toHaveCount(4);
+  await expect(canvas.locator('[data-purpose="waterproofing"] polygon')).toHaveCount(8);
+  await editor.getByRole("button",{name:"Dopasuj widok",exact:true}).click();
+  await editor.getByRole("button",{name:"Płyta fundamentowa / denna",exact:true}).click();
+  const middle=await screen({x:3500,y:3000}); await page.mouse.click(middle.x,middle.y);
+  await expect(canvas.locator('.cad-entity[data-role="slab"]')).toHaveCount(1);
+  await editor.getByRole("button",{name:"Słup",exact:true}).click();
+  await segment({x:3300,y:1300},{x:3700,y:1700});
+  await expect(canvas.locator('.cad-entity[data-role="column"]')).toContainText("S1");
+  await expect(canvas.locator('.cad-entity[data-role="column"]')).toContainText("400 × 400");
+  const column=canvas.locator('.cad-entity[data-role="column"] .cad-solid-outline');
+  const before=await column.getAttribute("points");
+  await editor.locator(".cad-element-list button").filter({hasText:/SF1 Ściana fundamentowa/}).click();
+  const handle=canvas.locator(".cad-junction").first(); await canvas.scrollIntoViewIfNeeded();
+  const grip=await handle.boundingBox();
+  await page.mouse.move(grip.x+grip.width/2,grip.y+grip.height/2); await page.mouse.down();
+  await page.mouse.move(grip.x+grip.width/2+5,grip.y+grip.height/2+8); await page.mouse.up();
+  expect(await column.getAttribute("points")).not.toBe(before);
+  await editor.getByRole("button",{name:"Cofnij",exact:true}).click();
+  await expect(column).toHaveAttribute("points",before);
+  await editor.locator(".cad-element-list button").filter({hasText:/SF1 Ściana fundamentowa/}).click();
+  await editor.getByRole("button",{name:"Usuń element",exact:true}).click();
+  await expect(canvas.locator('.cad-entity[data-role="column"]')).toHaveCount(1);
+  await expect(canvas.locator('.cad-entity[data-role="slab"]')).toHaveCount(0);
+  await editor.getByRole("button",{name:"Cofnij",exact:true}).click();
+  await expect(column).toHaveAttribute("points",before);
+  await expect(canvas.locator('.cad-entity[data-role="slab"]')).toHaveCount(1);
+  await editor.getByRole("button",{name:"Stopa fundamentowa",exact:true}).click();
+  await segment({x:2300,y:2500},{x:2900,y:3100});
+  await expect(canvas.locator(".cad-location-dimensions")).toContainText(["S1","ST1"]);
+  await editor.getByRole("button",{name:"Opis",exact:true}).click();
+  await segment({x:1500,y:1500},{x:1300,y:900});
+  await expect(canvas.locator(".cad-annotation-leader")).toHaveCount(1);
+  await editor.getByLabel("Opis na rysunku",{exact:true}).fill("Ściana SF1 według K-01");
+  await editor.getByLabel("Czcionka opisu na arkuszu (mm)",{exact:true}).fill("3.5");
+  const zoomBeforeScale=await canvas.getAttribute("viewBox");
+  await editor.getByLabel("Skala arkusza",{exact:true}).selectOption("50");
+  await expect(canvas).toHaveAttribute("viewBox",zoomBeforeScale);
+  await expect(canvas.locator(".cad-project-legend")).toContainText("1:50");
+  const boxes=await canvas.locator(".cad-dimension").evaluateAll((nodes)=>nodes.map((n)=>n.getAttribute("data-label-box").split(" ").map(Number)));
+  for(let i=0;i<boxes.length;i++)for(let j=i+1;j<boxes.length;j++){
+    const [ax,ay,aw,ah]=boxes[i],[bx,by,bw,bh]=boxes[j];
+    expect(ax<bx+bw&&ax+aw>bx&&ay<by+bh&&ay+ah>by).toBe(false);
+  }
+  const actualLabels=await canvas.locator(".cad-dimension text").evaluateAll((nodes)=>nodes.map((n)=>{
+    const r=n.getBoundingClientRect(); return {x:r.x,y:r.y,width:r.width,height:r.height};
+  }));
+  for(let i=0;i<actualLabels.length;i++){
+    expect(actualLabels[i].height).toBeGreaterThanOrEqual(11);
+    for(let j=i+1;j<actualLabels.length;j++){
+      const a=actualLabels[i],b=actualLabels[j];
+      expect(a.x<b.x+b.width&&a.x+a.width>b.x&&a.y<b.y+b.height&&a.y+a.height>b.y).toBe(false);
+    }
+  }
+  await expect(editor.getByRole("status")).toContainText("Rysunek zapisany automatycznie");
+  const {data:job,error:jobError}=await admin.from("construction_jobs").select("id").eq("title",title).single();
+  if(jobError)throw jobError;
+  const {data:row,error:rowError}=await admin.from("cad_drawings").select("payload").eq("job_id",job.id)
+    .eq("requirement_id","foundation-drawing-0").single();
+  if(rowError)throw rowError;
+  const token=await tokenFor(owner.email);
+  for(const corrupted of ["infill","attachment"]){
+    const invalid=structuredClone(row.payload);
+    if(corrupted==="infill")invalid.entities.find((e)=>e.infillFor).geometry.vertices[0].x+=10;
+    else invalid.entities.find((e)=>e.attachment).attachment.end.x+=10;
+    const response=await request.post("/api/cad/drawings",{data:invalid,headers:{Authorization:`Bearer ${token}`}});
+    expect(response.status()).toBe(400);
+  }
+  const downloadPromise=page.waitForEvent("download");
+  await editor.getByRole("button",{name:"Eksport SVG",exact:true}).click();
+  const download=await downloadPromise,svg=await readFile(await download.path(),"utf8");
+  expect(svg).toContain('data-paper-scale="50"'); expect(svg).toMatch(/width="[\d.]+mm"/);
+  expect(Number(svg.match(/width="([\d.]+)mm"/)[1])).toBeCloseTo(Number(zoomBeforeScale.split(" ")[2])/50,3);
+  await canvas.scrollIntoViewIfNeeded();
+  await page.screenshot({path:test.info().outputPath("readable-foundation-plan.png"),fullPage:true});
+  await page.reload(); await page.getByRole("button",{name:"Edytuj",exact:true}).click();
+  await page.getByRole("button",{name:"Przejdź dalej",exact:true}).click();
+  await expect(editor.getByLabel("Wysokość ściany fundamentowej (mm)",{exact:true})).toHaveValue("1000");
+  await expect(editor.getByLabel("Szerokość automatycznej ławy (mm)",{exact:true})).toHaveValue("800");
+  await expect(editor.getByLabel("Strona hydroizolacji",{exact:true})).toHaveValue("both");
+  await expect(editor.getByLabel("Skala arkusza",{exact:true})).toHaveValue("50");
+  await expect(canvas.locator('.cad-entity[data-role="slab"]')).toHaveCount(1);
+  await expect(canvas.locator(".cad-annotation-leader")).toHaveCount(1);
+  await expect(canvas).toContainText("Ściana SF1 według K-01");
+  await page.getByRole("tab",{name:"Przekroje fundamentów i poziomy posadowienia",exact:true}).click();
+  await expect(editor.getByLabel("Wysokość ściany fundamentowej (mm)",{exact:true})).toHaveValue("1000");
+  await editor.getByRole("button",{name:"Ściana",exact:true}).click();
+  await segment({x:1000,y:2500},{x:6000,y:2500});
+  await segment({x:3500,y:1000},{x:3500,y:4000});
+  await expect(canvas.locator('.cad-entity[data-role="wall"]')).toHaveCount(4);
+  await editor.getByRole("button",{name:"Zaznacz / przesuń",exact:true}).click();
+  const crossing=await screen({x:3500,y:2500});
+  await page.mouse.move(crossing.x,crossing.y); await page.mouse.down();
+  await page.mouse.move(crossing.x+30,crossing.y+20);
+  const segments=await canvas.locator('.cad-entity[data-role="wall"] > g > line').evaluateAll((nodes)=>nodes.map((n)=>
+    ["x1","y1","x2","y2"].map((key)=>Number(n.getAttribute(key)))));
+  const endpointCounts=new Map();
+  for(const s of segments)for(const p of [[s[0],s[1]],[s[2],s[3]]]){
+    const key=p.map((v)=>v.toFixed(3)).join(","); endpointCounts.set(key,(endpointCounts.get(key)??0)+1);
+  }
+  expect([...endpointCounts.values()]).toContain(4);
+  expect(endpointCounts.get("3500.000,2500.000")).toBeUndefined();
+  await page.mouse.up();
+  await expect(editor.getByRole("status")).toContainText("Rysunek zapisany automatycznie");
+  await page.setViewportSize({width:390,height:844});
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+});
 
 function planPdfFixture() {
   const stream = "0 0 0 RG 3 w 100 100 500 400 re S\n";
@@ -935,7 +1085,7 @@ test("scoped CAD workspace zooms, joins corners, shows layers, reuses plans and 
   await editor.getByLabel("Materiał warstwy", {exact:true}).fill("XPS projektowy");
   await editor.getByLabel("Grubość warstwy (mm)", {exact:true}).fill("150");
   await editor.getByRole("button", {name:"Dodaj warstwę",exact:true}).click();
-  await expect(canvas.locator('line[stroke*="cad-hatch-"]')).toHaveCount(2);
+  await expect(canvas.locator('.cad-material-layer > polygon')).toHaveCount(2);
   await expect(editor.getByRole("status")).toContainText("Rysunek zapisany automatycznie");
   await expect(progress.locator("button").first()).toContainText("1/4 rysunków");
   await expect(page.getByRole("tab", {name:/Rzut fundamentów z osiami i wymiarami/})).toHaveAttribute("data-completion","saved");
@@ -1073,8 +1223,7 @@ test("CAD smooth live drag, exterior dimensions and editable foundation rectangl
   await editor.getByLabel("Długość prostokąta (mm)",{exact:true}).press("Tab");
   await editor.getByLabel("Szerokość prostokąta (mm)",{exact:true}).fill("1200");
   await editor.getByLabel("Szerokość prostokąta (mm)",{exact:true}).press("Tab");
-  await expect(canvas.locator(".cad-entity").last()).toContainText("1800 mm");
-  await expect(canvas.locator(".cad-entity").last()).toContainText("1200 mm");
+  await expect(canvas.locator(".cad-entity").last()).toContainText("1800 × 1200");
   await expect(editor.getByRole("status")).toContainText("Rysunek zapisany automatycznie");
   const {data:job,error} = await admin.from("construction_jobs").select("id").eq("title",title).single();
   if (error) throw error;
@@ -1088,8 +1237,7 @@ test("CAD smooth live drag, exterior dimensions and editable foundation rectangl
   await page.reload();
   await page.getByRole("button", {name:"Edytuj",exact:true}).click();
   await page.getByRole("button", {name:"Przejdź dalej",exact:true}).click();
-  await expect(canvas.locator(".cad-entity").last()).toContainText("1800 mm");
-  await expect(canvas.locator(".cad-entity").last()).toContainText("1200 mm");
+  await expect(canvas.locator(".cad-entity").last()).toContainText("1800 × 1200");
 });
 test("foundation wall generates linked footing or closed slab, isolation and graphic host-bound beam persist", async ({ page, request }) => {
   test.setTimeout(90000);
@@ -1113,7 +1261,7 @@ test("foundation wall generates linked footing or closed slab, isolation and gra
     ["Szerokość automatycznej ławy (mm)","800"],["Wysokość automatycznej ławy (mm)","400"],
     ["Grubość hydroizolacji ściany (mm)","4"],["Grubość ocieplenia ściany (mm)","100"],
   ]) await editor.getByLabel(label,{exact:true}).fill(value);
-  await editor.getByRole("button", {name:"Zastosuj do nowych ścian",exact:true}).click();
+  await expect(editor.getByRole("button", {name:"Zastosuj do nowych ścian",exact:true})).toHaveCount(0);
   async function segment(a,b) {
     await canvas.scrollIntoViewIfNeeded();
     const rect = await canvas.boundingBox(), view = (await canvas.getAttribute("viewBox")).split(" ").map(Number);
@@ -1146,7 +1294,7 @@ test("foundation wall generates linked footing or closed slab, isolation and gra
   for (const [label,value] of [
     ["Grubość automatycznej płyty (mm)","250"],["Wysunięcie płyty poza lico ściany (mm)","200"],["Beton płyty według projektu","C25/30"],
   ]) await editor.getByLabel(label,{exact:true}).fill(value);
-  await editor.getByRole("button", {name:"Zastosuj do nowych ścian",exact:true}).click();
+  await expect(editor.locator(".cad-settings-status")).toContainText("Parametry gotowe");
   const corners = [{x:8000,y:1500},{x:10000,y:1500},{x:10000,y:3500},{x:8000,y:3500}];
   for (let i=0;i<3;i++) await segment(corners[i],corners[i+1]);
   await expect(canvas.locator(".cad-entity")).toHaveCount(5);
@@ -1286,10 +1434,7 @@ test("CAD connects nearby wall corners and T joints, preserves shared movement a
   await editor.getByRole("button",{name:"Stopa fundamentowa",exact:true}).click();
   await segment({x:2000,y:2500},{x:2600,y:3000});
   await editor.getByRole("button",{name:"Wykop",exact:true}).click();
-  for (const point of [{x:3500,y:2500},{x:4200,y:2500},{x:4200,y:3500},{x:3500,y:3500}]) {
-    const at = await screen(point); await page.mouse.click(at.x,at.y);
-  }
-  await editor.getByRole("button",{name:"Zamknij obrys (4)",exact:true}).click();
+  await segment({x:3500,y:2500},{x:4200,y:3500});
   await expect(editor.getByLabel("Głębokość wykopu (mm)",{exact:true})).toBeVisible();
   const wallFill = await canvas.locator('.cad-entity[data-role="wall"] .cad-solid-outline').first().getAttribute("fill");
   const padFill = await canvas.locator('.cad-entity[data-role="pad"] .cad-solid-outline').getAttribute("fill");

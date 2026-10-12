@@ -24,6 +24,15 @@ export const FoundationBaseSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("manual"), designReference: z.string().trim().min(1).max(240) }).strict(),
 ]);
 export type FoundationBase = z.infer<typeof FoundationBaseSchema>;
+export const FoundationSettingsSchema = z.object({
+  type: z.enum(["", "strip", "slab", "manual"]), side: z.enum(["interior", "exterior", "both"]),
+  boundary: z.boolean(),
+  wallWidth: z.string().max(40), wallHeight: z.string().max(40), wallMaterial: z.string().max(160),
+  reference: z.string().max(240), baseWidth: z.string().max(40), baseDepth: z.string().max(40),
+  slabThickness: z.string().max(40), overhang: z.string().max(40), slabMaterial: z.string().max(160),
+  thermal: z.string().max(40), waterproof: z.string().max(40),
+}).strict();
+export type FoundationSettings = z.infer<typeof FoundationSettingsSchema>;
 const common = {
   id: z.uuid(),
   layerId: z.string().trim().min(1).max(80),
@@ -39,20 +48,24 @@ const common = {
     purpose: z.enum(["structure", "thermal", "waterproofing", "finish", "bedding"]),
     material: z.string().trim().min(1).max(160),
     thicknessMm: positiveMm,
-    side: z.enum(["left", "right", "both"]),
+    side: z.enum(["left", "right", "both", "interior", "exterior"]),
   }).strict()).max(20).optional(),
   derivedFrom: z.object({ documentId: z.uuid(), entityId: z.uuid(), revision: z.number().int().min(0) }).strict().optional(),
   foundationBase: FoundationBaseSchema.optional(),
   supportFor: z.array(z.uuid()).min(1).max(1000).optional(),
   placement: z.object({ hostId: z.uuid(), groupId: z.uuid(), start: CadPointSchema, end: CadPointSchema,
     needsReview: z.boolean() }).strict().optional(),
+  mark: z.string().trim().min(1).max(40).optional(),
+  attachment: z.object({ hostId: z.uuid(), start: CadPointSchema, end: CadPointSchema }).strict()
+    .refine(({ start, end }) => start.x !== end.x || start.y !== end.y, "Podparcie nie może mieć zerowej długości.").optional(),
+  infillFor: z.array(z.uuid()).min(3).max(1000).optional(),
 };
 
 export const CadEntitySchema = z.discriminatedUnion("kind", [
   z.object({
     ...common, kind: z.literal("construction-line"), geometry: segment,
     attributes: z.object({
-      role: z.enum(["foundation-wall", "beam", "lintel", "ring-beam", "rafter", "ridge", "gutter", "fence", "kerb", "drain", "axis", "section-cut"]),
+      role: z.enum(["foundation-wall", "excavation", "beam", "lintel", "ring-beam", "rafter", "ridge", "gutter", "fence", "kerb", "drain", "axis", "section-cut"]),
       widthMm: positiveMm, heightMm: positiveMm, material: z.string().trim().min(1).max(160),
       designReference: z.string().trim().min(1).max(240),
     }).strict(),
@@ -122,7 +135,8 @@ export const CadEntitySchema = z.discriminatedUnion("kind", [
   }).strict(),
   z.object({
     ...common, kind: z.literal("annotation"), geometry: z.object({ point: CadPointSchema }).strict(),
-    attributes: z.object({ text: z.string().trim().min(1).max(1000) }).strict(),
+    attributes: z.object({ text: z.string().trim().min(1).max(1000), fontSizeMm: positiveMm.optional(),
+      leader: CadPointSchema.optional() }).strict(),
   }).strict(),
 ]);
 export type CadEntity = z.infer<typeof CadEntitySchema>;
@@ -163,10 +177,14 @@ export const CadDocumentSchema = z.object({
   importWarnings: z.array(z.string().min(1).max(1000)).max(40).optional(),
   documentReferences: z.partialRecord(z.enum(["plan", "sections", "reinforcement", "isolation", "geotechnics", "concrete", "penetrations"]),
     z.string().trim().max(240)).optional(),
+  foundationSettings: FoundationSettingsSchema.optional(),
+  paperScale: z.number().int().min(1).max(1000).optional(),
   entities: z.array(CadEntitySchema).max(5000),
 }).strict().superRefine((document, ctx) => {
   const ids = new Set(document.entities.map(({ id }) => id));
   if (ids.size !== document.entities.length) ctx.addIssue({ code: "custom", path: ["entities"], message: "Identyfikatory obiektów CAD muszą być unikalne." });
+  const marks = document.entities.flatMap((e) => e.mark ? [e.mark] : []);
+  if (new Set(marks).size !== marks.length) ctx.addIssue({ code: "custom", path: ["entities"], message: "Oznaczenia elementów muszą być unikalne na rysunku." });
   const walls = new Set(document.entities.filter(({ kind }) => kind === "wall").map(({ id }) => id));
   for (const [index, entity] of document.entities.entries()) {
     if (entity.foundationBase && (entity.kind !== "construction-line" || entity.attributes.role !== "foundation-wall")) {
@@ -178,6 +196,15 @@ export const CadDocumentSchema = z.object({
     }
     if (entity.placement && (!ids.has(entity.placement.hostId) || entity.placement.hostId === entity.id)) {
       ctx.addIssue({ code: "custom", path: ["entities", index], message: "Zbrojenie musi wskazywać element podparcia w tym rysunku." });
+    }
+    if (entity.attachment && (!(entity.kind === "annotation" || entity.kind === "construction-area"
+      && ["pad", "column"].includes(entity.attributes.role)) || !document.entities.some((host) => host.id === entity.attachment?.hostId
+      && (host.kind === "wall" || host.kind === "footing" || host.kind === "construction-line"))
+      || entity.attachment.hostId === entity.id)) {
+      ctx.addIssue({ code: "custom", path: ["entities", index], message: "Przyczepiony element musi wskazywać odcinek tego rysunku." });
+    }
+    if (entity.infillFor && (entity.kind !== "slab" || entity.infillFor.some((id) => !ids.has(id)))) {
+      ctx.addIssue({ code: "custom", path: ["entities", index], message: "Płyta denna musi wskazywać obwód tego rysunku." });
     }
     if (entity.kind === "opening" && !walls.has(entity.attributes.wallId)) {
       ctx.addIssue({ code: "custom", path: ["entities", index], message: "Otwór musi należeć do ściany w tym dokumencie." });

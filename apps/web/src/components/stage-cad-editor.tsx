@@ -1,19 +1,22 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { CadDocumentSchema, CadEntitySchema, cadDrawingTools, cadEntityTool, foundationDocumentChecklist, getCadDrawingTools, getCadWallDefaults,
+import { CadDocumentSchema, CadEntitySchema, cadDrawingTools, cadEntityTool, foundationDocumentChecklist, getCadDrawingTools, getCadWallDefaults, getFoundationSupportOptions,
   type ConstructionTechnologySelections, type CadDrawingTool, type ProjectDocumentationKind, type CadDocument, type CadEntity, type CadPoint } from "@asystent/schemas";
 import { calibrateCadSource, classifyCadTrace, connectCadWallJunctions, copyCadGeometry, createCadElement, entityPoints, hasCadJunctions, moveCadJunction, projectCadWallElevations,
   projectPointOnSegment, snapCadConnection, translateCadEntity, translateConnectedCadEntity } from "@asystent/domain";
-import { configureFoundationWall, foundationPlanExtents, resizeCadRectangle, resizeCadStrip, synchronizeFoundationSupports, synchronizeReinforcementPlacement, type FoundationWallSetup } from "@asystent/domain";
-import { distanceBetweenPoints, drawingBounds, isSimplePolygon, polygonAreaMm2, polygonExteriorSide, rectangleFromCorners,
+import { configureFoundationWall, foundationPlanExtents, resizeCadRectangle, resizeCadStrip, synchronizeFoundationSupports, synchronizeReinforcementPlacement } from "@asystent/domain";
+import { assignCadMarks, attachCadElement, cadElementBounds, cadLayerOutline, cadLayerSides, foundationSetupFromSettings,
+  getCadPlanDimensions, getCadPlanFaces, pointInCadPolygon, polygonCenter, synchronizeCadAttachments, synchronizeCadInfill } from "@asystent/domain";
+import { distanceBetweenPoints, drawingBounds, isSimplePolygon, polygonAreaMm2, rectangleFromCorners, rectangleSize,
   segmentRectangle, viewportToWorld, zoomDrawingView } from "@asystent/geometry";
 import { cadError, cadRequest } from "@/lib/cad-client";
 import { getSupabaseClient } from "@/lib/supabase";
 import { PlanScanDialog } from "./plan-scan-dialog";
 import { CadReinforcementPanel } from "./cad-reinforcement-panel";
-import { CadFoundationPanel } from "./cad-foundation-panel";
+import { CadFoundationPanel, initialFoundationSettings } from "./cad-foundation-panel";
 import { CadBeamSection } from "./cad-beam-section";
+import { CadPlanDimensions } from "./cad-plan-dimensions";
 
 type Tool = "select" | "pan" | "calibrate" | CadDrawingTool;
 const tools: { id: Tool; label: string; icon: string }[] = [
@@ -27,6 +30,7 @@ const attributeLabels: Record<string, string> = {
   measuredMm: "Wymiar referencyjny (mm)", label: "Opis elementu", text: "Treść opisu", diameterMm: "Średnica (mm)",
   count: "Liczba sztuk", steelGrade: "Klasa stali", coverMm: "Otulina (mm)",
   sillMm: "Wysokość parapetu (mm)", system: "System instalacji", type: "Rodzaj otworu",
+  fontSizeMm: "Rozmiar czcionki na arkuszu (mm)",
 };
 const colors: Partial<Record<CadEntity["kind"], string>> = {
   wall: "#2563eb", footing: "#b45309", slab: "#0891b2", "roof-plane": "#22a06b", "rebar-line": "#0f172a",
@@ -97,7 +101,8 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
   const [layerPurpose, setLayerPurpose] = useState<"thermal" | "waterproofing" | "finish" | "bedding" | "structure">("thermal");
   const [layerSide, setLayerSide] = useState<"left" | "right" | "both">("both");
   const [gridMm, setGridMm] = useState(100);
-  const [foundationSetup, setFoundationSetup] = useState<FoundationWallSetup | null>(null);
+  const [annotationFont, setAnnotationFont] = useState("2.5");
+  const annotationInput = useRef<HTMLInputElement>(null);
   const [snapTarget, setSnapTarget] = useState<CadPoint | null>(null);
   const [connectWalls, setConnectWalls] = useState(true);
   const wallDefaults = getCadWallDefaults(technology, kind === "foundation");
@@ -107,10 +112,15 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
   const svgRef = useRef<SVGSVGElement>(null);
   const alive = useRef(true);
   const [status, setStatus] = useState("");
+  const [showLegend, setShowLegend] = useState(true);
+  const [canvasWidth, setCanvasWidth] = useState(1300);
 
   const fit = useCallback((document: CadDocument) => {
     const all = document.entities.flatMap(entityPoints);
     all.push(...foundationPlanExtents(document));
+    for (const d of getCadPlanDimensions(document, 2.5 * (document.paperScale ?? 100))) {
+      all.push({ x: d.box.x, y: d.box.y }, { x: d.box.x + d.box.width, y: d.box.y + d.box.height }, d.a, d.b);
+    }
     for (const entity of document.entities) {
       if (entity.kind !== "rebar-annotation" || !entity.attributes.section) continue;
       const section = entity.attributes.section, p = entity.geometry.point;
@@ -123,6 +133,7 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
     });
     const bounds = drawingBounds(all);
     bounds.x -= bounds.width * .12; bounds.y -= bounds.height * .12; bounds.width *= 1.24; bounds.height *= 1.24;
+    bounds.width /= .68;
     const rect = svgRef.current?.getBoundingClientRect();
     const ratio = rect?.width && rect.height ? rect.width / rect.height : 1.4;
     if (bounds.width / bounds.height > ratio) {
@@ -137,7 +148,10 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
     if (latest.current) fit(latest.current);
     const svg = svgRef.current;
     if (!svg) return;
-    const observer = new ResizeObserver(() => { if (latest.current) fit(latest.current); });
+    const observer = new ResizeObserver(() => {
+      setCanvasWidth(svg.getBoundingClientRect().width);
+      if (latest.current) fit(latest.current);
+    });
     observer.observe(svg);
     return () => observer.disconnect();
   }, [drawing?.id, fit]);
@@ -163,13 +177,23 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
       const { data, error: loadError } = await getSupabaseClient().from("cad_drawings").select("*")
         .eq("job_id", jobId).eq("requirement_id", requirementId).maybeSingle();
       if (loadError) throw loadError;
-      const next = data ? CadDocumentSchema.parse(data.payload) : CadDocumentSchema.parse({
+      let next = data ? CadDocumentSchema.parse(data.payload) : CadDocumentSchema.parse({
         schemaVersion: 1, id: crypto.randomUUID(), projectId: jobId, requirementId,
         revision: 0, status: "draft", calibration: null, sourceImage: null, entities: [],
       });
+      if (!next.foundationSettings) {
+        const { data: previous, error: settingsError } = await getSupabaseClient().from("cad_drawings").select("payload")
+          .eq("job_id", jobId).like("requirement_id", "foundation%").not("payload->foundationSettings", "is", null)
+          .order("requirement_id", { ascending: true }).limit(1).maybeSingle();
+        if (settingsError) throw settingsError;
+        if (previous) next = { ...next, foundationSettings: CadDocumentSchema.parse(previous.payload).foundationSettings };
+      }
+      const marked = assignCadMarks(next), missingMarks = marked.entities.some((e, i) => e.mark !== next.entities[i]?.mark);
+      next = marked;
       if (active) {
         latest.current = next; savedRevision.current = data?.revision ?? 0; setDrawing(next);
-        setError(""); fit(next); onPendingChange(false); onSavedDrawing(requirementId, next.entities.length);
+        if (missingMarks) { sequence.current += 1; setDirty(true); setStatus("Zapisywanie oznaczeń istniejących elementów…"); }
+        setError(""); fit(next); onPendingChange(missingMarks); onSavedDrawing(requirementId, next.entities.length);
       }
     }
     void load().catch((cause) => { if (active) { setError(cadError(cause)); onPendingChange(true); } });
@@ -201,7 +225,8 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
         const next = { ...latest.current, revision: response.revision };
         latest.current = next; setDrawing(next);
         const pending = sequence.current !== currentSequence;
-        setDirty(pending); onPendingChange(pending || !!gesture.current); setError(""); setStatus("Rysunek zapisany automatycznie.");
+        setDirty(pending); onPendingChange(pending || !!gesture.current); setError("");
+        setStatus(pending ? "Niezapisane zmiany…" : "Rysunek zapisany automatycznie.");
         onSavedDrawing(requirementId, snapshot.entities.length);
       }
     } catch (cause) {
@@ -226,9 +251,10 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
 
   function commit(next: CadDocument, remember = true) {
     try {
-      const parsed = CadDocumentSchema.parse(synchronizeReinforcementPlacement(
-        synchronizeFoundationSupports(connectCadWallJunctions({ ...next, status: "draft", revision: savedRevision.current },
-          () => crypto.randomUUID()), () => crypto.randomUUID())));
+      const parsed = CadDocumentSchema.parse(assignCadMarks(synchronizeCadInfill(synchronizeReinforcementPlacement(
+        synchronizeFoundationSupports(connectCadWallJunctions(synchronizeCadAttachments({ ...next, status: "draft", revision: savedRevision.current }),
+          () => crypto.randomUUID()), () => crypto.randomUUID())))));
+      getCadPlanFaces(parsed);
       if (parsed.entities.some((entity) => "vertices" in entity.geometry && !isSimplePolygon(entity.geometry.vertices))) {
         throw new Error("Obrys jest zdegenerowany lub przecina sam siebie. Popraw współrzędne.");
       }
@@ -249,7 +275,8 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
   function chooseTool(next: Tool) {
     setTool(next); setPoints([]); setGhost(null); setSnapTarget(null); gesture.current = null; setPreviewDrawing(null); setError(""); onPendingChange(dirty || saving);
   }
-  const polygonTool = cadDrawingTools.some((item) => item.id === tool && item.geometry === "area");
+  const infillTool = tool === "slab" && kind === "foundation" && technology.foundationBottomSlab === "bottom-slab-yes";
+  const polygonTool = !infillTool && cadDrawingTools.some((item) => item.id === tool && item.geometry === "area");
   const rectangleTool = tool === "pad" || tool === "column";
   function cancelGesture() {
     gesture.current = null; setPreviewDrawing(null); setPoints([]); setGhost(null); setSnapTarget(null); onPendingChange(dirty || saving);
@@ -275,11 +302,19 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
       wall: wall?.kind === "wall" ? wall : undefined,
       pipeSystem: kind === "electrical" ? "electrical-conduit" : kind === "heating" ? "heating" : kind === "ventilation" ? "ventilation" : "water" });
     if (tool === "foundation-wall") {
-      if (!foundationSetup) throw new Error("Najpierw uzupełnij parametry ściany i jej podparcia, następnie kliknij „Zastosuj do nowych ścian”.");
-      return configureFoundationWall(entity, foundationSetup);
+      const settings = drawing?.foundationSettings ?? initialFoundationSettings(technology);
+      if (!getFoundationSupportOptions(technology).some((option) => option.value === settings.type)) {
+        throw new Error("Wybierz podparcie zgodne z aktualnymi danymi budowy.");
+      }
+      return configureFoundationWall(entity, foundationSetupFromSettings(settings, technologyHints));
     }
     if (entity.kind === "wall") return CadEntitySchema.parse({ ...entity,
       attributes: { ...entity.attributes, thicknessMm: Number(wallThickness), material: wallDefaults.material ?? entity.attributes.material } });
+    if (entity.kind === "annotation") return attachCadElement(CadEntitySchema.parse({ ...entity, geometry: { point: end },
+      attributes: { text: annotation, fontSizeMm: Number(annotationFont), leader: start } }), drawing!, 0);
+    if (entity.kind === "construction-area" && ["pad", "column"].includes(entity.attributes.role)) {
+      return attachCadElement(entity, drawing!, view.width * 12 / Math.max(1, svgRef.current?.getBoundingClientRect().width ?? 1));
+    }
     return entity;
   }
   function add(start: CadPoint, end: CadPoint, vertices?: CadPoint[]) {
@@ -294,6 +329,21 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
   function pointerDown(event: ReactPointerEvent<SVGSVGElement>) {
     if (!drawing || scanOpen || event.button !== 0) return;
     const point = world(event, tool !== "select");
+    if (tool === "slab" && kind === "foundation" && technology.foundationBottomSlab === "bottom-slab-yes") {
+      try {
+        const face = getCadPlanFaces(drawing, "footings").find((f) => pointInCadPolygon(point, f.inner));
+        if (!face) throw new Error("Kliknij zamknięte pole ław. Obwód musi być połączony.");
+        if (drawing.entities.some((e) => e.infillFor?.slice().sort().join() === face.ids.slice().sort().join())) {
+          throw new Error("To pole ma już płytę denną. Zaznacz ją, aby zmienić parametry lub usunąć.");
+        }
+        const settings = drawing.foundationSettings ?? initialFoundationSettings(technology);
+        if (!settings.slabThickness.trim() || !settings.slabMaterial.trim()) throw new Error("Podaj grubość i beton płyty dennej w ustawieniach pod canvas.");
+        const slab = createCadElement("slab", face.inner, { id: crypto.randomUUID() });
+        commit({ ...drawing, entities: [...drawing.entities, CadEntitySchema.parse({ ...slab, infillFor: face.ids,
+          attributes: { thicknessMm: Number(settings.slabThickness), material: settings.slabMaterial } })] });
+      } catch (cause) { setError(cadError(cause)); }
+      return;
+    }
     const target = event.target instanceof Element ? event.target.closest("[data-entity-id]") : null;
     let entityId = target?.getAttribute("data-entity-id") ?? null;
     const support = drawing.entities.find((entity) => entity.id === entityId)?.supportFor;
@@ -326,8 +376,8 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
       const previous = viewportToWorld({ x: event.clientX, y: event.clientY }, bounds, start.view);
       setView({ ...start.view, x: start.view.x - (previous.x - start.start.x), y: start.view.y - (previous.y - start.start.y) });
     } else if (tool === "select" && gesture.current?.entityId) {
-      try { setPreviewDrawing(synchronizeReinforcementPlacement(
-        synchronizeFoundationSupports(dragSelection(gesture.current, point), () => crypto.randomUUID()))); setError(""); }
+      try { setPreviewDrawing(synchronizeCadInfill(synchronizeReinforcementPlacement(
+        synchronizeFoundationSupports(synchronizeCadAttachments(dragSelection(gesture.current, point)), () => crypto.randomUUID())))); setError(""); }
       catch (cause) { setError(cadError(cause)); }
     } else {
       setGhost(point);
@@ -376,6 +426,10 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
         end: projectPointOnSegment(moved.geometry.end, wall.geometry.start, wall.geometry.end),
       } });
     }
+    if (moved.kind === "construction-area" && ["pad", "column"].includes(moved.attributes.role)) {
+      moved = attachCadElement(moved, document, view.width * 12 / Math.max(1, svgRef.current?.getBoundingClientRect().width ?? 1));
+    }
+    // Moving a label relocates its text, not the point it describes.
     return { ...document, entities: document.entities.map((entity) => entity.id === moving.id ? moved : entity) };
   }
   function pointerUp(event: ReactPointerEvent<SVGSVGElement>) {
@@ -390,7 +444,7 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
       if (distanceBetweenPoints(start.start, end) > .01) {
         try { commit(dragSelection(start, end)); } catch (cause) { setError(cadError(cause)); }
       }
-    } else if (tool === "annotation") add(end, end);
+    } else if (tool === "annotation") { add(start.start, end); setTool("select"); annotationInput.current?.focus(); }
     else if (rectangleTool) {
       try { add(start.start, end, rectangleFromCorners(start.start, end)); }
       catch (cause) { setError(cadError(cause)); }
@@ -403,10 +457,7 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
   }
   const selected = drawing?.entities.find(({ id }) => id === selectedId);
   const rectangularSelection = selected?.kind === "construction-area" && ["pad", "column"].includes(selected.attributes.role)
-    && selected.geometry.vertices.length === 4 ? {
-      length: Math.max(...selected.geometry.vertices.map((p) => p.x)) - Math.min(...selected.geometry.vertices.map((p) => p.x)),
-      width: Math.max(...selected.geometry.vertices.map((p) => p.y)) - Math.min(...selected.geometry.vertices.map((p) => p.y)),
-    } : null;
+    ? rectangleSize(selected.geometry.vertices) : null;
   const exteriorLength = selected && (selected.kind === "wall" || selected.kind === "footing" || selected.kind === "construction-line")
     ? distanceBetweenPoints(selected.geometry.start, selected.geometry.end)
       + (selected.kind === "wall" ? selected.attributes.thicknessMm : selected.attributes.widthMm) : null;
@@ -420,9 +471,13 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
   function removeSelected() {
     if (!drawing || !selected) return;
     if (selected.supportFor && !selected.derivedFrom) { setError("Aby usunąć podparcie, zmień sposób posadowienia lub usuń ściany jego obwodu."); return; }
-    commit({ ...drawing, entities: drawing.entities.filter((entity) => entity.id !== selected.id && entity.placement?.hostId !== selected.id
+    const removed = new Set([selected.id, ...drawing.entities.filter((e) => e.supportFor?.includes(selected.id)).map((e) => e.id)]);
+    commit({ ...drawing, entities: drawing.entities.filter((entity) => !removed.has(entity.id) && !entity.infillFor?.some((id) => removed.has(id))
+      && !(entity.placement && removed.has(entity.placement.hostId))
       && !(selected.placement && entity.placement?.groupId === selected.placement.groupId)
-      && !(entity.kind === "opening" && entity.attributes.wallId === selected.id)) }); setSelectedId(null);
+      && !(entity.kind === "opening" && entity.attributes.wallId === selected.id))
+      .map((entity) => entity.attachment && removed.has(entity.attachment.hostId)
+        ? { ...entity, attachment: undefined } : entity) }); setSelectedId(null);
   }
   function calibrate() {
     if (!drawing || points.length !== 2) return;
@@ -450,6 +505,11 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
     const copy = svgRef.current.cloneNode(true);
     if (!(copy instanceof SVGSVGElement)) return;
     copy.querySelectorAll("image").forEach((element) => element.remove());
+    const scale = drawing?.paperScale ?? 100;
+    copy.removeAttribute("class"); copy.removeAttribute("style");
+    copy.setAttribute("width", `${view.width / scale}mm`); copy.setAttribute("height", `${view.height / scale}mm`);
+    copy.setAttribute("data-paper-scale", String(scale));
+    copy.querySelectorAll(".cad-dimension text").forEach((element) => element.setAttribute("font-size", String(2.5 * scale)));
     const blob = new Blob([new XMLSerializer().serializeToString(copy)], { type: "image/svg+xml" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a"); anchor.href = url; anchor.download = `${requirementId}.svg`; anchor.click();
@@ -458,30 +518,44 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
   const layers = [...new Set(drawing?.entities.map(({ layerId }) => layerId) ?? [])];
   const materialLegend = [...new Map((drawing?.entities ?? []).flatMap((entity) => (entity.buildUp ?? []).map((layer) =>
     [JSON.stringify([layer.purpose, layer.material, layer.thicknessMm]), layer] as const))).values()];
-  const overall = drawing && kind === "foundation" && /^Rzut/i.test(title)
-    ? foundationPlanExtents({ ...drawing, entities: drawing.entities.filter((e) => !hiddenLayers.includes(e.layerId)) }) : [];
+  const visibleDrawing = drawing ? { ...drawing, entities: drawing.entities.filter((e) => !hiddenLayers.includes(e.layerId)) } : null;
+  let faces: ReturnType<typeof getCadPlanFaces> = [], dimensions: ReturnType<typeof getCadPlanDimensions> = [], planError = "";
+  try {
+    if (drawing) faces = getCadPlanFaces(drawing);
+    if (visibleDrawing) dimensions = getCadPlanDimensions(visibleDrawing,
+      Math.max(2.5 * (drawing?.paperScale ?? 100), view.width * 13 / Math.max(1, canvasWidth)));
+  } catch (cause) { planError = cadError(cause); }
+  const dimensionFont = Math.max(2.5 * (drawing?.paperScale ?? 100),
+    view.width * 13 / Math.max(1, canvasWidth));
+  const legendEntries = [
+    `Skala arkusza 1:${drawing?.paperScale ?? 100} · Wymiary w mm`,
+    ...technologyHints.map((h) => `${h.label}: ${h.material}`),
+    ...materialLegend.map((l, i) => `I${i + 1}: ${l.material} · ${l.thicknessMm} mm`),
+    ...(drawing?.foundationSettings ? [`Ściana: ${drawing.foundationSettings.wallMaterial || "Do uzupełnienia"} · ${drawing.foundationSettings.wallWidth || "?"} mm × ${drawing.foundationSettings.wallHeight || "?"} mm`,
+      drawing.foundationSettings.type === "strip" ? `Ława: ${drawing.foundationSettings.baseWidth || "?"} × ${drawing.foundationSettings.baseDepth || "?"} mm` : `Podparcie: ${drawing.foundationSettings.type || "do uzupełnienia"}`,
+      ...(drawing.foundationSettings.waterproof ? [`Hydroizolacja: ${drawing.foundationSettings.side === "both" ? "obie strony" : drawing.foundationSettings.side === "interior" ? "od wewnątrz" : "od zewnątrz"}`] : []),
+      `Odniesienie ścian: ${drawing.foundationSettings.reference || "Do uzupełnienia z projektu"}`,
+      ...(technology.foundationBottomSlab === "bottom-slab-yes" ? [`Płyta denna: ${drawing.foundationSettings.slabThickness || "?"} mm · ${drawing.foundationSettings.slabMaterial || "Do uzupełnienia"}`] : [])] : []),
+    ...Object.entries(foundationDocumentChecklist).filter(([key]) => kind === "foundation" || drawing?.documentReferences?.[key as keyof typeof foundationDocumentChecklist])
+      .map(([key, label]) => `${label}: ${drawing?.documentReferences?.[key as keyof typeof foundationDocumentChecklist] || "Do uzupełnienia"}`),
+  ];
+  const legendLines = legendEntries.flatMap((entry) => {
+    const lines: string[] = []; let line = "";
+    for (const word of entry.split(" ")) {
+      if ((line + " " + word).length > 62 && line) { lines.push(line); line = ""; }
+      line += (line ? " " : "") + word;
+    }
+    if (line) lines.push(line);
+    return lines;
+  });
   const textSize = view.width / 70;
+  const legendStep = Math.min(textSize * .72, view.height * .7 / Math.max(1, legendLines.length + 2));
+  const legendHeight = (legendLines.length + 2) * legendStep;
   const rulerStep = 10 ** Math.floor(Math.log10(view.width / 6));
   const xTicks = Array.from({ length: Math.min(30, Math.ceil(view.width / rulerStep)) }, (_, i) =>
     (Math.ceil(view.x / rulerStep) + i) * rulerStep).filter((x) => x <= view.x + view.width);
   const yTicks = Array.from({ length: Math.min(30, Math.ceil(view.height / rulerStep)) }, (_, i) =>
     (Math.ceil(view.y / rulerStep) + i) * rulerStep).filter((y) => y <= view.y + view.height);
-  function dimensionShape(start: CadPoint, end: CadPoint, color: string, offset = textSize * 1.8) {
-    const length = distanceBetweenPoints(start, end);
-    if (!length) return null;
-    const nx = -(end.y - start.y) / length, ny = (end.x - start.x) / length;
-    const a = { x: start.x + nx * offset, y: start.y + ny * offset };
-    const b = { x: end.x + nx * offset, y: end.y + ny * offset };
-    const tick = textSize / 3;
-    return <g className="cad-dimension" pointerEvents="none" stroke={color} strokeWidth={1} vectorEffect="non-scaling-stroke">
-      <line x1={start.x} y1={start.y} x2={a.x + nx * tick} y2={a.y + ny * tick} strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
-      <line x1={end.x} y1={end.y} x2={b.x + nx * tick} y2={b.y + ny * tick} strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
-      <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} vectorEffect="non-scaling-stroke" />
-      {[a, b].map((p, i) => <line key={i} x1={p.x - tick} y1={p.y - tick} x2={p.x + tick} y2={p.y + tick} vectorEffect="non-scaling-stroke" />)}
-      <text x={(a.x + b.x) / 2} y={(a.y + b.y) / 2 - textSize * .25} fill={color} stroke="none"
-        fontSize={textSize * .8} textAnchor="middle">{length.toFixed(0)} mm</text>
-    </g>;
-  }
   function shape(entity: CadEntity) {
     const color = entityColor(entity);
     if ("start" in entity.geometry) {
@@ -489,29 +563,33 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
       const width = entity.kind === "wall" ? entity.attributes.thicknessMm : entity.kind === "footing" ? entity.attributes.widthMm
         : entity.kind === "construction-line" && !["axis", "section-cut"].includes(entity.attributes.role) ? entity.attributes.widthMm : 0;
       const length = distanceBetweenPoints(start, end);
-      const nx = -(end.y - start.y) / length, ny = (end.x - start.x) / length;
       let left = width / 2, right = width / 2;
       const buildUp = (entity.buildUp ?? []).flatMap((layer, index) => {
-        const sides = layer.side === "both" ? ["left", "right"] : [layer.side];
+        const sides = cadLayerSides(entity, layer.side, faces);
+        if (!sides.length) return [<g key={index} className="cad-material-layer" data-purpose={layer.purpose}>
+          <title>{layer.material} · {layer.thicknessMm} mm — zamknij obrys lub wybierz stronę ręcznie.</title></g>];
         return sides.map((side) => {
-          const position = (side === "left" ? left : -right) + (side === "left" ? 1 : -1) * layer.thicknessMm / 2;
+          const from = side === "left" ? left : right;
           if (side === "left") left += layer.thicknessMm; else right += layer.thicknessMm;
-          const a = { x: end.x + nx * (position - layer.thicknessMm / 2), y: end.y + ny * (position - layer.thicknessMm / 2) };
-          const b = { x: end.x + nx * (position + layer.thicknessMm / 2), y: end.y + ny * (position + layer.thicknessMm / 2) };
-          const labelX = (start.x + end.x) / 2 + nx * (position + (side === "left" ? 1 : -1) * textSize * (3 + index));
-          const labelY = (start.y + end.y) / 2 + ny * (position + (side === "left" ? 1 : -1) * textSize * (3 + index));
+          const outline = cadLayerOutline(entity, side, from, from + layer.thicknessMm, faces);
           const angle = Math.atan2(end.y - start.y, end.x - start.x) * 180 / Math.PI;
-          const legendIndex = materialLegend.findIndex((item) => item.purpose === layer.purpose && item.material === layer.material && item.thicknessMm === layer.thicknessMm);
-          return <g key={`${index}-${side}`} className="cad-material-layer" data-purpose={layer.purpose}><line x1={start.x + nx * position} y1={start.y + ny * position}
-            x2={end.x + nx * position} y2={end.y + ny * position} stroke={`url(#cad-hatch-${requirementId}-${layer.purpose})`}
-            strokeWidth={layer.thicknessMm}><title>{layer.material} · {layer.thicknessMm} mm</title></line>
-            {dimensionShape(a, b, color, textSize * (3 + index * 2))}
-            <text x={labelX} y={labelY} textAnchor="middle" transform={`rotate(${angle > 90 ? angle - 180 : angle < -90 ? angle + 180 : angle} ${labelX} ${labelY})`}
-              fontSize={textSize * .65} fill={color}>I{legendIndex + 1} · {layer.thicknessMm} mm</text></g>;
+          const clipId = `layer-${entity.id}-${index}-${side}`;
+          return <g key={`${index}-${side}`} className="cad-material-layer" data-purpose={layer.purpose}>
+            <title>{layer.material} · {layer.thicknessMm} mm</title>
+            {layer.purpose === "thermal" && <defs><pattern id={clipId} width={layer.thicknessMm} height={layer.thicknessMm}
+              patternUnits="userSpaceOnUse" patternTransform={`rotate(${angle} ${start.x} ${start.y})`}>
+              <rect width={layer.thicknessMm} height={layer.thicknessMm} fill="#fff5ce" />
+              <path className="cad-insulation-symbol" d={`M0 0 L${layer.thicknessMm} ${layer.thicknessMm} M0 ${layer.thicknessMm} L${layer.thicknessMm} 0`}
+                stroke="#b98522" strokeWidth={1} vectorEffect="non-scaling-stroke" fill="none" />
+            </pattern></defs>}
+            <polygon points={outline.map((p) => `${p.x},${p.y}`).join(" ")}
+              fill={layer.purpose === "thermal" ? `url(#${clipId})` : "#c9eaf7"} stroke={layer.purpose === "thermal" ? "#b98522" : "#64748b"}
+              strokeWidth={1} vectorEffect="non-scaling-stroke" />
+          </g>;
         });
       });
       const openingWall = entity.kind === "opening" ? drawing?.entities.find((wall) => wall.id === entity.attributes.wallId) : null;
-      if (entity.kind === "dimension") return dimensionShape(start, end, color, textSize);
+      if (entity.kind === "dimension") return null;
       return <g>
         {buildUp}
         {openingWall?.kind === "wall" && <line x1={start.x} y1={start.y} x2={end.x} y2={end.y}
@@ -525,13 +603,8 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
         <line x1={start.x} y1={start.y} x2={end.x} y2={end.y} stroke={color}
           strokeDasharray={entity.kind === "construction-line" && ["axis", "section-cut"].includes(entity.attributes.role) ? "12 4 2 4" : undefined}
           strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
-        {width > 0 && (() => {
-          const outline = segmentRectangle(start, end, width);
-          return <g className="cad-exterior-dimensions">
-            {dimensionShape(outline[0], outline[1], color, textSize * 2)}
-            {dimensionShape(outline[1], outline[2], color, textSize * 2)}
-          </g>;
-        })()}
+        {entity.mark && <text x={(start.x + end.x) / 2} y={(start.y + end.y) / 2} fontSize={dimensionFont * .8}
+          textAnchor="middle" fill={color} stroke="white" strokeWidth={dimensionFont / 8} paintOrder="stroke" pointerEvents="none">{entity.mark}</text>}
         {width === 0 && (!entity.layerId.startsWith("rebar-") || selectedId === entity.id) && <text x={(start.x + end.x) / 2} y={(start.y + end.y) / 2 - textSize / 2} fill={color} fontSize={textSize} textAnchor="middle">
           {Math.round(length)} mm{entity.kind === "rebar-line" ? ` · Ø${entity.attributes.diameterMm}` : ""}
         </text>}
@@ -551,8 +624,14 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
           stroke={`url(#cad-hatch-${requirementId}-${layer.purpose})`} strokeWidth={thickness}>
           <title>{layer.material} · {layer.thicknessMm} mm — pas obrysu, sprawdź przekrój</title></polygon>)}
         <polygon className="cad-solid-outline" points={outline} fill={isVoid ? "white" : color} fillOpacity={isVoid ? 1 : 0.25} stroke={color} strokeWidth={2} vectorEffect="non-scaling-stroke" />
-        {vertices.map((point, i) => dimensionShape(point, vertices[(i + 1) % vertices.length], color,
-          polygonExteriorSide(vertices) * textSize * 1.8))}
+        {entity.mark && (() => {
+          const center = polygonCenter(vertices), bounds = cadElementBounds(entity);
+          const symbol = entity.kind === "construction-area" && ["pad", "column"].includes(entity.attributes.role);
+          const size = rectangleSize(vertices);
+          return <text className="cad-element-mark" x={center.x} y={center.y} fontSize={symbol ? Math.min(bounds.width / 8, bounds.height / 5) : dimensionFont}
+            textAnchor="middle" fill={color} pointerEvents="none"><tspan x={center.x}>{entity.mark}</tspan>
+            {symbol && size && <tspan x={center.x} dy="1.3em">{Math.round(size.length)} × {Math.round(size.width)}</tspan>}</text>;
+        })()}
       </g>;
     }
     if (entity.kind === "rebar-annotation" && entity.attributes.section && entity.attributes.diameterMm) {
@@ -563,9 +642,17 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
           {entity.attributes.label}</text>
       </g>;
     }
-    return <text x={entity.geometry.point.x} y={entity.geometry.point.y} fontSize={textSize} fill={color}>
-      {entity.kind === "annotation" ? entity.attributes.text : entity.kind === "rebar-annotation" ? entity.attributes.label : ""}
-    </text>;
+    return <g>
+      {entity.kind === "annotation" && entity.attributes.leader && <g className="cad-annotation-leader">
+        <line x1={entity.attributes.leader.x} y1={entity.attributes.leader.y} x2={entity.geometry.point.x} y2={entity.geometry.point.y}
+          stroke={color} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+        <circle cx={entity.attributes.leader.x} cy={entity.attributes.leader.y} r={dimensionFont / 5} fill={color} />
+      </g>}
+      <text x={entity.geometry.point.x} y={entity.geometry.point.y}
+        fontSize={entity.kind === "annotation" ? (entity.attributes.fontSizeMm ?? 2.5) * (drawing?.paperScale ?? 100) : textSize} fill={color}>
+        {entity.kind === "annotation" ? entity.attributes.text : entity.kind === "rebar-annotation" ? entity.attributes.label : ""}
+      </text>
+    </g>;
   }
 
   return <div className="cad-editor">
@@ -574,6 +661,7 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
     {error && <div className="alert alert-error" role="alert">{error}
       {drawing ? <button type="button" className="quiet-button" disabled={saving} onClick={() => { setError(""); void persist(); }}>Ponów zapis rysunku</button>
         : <button type="button" className="quiet-button" onClick={() => setLoadAttempt((value) => value + 1)}>Ponów wczytywanie rysunku</button>}</div>}
+    {planError && <p role="alert" className="alert alert-error">{planError}</p>}
     {!drawing ? <p role="status">Wczytywanie rysunku…</p> : <>
       <div className="cad-toolbar" role="toolbar" aria-label="Narzędzia rysowania">
         {tools.filter((item) => ["select", "pan", "calibrate"].includes(item.id) || allowedTools.includes(item.id as CadDrawingTool)).map((item) => <button key={item.id} type="button" aria-pressed={tool === item.id}
@@ -582,11 +670,12 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
       </div>
       <div className="cad-workspace">
         <aside className="cad-tools-panel" aria-label="Ustawienia pod płótnem">
-          <h4>Narzędzia etapu</h4><p>{tool === "select" ? "Kliknij element, aby go edytować. Przeciągnij, aby go przesunąć."
+          <h4>Narzędzia etapu</h4><p>{infillTool ? "Kliknij zamknięte pole ław, aby wstawić płytę denną z parametrów poniżej."
+            : tool === "select" ? "Kliknij element, aby go edytować. Przeciągnij, aby go przesunąć."
             : rectangleTool ? "Przeciągnij od jednego narożnika prostokąta do przeciwległego. Wymiary zmienisz po zaznaczeniu."
               : polygonTool ? "Klikaj kolejne narożniki, następnie zamknij obrys."
               : tool === "calibrate" ? "Kliknij dwa punkty skanu o znanej odległości."
-                : tool === "annotation" ? "Kliknij miejsce opisu." : tool === "pan" ? "Przeciągnij płótno." : "Przeciągnij od początku do końca elementu."}</p>
+                : tool === "annotation" ? "Kliknij opisywany element i przeciągnij do wolnego miejsca. Następnie wpisz tekst przy canvas." : tool === "pan" ? "Przeciągnij płótno." : "Przeciągnij od początku do końca elementu."}</p>
           <label>Skok przyciągania (mm, 0 = bez siatki)<input type="number" min={0} max={10000} step="any" value={gridMm}
             onChange={(event) => { const value = Number(event.target.value); if (Number.isFinite(value) && value >= 0 && value <= 10000) setGridMm(value); }} /></label>
           <label className="checkbox-field"><input type="checkbox" checked={connectWalls}
@@ -595,7 +684,9 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
             Przeciągnij wspólny narożnik, aby zmienić obie ściany naraz.</p>
           {tool === "wall" && <label>Grubość nowej ściany (mm)<input type="number" min={1} max={1000000}
             value={wallThickness} onChange={(event) => setWallThickness(event.target.value)} /></label>}
-          {tool === "annotation" && <label>Tekst nowego opisu<input value={annotation} maxLength={1000} onChange={(event) => setAnnotation(event.target.value)} /></label>}
+          {tool === "annotation" && <><label>Tekst nowego opisu<input value={annotation} maxLength={1000} onChange={(event) => setAnnotation(event.target.value)} /></label>
+            <label>Rozmiar nowego opisu na arkuszu (mm)<input type="number" min={.5} max={20} step={.5} value={annotationFont}
+              onChange={(event) => setAnnotationFont(event.target.value)} /></label></>}
           {polygonTool && !rectangleTool && <button type="button" className="quiet-button" disabled={points.length < 3}
             onClick={() => add(points[0], points.at(-1)!, points)}>Zamknij obrys ({points.length})</button>}
           {tool === "calibrate" && <><label htmlFor="cad-reference">Znana odległość (mm)</label><input id="cad-reference" type="number" min={1} max={1000000}
@@ -617,13 +708,20 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
                 }} />
             </label>)}
           </details>}
-          {(tool === "foundation-wall" || allowedTools.includes("foundation-wall") && selected?.kind === "construction-line"
-            && selected.attributes.role === "foundation-wall" && !selected.derivedFrom) &&
-            <CadFoundationPanel technology={technology} hints={technologyHints} onConfigure={(setup) => {
-              configureFoundationWall(createCadElement("foundation-wall", [{ x: 0, y: 0 }, { x: 1000, y: 0 }], { id: crypto.randomUUID() }), setup);
-              setFoundationSetup(setup); setStatus("Parametry zastosowane. Narysuj ścianę fundamentową.");
-            }} onUpdate={selected?.kind === "construction-line" && selected.attributes.role === "foundation-wall"
+          {allowedTools.includes("foundation-wall") &&
+            <CadFoundationPanel technology={technology} hints={technologyHints}
+              values={drawing.foundationSettings ?? initialFoundationSettings(technology)}
+              onChange={(foundationSettings) => commit({ ...drawing, foundationSettings })}
+              onUpdate={selected?.kind === "construction-line" && selected.attributes.role === "foundation-wall"
               ? (setup) => updateSelected(configureFoundationWall(selected, setup)) : undefined} />}
+          {kind === "foundation" && technology.foundationBottomSlab === "bottom-slab-yes" && <fieldset>
+            <legend>Płyta denna między ławami</legend>
+            <label>Grubość płyty dennej (mm)<input type="number" min={1}
+              value={drawing.foundationSettings?.slabThickness ?? ""} onChange={(e) => commit({ ...drawing,
+                foundationSettings: { ...(drawing.foundationSettings ?? initialFoundationSettings(technology)), slabThickness: e.target.value } })} /></label>
+            <label>Beton płyty dennej<input value={drawing.foundationSettings?.slabMaterial ?? ""} onChange={(e) => commit({ ...drawing,
+              foundationSettings: { ...(drawing.foundationSettings ?? initialFoundationSettings(technology)), slabMaterial: e.target.value } })} /></label>
+          </fieldset>}
           {(allowedTools.includes("rebar-line") || /strop/i.test(title)) && <CadReinforcementPanel hosts={drawing.entities} selectedHostId={selectedId} onCreate={(entities) => {
             const next = { ...drawing, entities: [...drawing.entities, ...entities] }; commit(next); fit(next);
           }} />}
@@ -642,7 +740,7 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
           <h4>Elementy ({drawing.entities.length})</h4>
           <div className="cad-element-list">{drawing.entities.map((entity, i) => <button key={entity.id} type="button"
             aria-pressed={selectedId === entity.id} onClick={() => { setSelectedId(entity.supportFor?.length === 1 ? entity.supportFor[0]! : entity.id); chooseTool("select"); }}>
-            {i + 1}. {tools.find(({ id }) => id === cadEntityTool(entity))?.label ?? ("label" in entity.attributes ? entity.attributes.label : entity.kind)}
+            {entity.mark ?? `${i + 1}.`} {tools.find(({ id }) => id === cadEntityTool(entity))?.label ?? ("label" in entity.attributes ? entity.attributes.label : entity.kind)}
           </button>)}</div>
         </aside>
         <div className="cad-drawing-panel">
@@ -652,6 +750,22 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
               return <span key={role}><i style={{ backgroundColor: entityColor(entity) }} aria-hidden="true" />
                 {tools.find((item) => item.id === role)?.label}</span>;
             })}
+          </div>
+          <div className="cad-inline-description">
+            <label>Opis na rysunku<input ref={annotationInput} maxLength={1000}
+              value={selected?.kind === "annotation" ? selected.attributes.text : annotation}
+              onChange={(e) => selected?.kind === "annotation"
+                ? updateSelected({ ...selected, attributes: { ...selected.attributes, text: e.target.value } }) : setAnnotation(e.target.value)} /></label>
+            <label>Czcionka opisu na arkuszu (mm)<input type="number" min={.5} max={20} step={.5}
+              value={selected?.kind === "annotation" ? selected.attributes.fontSizeMm ?? 2.5 : annotationFont}
+              onChange={(e) => selected?.kind === "annotation" ? updateSelected({ ...selected,
+                attributes: { ...selected.attributes, fontSizeMm: Number(e.target.value) } }) : setAnnotationFont(e.target.value)} /></label>
+            <label>Skala arkusza 1:<select aria-label="Skala arkusza" value={drawing.paperScale ?? 100}
+              onChange={(e) => commit({ ...drawing, paperScale: Number(e.target.value) })}>
+              {[10, 20, 25, 50, 100, 200, 250, 500, 1000].map((scale) => <option key={scale} value={scale}>1:{scale}</option>)}
+            </select></label>
+            <button type="button" className="quiet-button" aria-pressed={showLegend} onClick={() => setShowLegend(!showLegend)}>
+              {showLegend ? "Ukryj legendę" : "Pokaż legendę"}</button>
           </div>
           <svg ref={svgRef} className="cad-canvas" role="img" aria-label={`Płótno projektu: ${title}`} tabIndex={0}
             viewBox={`${view.x} ${view.y} ${view.width} ${view.height}`} preserveAspectRatio="none"
@@ -689,20 +803,24 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
             {drawing.entities.filter(({ layerId }) => !hiddenLayers.includes(layerId)).map((entity) => <g key={entity.id}
               data-entity-id={entity.id} data-role={cadEntityTool(entity) ?? entity.kind}
               data-selected={selectedId === entity.id} className="cad-entity">{shape(entity)}</g>)}
+            {faces.map((face, i) => <text key={i} className="cad-room-area" x={face.center.x} y={face.center.y}
+              textAnchor="middle" fontSize={dimensionFont * 1.2} fill="#1e40af" pointerEvents="none"
+              stroke="#fff" strokeWidth={dimensionFont / 6} paintOrder="stroke">
+              <title>Pole w świetle ścian obwodu, bez odliczania stóp, słupów i otworów w podłodze. Nie jest zatwierdzonym przedmiarem.</title>
+              {(face.areaMm2 / 1000000).toFixed(2)} m²</text>)}
+            <CadPlanDimensions dimensions={dimensions} fontMm={dimensionFont} />
             {snapTarget && <g className="cad-snap-target" pointerEvents="none">
               <circle cx={snapTarget.x} cy={snapTarget.y} r={view.width / 100} fill="#dcfce7" stroke="#16a34a"
                 strokeWidth={2} vectorEffect="non-scaling-stroke" />
               <title>Połączenie ścian</title>
             </g>}
-            {overall.length === 4 && <g className="cad-overall-dimensions" pointerEvents="none">
-              {dimensionShape(overall[0], overall[1], "#0f172a", -textSize * 6)}
-              {dimensionShape(overall[1], overall[2], "#0f172a", -textSize * 6)}
-            </g>}
-            {materialLegend.length > 0 && <g className="cad-material-legend" pointerEvents="none">
-              {materialLegend.map((layer, i) => <text key={i} x={view.x + textSize}
-                y={view.y + view.height - (materialLegend.length - i) * textSize} fontSize={textSize * .65} fill="#0f172a">
-                I{i + 1}: {layer.material} · {layer.thicknessMm} mm
-              </text>)}
+            {showLegend && <g className="cad-material-legend cad-project-legend" pointerEvents="none">
+              <rect x={view.x + view.width * .68} y={view.y + view.height - legendHeight}
+                width={view.width * .31} height={legendHeight - legendStep / 2}
+                rx={textSize / 3} fill="#fff" fillOpacity={.96} stroke="#cbd5e1" strokeWidth={1} vectorEffect="non-scaling-stroke" />
+              {legendLines.map((line, i) => <text key={i} x={view.x + view.width * .69}
+                      y={view.y + view.height - legendHeight + (i + 1) * legendStep}
+                      fontSize={legendStep * .72} fill="#334155">{line}</text>)}
             </g>}
             {selected && tool === "select" && (hasCadJunctions(selected) || "vertices" in selected.geometry) && !hiddenLayers.includes(selected.layerId) &&
               entityPoints(selected).map((p, i) => <circle key={`handle-${i}`} className="cad-junction"
@@ -747,6 +865,10 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
             {selected.supportFor && <p>Podparcie generowane z obwodu ścian. Zmieniaj parametry i geometrię ścian, nie tej kopii.</p>}
             {selected.placement && <p>Układ przypisany do podparcia. {selected.placement.needsReview
               ? "Długość podparcia zmieniona — usuń układ i utwórz ponownie według projektu." : "Położenie podąża za przesunięciem i obrotem podparcia."}</p>}
+            {selected.mark && <label>Identyfikator elementu<input value={selected.mark} maxLength={40}
+              onChange={(e) => updateSelected({ ...selected, mark: e.target.value })} /></label>}
+            {selected.attachment && <p>Przyczepiony do {drawing.entities.find((e) => e.id === selected.attachment?.hostId)?.mark ?? "ściany"}.
+              Przesunięcie i obrót ściany przenoszą element.</p>}
             {exteriorLength !== null && <label key={`${selected.id}-${exteriorLength}`}>Długość zewnętrzna (mm)
               <input type="number" step="any" defaultValue={exteriorLength} onBlur={(event) => {
                 if (event.target.value === event.target.defaultValue) return;
@@ -784,8 +906,9 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
             </div>}
             {selected.kind === "rebar-line" && selected.attributes.representation === "projection" && <p className="cad-disclaimer">
               Symbol położenia strzemienia. Ta kreska nie jest długością pręta do przedmiaru.</p>}
-            {Object.entries(selected.attributes).filter(([name]) => !["specialistVerified", "wallId", "role", "representation", "section"].includes(name)).map(([name, value]) => <div key={`${selected.id}-${name}-${String(value)}`}>
+            {Object.entries(selected.attributes).filter(([name]) => !["specialistVerified", "wallId", "role", "representation", "section", "leader"].includes(name)).map(([name, value]) => <div key={`${selected.id}-${name}-${String(value)}`}>
               <label htmlFor={`cad-attribute-${name}`}>{name === "heightMm" && selected.kind === "construction-area"
+                && selected.attributes.role === "excavation" || name === "heightMm" && selected.kind === "construction-line"
                 && selected.attributes.role === "excavation" ? "Głębokość wykopu (mm)" : attributeLabels[name] ?? name}</label>
               {attributeOptions[name] ? <select id={`cad-attribute-${name}`} value={String(value)}
                 onChange={(event) => updateSelected({ ...selected, attributes: { ...selected.attributes, [name]: event.target.value } })}>

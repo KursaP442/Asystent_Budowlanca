@@ -17,7 +17,7 @@ export const cadDrawingTools = [
   { id: "footing", label: "Ława fundamentowa", geometry: "line" },
   { id: "foundation-wall", label: "Ściana fundamentowa", geometry: "line" },
   { id: "pad", label: "Stopa fundamentowa", geometry: "area" },
-  { id: "excavation", label: "Wykop", geometry: "area" },
+  { id: "excavation", label: "Wykop", geometry: "line" },
   { id: "column", label: "Słup", geometry: "area" },
   { id: "wall", label: "Ściana", geometry: "line" },
   { id: "opening", label: "Otwór w ścianie", geometry: "line" },
@@ -108,6 +108,7 @@ export function getCadDrawingTools(kind: ProjectDocumentationKind, drawingTitle:
   if (kind === "foundation" && technology && !technology.foundationType.includes("foundation-slab")
     && !technology.otherFoundationType.includes("other-foundation-slab")
     && technology.foundationWalls !== "foundation-slab-only"
+    && technology.foundationBottomSlab !== "bottom-slab-yes"
     && !technology.foundationType.includes("according-to-project")
     && !technology.otherFoundationType.includes("according-to-project")) return result.filter((tool) => tool !== "slab");
   return result;

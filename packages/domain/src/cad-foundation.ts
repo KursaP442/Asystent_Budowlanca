@@ -14,6 +14,7 @@ export function synchronizeFoundationSupports(document: CadDocument, createId: (
     supports.push(CadEntitySchema.parse({
       id: previous?.id ?? createId(), kind: "footing", layerId: "footing", units: "mm", reviewStatus: "draft",
       source: wall.source, geometry: wall.geometry, supportFor: [wall.id],
+      mark: previous?.mark,
       attributes: { widthMm: base.widthMm, depthMm: base.depthMm, designReference: base.designReference },
     }));
   }
