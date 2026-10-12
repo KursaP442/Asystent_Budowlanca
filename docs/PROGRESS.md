@@ -1156,3 +1156,8 @@ zatwierdzanie konstrukcji.
 - `origin` skonfigurowany; `git push -u origin master`: **BLOCKED** — brak uwierzytelnienia GitHub,
   Git nie może zapytać o poświadczenia w nieinteraktywnej sesji. Użytkownik wybrał logowanie
   przez VS Code; po jego potwierdzeniu ponowić push i porównać zdalny hash z lokalnym HEAD.
+- Ponowna próba po logowaniu VS Code: **BLOCKED** — Git wymagał osobnych poświadczeń.
+  Za zgodą użytkownika wykonano logowanie przeglądarkowe Git Credential Manager.
+- `git push -u origin master`: **PASS** — projekt z historią wysłany; gałąź śledzi `origin/master`.
+  `git ls-remote origin refs/heads/master`: **PASS** — zdalny hash zgodny z lokalnym HEAD
+  `123d704defe2ef9ff14949320a8e7d9aa00e45b0` podczas kontroli pierwszej publikacji.
