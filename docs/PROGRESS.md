@@ -1153,3 +1153,6 @@ zatwierdzanie konstrukcji.
   pozostają poza repozytorium. Kontrola wzorców nie jest pełnym audytem bezpieczeństwa.
 - Testy kodu: **NOT RUN** w tej sesji (bez zmian kodu; wyniki sesji 30 pozostają aktualne).
 - Publikacja źródeł nie uruchamia hostingu, płatnych usług ani migracji bazy.
+- `origin` skonfigurowany; `git push -u origin master`: **BLOCKED** — brak uwierzytelnienia GitHub,
+  Git nie może zapytać o poświadczenia w nieinteraktywnej sesji. Użytkownik wybrał logowanie
+  przez VS Code; po jego potwierdzeniu ponowić push i porównać zdalny hash z lokalnym HEAD.
