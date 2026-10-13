@@ -6,6 +6,7 @@ import type { Session } from "@supabase/supabase-js";
 import type { OrganizationKind } from "@asystent/api-client";
 import { SignInInputSchema, SignUpInputSchema } from "@asystent/schemas";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase";
+import { DemoWorkspace } from "@/components/demo-workspace";
 import { RoleWorkspace } from "@/components/role-workspace";
 
 const accountTypes = [
@@ -64,6 +65,8 @@ function AccountTypeIllustration({
 
 export default function Home() {
   const configured = isSupabaseConfigured();
+  const demoAvailable = process.env.NODE_ENV === "development";
+  const [demoActive, setDemoActive] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [authInitialized, setAuthInitialized] = useState(!configured);
   const [profileAccountType, setProfileAccountType] =
@@ -313,7 +316,9 @@ export default function Home() {
         </div>
       </header>
 
-      {!configured ? (
+      {!configured && demoAvailable && demoActive ? (
+        <DemoWorkspace onExit={() => setDemoActive(false)} />
+      ) : !configured ? (
         <section className="setup-card" aria-labelledby="setup-title">
           <div className="setup-icon" aria-hidden="true">!</div>
           <p className="eyebrow">WYMAGANA KONFIGURACJA</p>
@@ -329,6 +334,11 @@ export default function Home() {
           <p className="setup-help">
             Wartości dla środowiska lokalnego wyświetla polecenie <strong>pnpm db:status</strong>.
           </p>
+          {demoAvailable && (
+            <button className="primary-button" type="button" onClick={() => setDemoActive(true)}>
+              Otwórz tryb testowy bez logowania
+            </button>
+          )}
         </section>
       ) : session && loadingProfile ? (
         <section className="workspace-loading" role="status">

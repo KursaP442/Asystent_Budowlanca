@@ -15,6 +15,32 @@ pnpm lint
 pnpm test
 ```
 
+## Podgląd aplikacji w GitHub Codespaces
+
+Uruchom samą aplikację webową:
+
+```bash
+pnpm dev:web
+```
+
+Po chwili Codespaces wykryje port `3000`. W panelu **Ports** wybierz **Open in Browser**, aby otworzyć aplikację
+pod prywatnym linkiem Codespaces. Pozostaw terminal z serwerem uruchomiony; zmiany w kodzie będą widoczne po
+automatycznym odświeżeniu strony. Jeśli port nie pojawi się sam, dodaj `3000` ręcznie w panelu **Ports**.
+
+Bez skonfigurowanego Supabase wybierz na ekranie **Otwórz tryb testowy bez logowania**. Jest dostępny tylko przy
+`pnpm dev:web`; otworzy pełny formularz klienta: dane budowy, materiały i technologię, dokumentację oraz ręczny
+edytor CAD. Formularz ma walidowany przykład domu. Rzut fundamentów zawiera piwnicę i płytę denną tylko po lewej
+stronie, trzy pary stóp/słupów oraz wykop z wymiarami; możesz zmieniać wszystkie dane przykładu. Szkice ankiety,
+dokumentacji i rysunków są zapisywane wyłącznie w localStorage tej przeglądarki. Na komputerze i telefonie kliknij
+lub dotknij samego płótna w kroku 3, aby otworzyć pełny ekran z pionowym paskiem narzędzi po lewej.
+**Zapisz i wyjdź z canvasu** zapisuje rysunek i wraca do dokumentacji; ustawienia otworzysz z nagłówka.
+Jeden palec rysuje lub zaznacza, dwa palce przesuwają i powiększają widok. Przytrzymaj ikonę narzędzia,
+aby zobaczyć opis do chwili puszczenia; puszczenie wybiera narzędzie. Podczas rysowania zobaczysz prowadnice
+X/Y, wyrównanie do istniejących ścian i bieżące ΔX, ΔY oraz długość.
+Kliknięcie wymiaru ściany zaznacza ją i otwiera pole długości; zmiana zachowuje połączone narożniki.
+Tryb demo nie tworzy sesji ani nie łączy się z API. Zdjęcia, skan/import AI oraz pełne panele wykonawcy i sklepu
+wymagają backendu. Instrukcja lokalnego Supabase znajduje się poniżej.
+
 ## Lokalny backend Supabase
 
 Po zainstalowaniu i uruchomieniu Docker Desktop:

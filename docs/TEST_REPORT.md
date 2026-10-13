@@ -3,6 +3,95 @@
 Zasada: zapisujemy **dokładne komendy**, **datę**, **środowisko** i **rzeczywisty wynik** (PASS/FAIL/BLOCKED/NOT RUN).
 Nigdy nie wpisujemy ogólnego „działa” bez dowodu z uruchomienia.
 
+## Sesja 39 — 13 października 2026
+
+Środowisko: GitHub Codespaces, Ubuntu 24.04.5, Node 24.21.0, pnpm 12.11.2.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter web lint` | przełącznik widoczności wymiarów | PASS | ESLint Web |
+| `pnpm --filter web typecheck` | przełącznik wymiarów i pól m² | PASS | TypeScript Web |
+| HTTP `127.0.0.1:3000/` | aktywny dev server | PASS | HTTP 200 |
+
+## Sesja 38 — 13 października 2026
+
+Środowisko: GitHub Codespaces, Ubuntu 24.04.5, Node 24.21.0, pnpm 12.11.2.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/domain test` | resize ściany i topologia CAD | PASS | 46/46; w tym aktualizacja wymiarów sąsiednich ścian po zmianie wspólnego narożnika |
+| `pnpm --filter @asystent/schemas test` | ankieta technologii i seed CAD | PASS | 32/32 |
+| `pnpm --filter web lint` | snap osi, wymiar-click i rzut demo | PASS | ESLint Web |
+| `pnpm --filter web typecheck` | snap osi, wymiar-click i rzut demo | PASS | TypeScript Web |
+| `pnpm --filter web lint`, `pnpm --filter web typecheck` | poprawka pętli renderowania CAD | PASS | ładowanie rysunku nie przełącza już `cadPending` rodzica |
+| Runtime seed CAD | przykładowy rzut demo | PASS | 2 pola; 1 piwnica i płyta denna 250 mm C25/30 po lewej; 3 pary stóp/słupów; wykop 4 × 1200 mm głębokości; wymiary 17/51 bez błędu layoutu |
+| HTTP `127.0.0.1:3000/` | aktywny Codespace | PASS | HTTP 200 |
+| Test UI Playwright | klik wymiaru i rysowanie po snapie osi | BLOCKED | brak systemowej biblioteki Chromium `libatk-1.0.so.0` |
+
+## Sesja 37 — 13 października 2026
+
+Środowisko: GitHub Codespaces, Ubuntu 24.04.5, Node 24.21.0, pnpm 12.11.2.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter web lint` | gesty touch, long-press, prowadnice CAD | PASS | ESLint |
+| `pnpm --filter web typecheck` | gesture pinch/pan i prowadnice CAD | PASS | TypeScript Web |
+| HTTP `127.0.0.1:3000/` | aktywny dev server | PASS | HTTP 200 |
+| Playwright Chromium | desktop/mobile full screen, pinch/pan, long-press i wyrównanie do ścian | BLOCKED | brak systemowej biblioteki `libatk-1.0.so.0` |
+
+## Sesja 36 — 13 października 2026
+
+Środowisko: GitHub Codespaces, Ubuntu 24.04.5, Node 24.21.0, pnpm 12.11.2.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter web typecheck` | mobilny canvas i zapis przed wyjściem | PASS | TypeScript Web |
+| `pnpm --filter web lint` | responsywny układ canvasu | PASS | ESLint Web |
+| HTTP `127.0.0.1:3000/` | aktywny dev server | PASS | HTTP 200 |
+| Playwright Chromium | dotknięcie płótna, pełny ekran bez scrolla, lewy pasek i zapis/wyjście | BLOCKED | brak systemowej biblioteki `libatk-1.0.so.0` |
+
+## Sesja 35 — 13 października 2026
+
+Środowisko: GitHub Codespaces, Ubuntu 24.04.5, Node 24.21.0, pnpm 12.11.2.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter web typecheck` | pełnoekranowy edytor CAD | PASS | TypeScript Web |
+| `pnpm --filter web lint` | pełnoekranowy edytor CAD | PASS | ESLint Web |
+| HTTP `127.0.0.1:3000/` | hot reload po zmianie CAD | PASS | HTTP 200 |
+| Playwright Chromium | wizualny test przełącznika i układu pełnego ekranu | BLOCKED | brak systemowej biblioteki `libatk-1.0.so.0` |
+
+## Sesja 34 — 13 października 2026
+
+Środowisko: GitHub Codespaces, Ubuntu 24.04.5, Node 24.21.0, pnpm 12.11.2.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter web typecheck` | pełny formularz, localStorage dokumentacji i CAD | PASS | TypeScript Web |
+| `pnpm --filter web lint` | pełny formularz i lokalny CAD | PASS | ESLint Web |
+| `pnpm --filter @asystent/schemas test` | przykładowe technologie i kompletność ankiety | PASS | 32/32 |
+| `pnpm --filter web typecheck`, `pnpm --filter web lint` | poprawka przejścia demo bez Supabase | PASS | klient bazy inicjalizuje się dopiero przy zapisie serwerowym |
+| HTTP `127.0.0.1:3000/` | ekran bez konfiguracji Supabase | PASS | HTTP 200; HTML zawiera wejście do trybu testowego |
+| Playwright Chromium smoke | pełny formularz i ręczny CAD bez logowania | BLOCKED | brak systemowej biblioteki `libatk-1.0.so.0`; przeglądarka nie uruchomiła się |
+| Supabase/Auth | brak działającego lokalnego backendu | BLOCKED | formularz i CAD zapisują demo lokalnie; logowanie, zdjęcia, import AI i zapis serwerowy nadal wymagają Supabase |
+
+## Sesja 33 — 13 października 2026
+
+Środowisko: GitHub Codespaces, Ubuntu 24.04.5, Node 24.21.0, pnpm 12.11.2.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm dev:web` | pierwszy start | FAIL | Next.js zwrócił HTTP 500, ponieważ nie były zbudowane pakiety workspace importowane przez Web |
+| `pnpm --filter 'web^...' build` | zależności Web | PASS | api-client, geometry, schemas, ui-tokens i domain |
+| `pnpm dev:web` | poprawiony start Codespaces | PASS | Next.js nasłuchuje na `0.0.0.0:3000`; proces pozostawiony uruchomiony |
+| `curl http://127.0.0.1:3000/` | smoke test strony | PASS | HTTP 200, tytuł `Asystent Budowlańca` |
+| `pnpm --filter web lint` | lint Web | PASS | ESLint |
+| `pnpm typecheck` | typy workspace | PASS | 13 zadań Turbo |
+| `pnpm db:start` | lokalny Supabase w Codespaces | BLOCKED | Realtime zgłosił `DBConnection.ConnectionError` przy migracji; bez resetu bazy i bez zmian konfiguracji |
+| `pnpm db:status` | kontrola kontenera bazy | BLOCKED | brak kontenera `supabase_db_Aplikacja_Budowa` |
+| `supabase start --exclude realtime --debug` | próba obejścia problemu | BLOCKED | migrator Realtime nadal zgłasza `DBConnection.ConnectionError` |
+| Supabase/Auth | brak działającego backendu | BLOCKED | strona pokazuje istniejący ekran wymaganej konfiguracji; logowanie i zapis wymagają backendu |
+
 ## Sesja 32 — 12 października 2026
 
 Środowisko: Windows, lokalny Supabase, Playwright/Edge; bez nowych zależności i migracji.

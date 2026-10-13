@@ -1200,3 +1200,91 @@ zatwierdzanie konstrukcji.
 Pełny CAD dowolnego projektu i zatwierdzony przedmiar **NOT RUN**. Tryb szczegółowy świadomie pokazuje
 więcej danych i nadal może wymagać osobnych arkuszy. Nie kasowano danych użytkownika ani nie
 odświeżano jego formularza.
+
+## Sesja 33 — 13 października 2026
+
+### Podgląd w GitHub Codespaces
+
+- Dodano `pnpm dev:web`, który buduje zależności workspace Web i uruchamia Next.js na `0.0.0.0:3000`.
+- Do README dodano instrukcję przekierowania portu `3000` i otwierania prywatnego linku Codespaces.
+- Serwer działa pod portem 3000; zmiany źródeł są obsługiwane przez standardowy hot reload Next.js.
+- Supabase nie uruchomił się w tym Codespace: Realtime nie uzyskał połączenia z PostgreSQL podczas migracji.
+   Strona renderuje ekran wymaganej konfiguracji; logowanie i zapis są **BLOCKED** do czasu uruchomienia backendu.
+- `pnpm db:status` potwierdziło brak kontenera bazy. Próba `supabase start --exclude realtime` również nie ominęła
+   błędu migratora Realtime. Nie zmieniono konfiguracji projektu ani nie resetowano danych.
+- Smoke test HTTP **PASS** (200), tytuł strony **PASS**. Pierwszy start zwrócił 500 z powodu niebudowanych pakietów
+   workspace; komendę startową poprawiono i ponowiono z wynikiem PASS.
+- Web lint i workspace typecheck **PASS** (13 zadań).
+- Nie zmieniano istniejącego `package-lock.json` ani danych backendu.
+
+## Sesja 34 — 13 października 2026
+
+### Testowanie bez logowania
+
+- Dodano wejście developerskie do trybu demo, widoczne tylko przy `next dev` i braku konfiguracji Supabase.
+- Demo nie tworzy fikcyjnej sesji ani nie wywołuje API. Udostępnia istniejący pełny formularz klienta, walidację
+   technologii, dokumentację i ręczny CAD; ankieta startuje z walidowanym przykładem domu. Szkice są zapisywane
+   w localStorage przeglądarki.
+- Test schematów ankiety **PASS** (32/32), Web typecheck/lint **PASS**.
+- Po zgłoszeniu użytkownika poprawiono przedwczesne `getSupabaseClient()` w zapisie zlecenia; demo przechodzi dalej
+   bez inicjalizowania Supabase.
+- Zdjęcia, skan/import AI oraz pełne panele wykonawcy i sklepu nie są obsługiwane w trybie demo.
+- Web typecheck i lint **PASS**; lokalny URL zwraca **HTTP 200**, a ekran konfiguracji zawiera wejście demo.
+- Test kliknięć Playwright **BLOCKED**: Chromium wymaga brakującej systemowej biblioteki `libatk-1.0.so.0`.
+- Logowanie do Supabase i zapis serwerowy nadal **BLOCKED** przez nieudany start lokalnego backendu opisanego powyżej.
+
+## Sesja 35 — 13 października 2026
+
+### Pełny ekran edytora CAD
+
+- Dodano przełącznik widoku pełnoekranowego w nagłówku edytora, z przyciskiem powrotu do dokumentacji.
+- W szerokim układzie narzędzia i właściwości są po bokach płótna; na małych ekranach układają się pod nim.
+- Geometria, wybór narzędzi i autosave nie zmieniają się przy przełączaniu widoku.
+- Web typecheck/lint **PASS**, serwer dev **PASS** HTTP 200.
+- Playwright/browser **BLOCKED** z powodu brakującej biblioteki systemowej Chromium `libatk-1.0.so.0`.
+
+## Sesja 36 — 13 października 2026
+
+### Mobilna nawigacja canvasu
+
+- Na mobile w głównym widoku widoczne jest samo płótno; dotknięcie go otwiera pełnoekranowy edytor.
+- Pełny ekran nie przewija strony: ma pionowy pasek narzędzi po lewej, akcję „Zapisz i wyjdź z canvasu” oraz nakładane ustawienia.
+- Wyjście czeka na zapis zmian; przy błędzie pozostaje w canvasie. Desktop zachowuje dotychczasowy układ inline.
+- Web typecheck/lint **PASS**, lokalny serwer **PASS** HTTP 200.
+- Test wizualny mobile Playwright **BLOCKED** przez brak systemowej biblioteki Chromium `libatk-1.0.so.0`.
+
+## Sesja 37 — 13 października 2026
+
+### Sterowanie mobile i prowadnice
+
+- Dodano pinch-zoom i przesuwanie widoku dwoma palcami; pojedynczy dotyk zachowuje rysowanie/zaznaczanie.
+- Długie przytrzymanie przycisku narzędzia pokazuje opis do zwolnienia; puszczenie wybiera narzędzie.
+- Desktop pokazuje prowadnice poziomą/pionową, wyrównanie do narożników istniejących ścian i ΔX/ΔY/długość.
+- Full screen canvasu działa tak samo na desktop/mobile po kliknięciu samego płótna; pełny widok nie przewija dokumentu.
+- Web typecheck/lint **PASS**, dev server **PASS** HTTP 200.
+- Test dotykowy Playwright **BLOCKED** przez brak `libatk-1.0.so.0` w Codespaces.
+
+## Sesja 38 — 13 października 2026
+
+### Fundamenty demo i edycja wymiarów
+
+- Snap ścian wyrównuje współrzędne X/Y do najbliższych narożników innych ścian w promieniu ekranowym 10 px;
+   dokładny snap narożnika/segmentu w promieniu 12 px zachowuje pierwszeństwo.
+- Rzut startowy demo ma obrys 9,6 × 7,6 m podzielony na dwa pola; piwnica i płyta denna 250 mm C25/30 są tylko
+   w lewej połowie. Dodano 3 pary stóp/słupów i 4 odcinki wykopu z szerokością 1600 mm oraz głębokością 1200 mm.
+   Pusty starszy szkic migruje do przykładu; celowo wyczyszczony rysunek z zachowanymi ustawieniami pozostaje pusty.
+- Kliknięcie wymiaru elementu wybiera ścianę i otwiera właściwości. Zmiana długości używa aktualizacji wspólnych
+   węzłów, więc sąsiednie połączone ściany podążają za narożnikiem.
+- Usunięto zbędne zgłaszanie `cadPending=true` przy samym ładowaniu CAD; stan rodzica blokuje przejście tylko
+   podczas rzeczywistej, niezapisanej edycji, co usuwa pętlę renderowania zgłoszoną w demo.
+- Test domeny **PASS** 46/46, Web lint/typecheck **PASS**, seed runtime **PASS** (17 wymiarów uproszczonych / 51
+   szczegółowych), HTTP **PASS** 200.
+- Test wizualny UI **BLOCKED**: Chromium wymaga brakującej systemowej biblioteki `libatk-1.0.so.0`.
+
+## Sesja 39 — 13 października 2026
+
+### Ukrywanie wymiarów CAD
+
+- Dodano niezależny przełącznik „Ukryj/Pokaż wymiary” w ustawieniach canvasu.
+- Ukrycie obejmuje wymiary geometryczne i etykiety pól m²; geometria, siatka i prowadnice pozostają bez zmian.
+- Web lint/typecheck **PASS**, dev server **PASS** HTTP 200.

@@ -1,6 +1,8 @@
 import type { CadDimensionLayout } from "@asystent/domain";
 
-export function CadPlanDimensions({ dimensions, fontMm }: { dimensions: CadDimensionLayout[]; fontMm: number }) {
+export function CadPlanDimensions({ dimensions, fontMm, onSelectEntity }: {
+  dimensions: CadDimensionLayout[]; fontMm: number; onSelectEntity?: (entityId: string) => void;
+}) {
   const groups = [...new Set(dimensions.map((d) => d.group))];
   return <g pointerEvents="none">{groups.map((group) => <g key={group}
     className={group === "overall" ? "cad-overall-dimensions" : group.endsWith(":location") ? "cad-location-dimensions" : "cad-exterior-dimensions"}>
@@ -13,11 +15,24 @@ export function CadPlanDimensions({ dimensions, fontMm }: { dimensions: CadDimen
         return { x: tip.x + (origin.x - tip.x) * ratio, y: tip.y + (origin.y - tip.y) * ratio };
       };
       const fromA = extensionStart(start, a), fromB = extensionStart(end, b);
-      return <g key={i} className="cad-dimension" stroke={color} strokeWidth={1}
+      const entityId = d.entityId;
+      const selectEntity = onSelectEntity && entityId ? () => onSelectEntity(entityId) : undefined;
+      return <g key={i} className={`cad-dimension${onSelectEntity && d.entityId ? " cad-dimension-editable" : ""}`}
+        pointerEvents={selectEntity ? "auto" : "none"}
+        role={selectEntity ? "button" : undefined}
+        aria-label={selectEntity ? `Edytuj element wymiarowany: ${d.label}` : undefined}
+        tabIndex={selectEntity ? 0 : undefined}
+        onPointerDown={selectEntity ? (event) => event.stopPropagation() : undefined}
+        onClick={selectEntity ? (event) => { event.stopPropagation(); selectEntity(); } : undefined}
+        onKeyDown={selectEntity ? (event) => {
+          if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectEntity(); }
+        } : undefined}
+        stroke={color} strokeWidth={1}
         data-dimension-entity={d.entityId} data-reference-id={d.referenceId} data-face-side={d.faceSide}
         data-measurement={Math.hypot(end.x - start.x, end.y - start.y)}
         data-label-box={`${box.x} ${box.y} ${box.width} ${box.height}`}>
-        <title>{d.description ?? (d.faceSide ? `Wymiar lica: ${d.faceSide === "left" ? "lewego" : "prawego"}.` : "Wymiar elementu.")}</title>
+        <title>{selectEntity ? `Kliknij, aby edytować wymiar elementu. ${d.description ?? ""}`
+          : d.description ?? (d.faceSide ? `Wymiar lica: ${d.faceSide === "left" ? "lewego" : "prawego"}.` : "Wymiar elementu.")}</title>
         {!d.anchor && <>
           <line className="cad-dimension-extension" x1={fromA.x} y1={fromA.y} x2={a.x} y2={a.y}
             strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />

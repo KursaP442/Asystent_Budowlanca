@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "prepare:pdf": "node -e \"require('node:fs').copyFileSync(require.resolve('pdfjs-dist/build/pdf.worker.min.mjs'), 'public/pdf.worker.min.mjs')\"",
-    "dev": "pnpm prepare:pdf && next dev",
+    "dev": "pnpm prepare:pdf && next dev --hostname 0.0.0.0",
     "build": "pnpm prepare:pdf && next build",
     "start": "pnpm prepare:pdf && next start",
     "lint": "eslint",

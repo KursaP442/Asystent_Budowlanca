@@ -10,6 +10,7 @@ import {
   type ProjectScope,
 } from "@asystent/schemas";
 import { getSupabaseClient } from "@/lib/supabase";
+import { demoCadDrawingStorageKey, demoDocumentationStorageKey, readDemoValue, writeDemoValue } from "@/lib/demo-storage";
 import { StageCadEditor } from "./stage-cad-editor";
 
 function message(error: unknown) {
@@ -18,8 +19,9 @@ function message(error: unknown) {
       ? error.message : "Nie udało się zapisać dokumentacji.";
 }
 
-export function ProjectDocumentationQuestionnaire({ jobId, scope, onBack, onSaved }: {
+export function ProjectDocumentationQuestionnaire({ jobId, scope, onBack, onSaved, demoMode = false }: {
   jobId: string; scope: ProjectScope; onBack: (tab?: "details" | "technology") => void; onSaved: () => void;
+  demoMode?: boolean;
 }) {
   const requirements = useMemo(() => getProjectDocumentationRequirements(scope), [scope]);
   const [draft, setDraft] = useState<DocumentationDraft | null>(null);
@@ -42,16 +44,34 @@ export function ProjectDocumentationQuestionnaire({ jobId, scope, onBack, onSave
   useEffect(() => {
     let active = true;
     async function load() {
-      const { data, error: loadError } = await getSupabaseClient()
-        .from("construction_documentation_drafts").select("*").eq("job_id", jobId).maybeSingle();
-      if (loadError) throw loadError;
-      const stored = data ? DocumentationDraftSchema.parse(data.payload) : null;
-      const { data: drawings, error: drawingsError } = await getSupabaseClient().from("cad_drawings")
-        .select("requirement_id,payload").eq("job_id", jobId);
-      if (drawingsError) throw drawingsError;
-      const counts = Object.fromEntries(drawings.map((item) => [item.requirement_id, CadDocumentSchema.parse(item.payload).entities.length]));
       const first = requirements[0];
       if (!first) throw new Error("Wybrany zakres nie ma reguł dokumentacji. Wróć do technologii i wybierz zakres prac.");
+      let storedPayload: unknown = null;
+      let storedRevision = 0;
+      let drawings: { requirement_id: string; payload: unknown }[];
+      if (demoMode) {
+        const saved = readDemoValue(demoDocumentationStorageKey(jobId));
+        if (saved && typeof saved === "object" && "payload" in saved) {
+          storedPayload = saved.payload;
+          storedRevision = "revision" in saved && typeof saved.revision === "number" ? saved.revision : 0;
+        }
+        drawings = drawingSteps.flatMap(({ id }) => {
+          const payload = readDemoValue(demoCadDrawingStorageKey(jobId, id));
+          return payload ? [{ requirement_id: id, payload }] : [];
+        });
+      } else {
+        const { data, error: loadError } = await getSupabaseClient()
+          .from("construction_documentation_drafts").select("*").eq("job_id", jobId).maybeSingle();
+        if (loadError) throw loadError;
+        storedPayload = data?.payload ?? null;
+        storedRevision = data?.revision ?? 0;
+        const { data: storedDrawings, error: drawingsError } = await getSupabaseClient().from("cad_drawings")
+          .select("requirement_id,payload").eq("job_id", jobId);
+        if (drawingsError) throw drawingsError;
+        drawings = storedDrawings;
+      }
+      const stored = storedPayload ? DocumentationDraftSchema.parse(storedPayload) : null;
+      const counts = Object.fromEntries(drawings.map((item) => [item.requirement_id, CadDocumentSchema.parse(item.payload).entities.length]));
       const modules: DocumentationDraft["modules"] = {};
       for (const requirement of requirements) {
         const previous = stored?.modules[requirement.id];
@@ -65,23 +85,32 @@ export function ProjectDocumentationQuestionnaire({ jobId, scope, onBack, onSave
         step: stored && requirements.some(({ id }) => id === stored.step) ? stored.step : first.id,
         modules,
       });
-      if (active) { setDraft(next); setRevision(data?.revision ?? 0); setCompletion(counts); setCompletionLoaded(true); setError(""); }
+      if (active) { setDraft(next); setRevision(storedRevision); setCompletion(counts); setCompletionLoaded(true); setError(""); }
     }
     void load().catch((cause: unknown) => { if (active) setError(message(cause)); });
     return () => { active = false; };
-  }, [jobId, requirements, loadAttempt]);
+  }, [jobId, requirements, loadAttempt, demoMode, drawingSteps]);
 
   async function save(next: DocumentationDraft, destination: "stay" | "panel" | "back" | "technology" = "stay", nextDrawing?: number) {
     setBusy(true); setError(""); setNotice("");
     try {
       const parsed = DocumentationDraftSchema.parse(next);
-      const { data, error: saveError } = await getSupabaseClient().rpc("save_documentation_draft", {
-        target_job_id: jobId, expected_revision: revision, draft_payload: parsed,
-      });
-      if (saveError) throw saveError;
-      setRevision(data); setDraft(parsed);
+      if (demoMode) {
+        const nextRevision = revision + 1;
+        writeDemoValue(demoDocumentationStorageKey(jobId), { revision: nextRevision, payload: parsed });
+        setRevision(nextRevision);
+      } else {
+        const { data, error: saveError } = await getSupabaseClient().rpc("save_documentation_draft", {
+          target_job_id: jobId, expected_revision: revision, draft_payload: parsed,
+        });
+        if (saveError) throw saveError;
+        setRevision(data);
+      }
+      setDraft(parsed);
       setDrawingIndex(nextDrawing ?? (draft?.step !== parsed.step ? 0 : drawingIndex));
-      setNotice("Zapisano szkic dokumentacji i bieżący etap. Możesz wznowić pracę po odświeżeniu strony.");
+      setNotice(demoMode
+        ? "Zapisano lokalny szkic dokumentacji w tej przeglądarce."
+        : "Zapisano szkic dokumentacji i bieżący etap. Możesz wznowić pracę po odświeżeniu strony.");
       if (destination === "panel") onSaved();
       if (destination === "back") onBack("details");
       if (destination === "technology") onBack("technology");
@@ -92,6 +121,9 @@ export function ProjectDocumentationQuestionnaire({ jobId, scope, onBack, onSave
   const current = draft ? requirements.find(({ id }) => id === draft.step) : null;
   const currentDrawingId = current ? `${current.id}-drawing-${drawingIndex}` : "";
   const flatIndex = drawingSteps.findIndex((item) => item.id === currentDrawingId);
+  const technologyHints = useMemo(() => current
+    ? getCadTechnologyHints(current.kind, scope.workType, scope.technology)
+    : [], [current, scope.workType, scope.technology]);
   function navigateDrawing(position: number) {
     const next = drawingSteps[position];
     if (!next || !draft) return;
@@ -129,10 +161,10 @@ export function ProjectDocumentationQuestionnaire({ jobId, scope, onBack, onSave
             disabled={busy || cadPending} onClick={() => navigateDrawing(drawingSteps.findIndex((item) => item.id === `${current.id}-drawing-${i}`))}>
             <span aria-hidden="true">{i + 1}. </span>{label}</button>)}
         </div>
-        <StageCadEditor key={`${current.id}-drawing-${drawingIndex}`} jobId={jobId}
+        <StageCadEditor key={`${current.id}-drawing-${drawingIndex}`} jobId={jobId} demoMode={demoMode}
           requirementId={currentDrawingId} title={current.drawings[drawingIndex]} kind={current.kind}
           technology={scope.technology} basement={scope.basement === true} disabled={busy}
-          technologyHints={getCadTechnologyHints(current.kind, scope.workType, scope.technology)}
+          technologyHints={technologyHints}
           sources={drawingSteps.filter((item) => (completion[item.id] ?? 0) > 0)} onPendingChange={onCadPending} onSavedDrawing={onSavedDrawing} />
         <p className="cad-disclaimer">Zielony: zapisano obiekty. Czerwony: pusty rysunek. Kolory nie oznaczają zatwierdzenia ani kompletności przedmiaru.</p>
         <div className="form-actions">

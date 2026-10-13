@@ -16,6 +16,7 @@ import {
   type ConstructionTechnologySelections,
 } from "@asystent/schemas";
 import { getSupabaseClient } from "@/lib/supabase";
+import { demoConstructionStorageKey, writeDemoValue } from "@/lib/demo-storage";
 import { TechnologyQuestionnaire } from "@/components/technology-questionnaire";
 import { ConstructionLocationMap } from "@/components/construction-location-map";
 import { ProjectDocumentationQuestionnaire } from "@/components/project-documentation-questionnaire";
@@ -26,8 +27,9 @@ const bucket = "job-photos";
 const constructionRequirements = "Wszystkie roboty muszą być prowadzone zgodnie z aktualną dokumentacją projektową, obowiązującymi przepisami i zasadami wiedzy technicznej. Zmiany technologii wymagają uzgodnienia z projektantem.";
 const constructionAcceptance = "Odbiór robót odbywa się zgodnie z dokumentacją projektową, właściwymi wymaganiami technicznymi i zasadami sztuki budowlanej; roboty zanikające należy zgłaszać do odbioru przed ich zakryciem.";
 
-export function ConstructionForm({ job, userId, isAdministrator, onSaved, onCancel }: {
+export function ConstructionForm({ job, userId, isAdministrator, onSaved, onCancel, demoMode = false }: {
   job: ConstructionJob | null; userId: string; isAdministrator: boolean; onSaved: () => void; onCancel?: () => void;
+  demoMode?: boolean;
 }) {
   const [id] = useState(() => job?.id ?? crypto.randomUUID());
   const [persisted, setPersisted] = useState(!!job);
@@ -41,7 +43,7 @@ export function ConstructionForm({ job, userId, isAdministrator, onSaved, onCanc
   const [error, setError] = useState("");
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [pending, setPending] = useState<PendingPhoto[]>([]);
-  const [loadingPhotos, setLoadingPhotos] = useState(!!job);
+  const [loadingPhotos, setLoadingPhotos] = useState(!!job && !demoMode);
   const [photoLoadError, setPhotoLoadError] = useState(false);
   const [photoRevision, setPhotoRevision] = useState(0);
   const [city, setCity] = useState(job?.city ?? "");
@@ -67,7 +69,7 @@ export function ConstructionForm({ job, userId, isAdministrator, onSaved, onCanc
   }, []);
 
   useEffect(() => {
-    if (!persisted) return;
+    if (!persisted || demoMode) return;
     let active = true;
     async function load() {
       setLoadingPhotos(true);
@@ -87,7 +89,7 @@ export function ConstructionForm({ job, userId, isAdministrator, onSaved, onCanc
       if (active) { setPhotoLoadError(true); setError(`Nie udało się wczytać zdjęć: ${errorMessage(cause)}`); }
     }).finally(() => { if (active) setLoadingPhotos(false); });
     return () => { active = false; };
-  }, [prefix, persisted, photoRevision]);
+  }, [prefix, persisted, photoRevision, demoMode]);
 
   function readFormInput(form: FormData) {
     const number = (name: string) => form.get(name) ? Number(form.get(name)) : null;
@@ -120,7 +122,6 @@ export function ConstructionForm({ job, userId, isAdministrator, onSaved, onCanc
     }
     setBusy(true); setError("");
     try {
-      const db = getSupabaseClient();
       const { technology_selections, ...jobInput } = parsed.data;
       const materials = JSON.stringify(technology_selections);
       const payload = {
@@ -130,6 +131,12 @@ export function ConstructionForm({ job, userId, isAdministrator, onSaved, onCanc
         materials,
         report_summary: buildReport({ ...jobInput, materials, technology_selections }),
       };
+      if (demoMode) {
+        writeDemoValue(demoConstructionStorageKey(id), { id, ...payload });
+        setDocumentationScope(projectScopeFromConstruction(parsed.data));
+        return;
+      }
+      const db = getSupabaseClient();
       const { error: saveError } = await (persisted
         ? db.from("construction_jobs").update(payload).eq("id", id).select("id").single()
         : db.from("construction_jobs").insert({ ...payload, id }).select("id").single());
@@ -218,10 +225,12 @@ export function ConstructionForm({ job, userId, isAdministrator, onSaved, onCanc
         <label>Budżet w PLN (opcjonalnie)<input name="budget_pln" type="number" min="0.01" max={1000000000} step="0.01" defaultValue={job?.budget_pln ?? ""} /></label>
         <section className="span-two photo-section" aria-label="Zdjęcia miejsca prac">
           <h3>Zdjęcia {building ? "działki i budynku" : kind === "renovation" ? "pomieszczeń do remontu" : "miejsca prac"}</h3>
-          <p>JPEG, PNG lub WebP, do 10 MB na zdjęcie. Do 10 zdjęć w formularzu. Zdjęcia są prywatne; oczekujące zostaną przesłane przy zapisie.</p>
+          <p>{demoMode
+            ? "Dodawanie zdjęć wymaga połączenia z backendem i jest niedostępne w trybie testowym."
+            : "JPEG, PNG lub WebP, do 10 MB na zdjęcie. Do 10 zdjęć w formularzu. Zdjęcia są prywatne; oczekujące zostaną przesłane przy zapisie."}</p>
           {loadingPhotos ? <p role="status">Wczytywanie zdjęć…</p> : photoLoadError
             ? <button type="button" className="quiet-button" onClick={() => { setError(""); setPhotoRevision((value) => value + 1); }}>Ponów wczytywanie zdjęć</button>
-            : <label>Dodaj zdjęcia<input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(e) => {
+            : <label>Dodaj zdjęcia<input type="file" accept="image/jpeg,image/png,image/webp" multiple disabled={demoMode} onChange={(e) => {
             const files = Array.from(e.target.files ?? []);
             e.target.value = "";
             if (photos.length + pending.length + files.length > 10) { setError("Możesz dodać maksymalnie 10 zdjęć."); return; }
@@ -268,7 +277,7 @@ export function ConstructionForm({ job, userId, isAdministrator, onSaved, onCanc
     <div className="form-actions">{isAdministrator && activeTab === "technology" && <button type="button" className="quiet-button admin-shortcut" disabled={busy} onClick={() => setActiveTab("details")}>Wróć do danych bez walidacji</button>}{onCancel && <button type="button" className="quiet-button" disabled={busy} onClick={onCancel}>Wróć do panelu</button>}
       <button className="primary-button" disabled={busy || loadingPhotos || photoLoadError}>{busy ? "Zapisywanie…" : "Przejdź dalej"}</button></div>
   </form>
-    {documentationScope && <ProjectDocumentationQuestionnaire jobId={id} scope={documentationScope}
+    {documentationScope && <ProjectDocumentationQuestionnaire jobId={id} scope={documentationScope} demoMode={demoMode}
       onBack={(tab = "details") => { setActiveTab(tab); setDocumentationScope(null); }} onSaved={onSaved} />}
   </div>;
 }
