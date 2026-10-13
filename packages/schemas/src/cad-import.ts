@@ -53,6 +53,7 @@ const common = {
   derivedFrom: z.object({ documentId: z.uuid(), entityId: z.uuid(), revision: z.number().int().min(0) }).strict().optional(),
   foundationBase: FoundationBaseSchema.optional(),
   supportFor: z.array(z.uuid()).min(1).max(1000).optional(),
+  relatedTo: z.array(z.uuid()).min(1).max(1000).optional(),
   placement: z.object({ hostId: z.uuid(), groupId: z.uuid(), start: CadPointSchema, end: CadPointSchema,
     needsReview: z.boolean() }).strict().optional(),
   mark: z.string().trim().min(1).max(40).optional(),
@@ -141,6 +142,35 @@ export const CadEntitySchema = z.discriminatedUnion("kind", [
 ]);
 export type CadEntity = z.infer<typeof CadEntitySchema>;
 
+export const FoundationSectionFieldSchema = z.enum([
+  "footing_width_cm", "footing_height_cm", "wall_thickness_cm", "wall_height_cm",
+  "foundation_bottom_elevation_m", "ground_elevation_m", "zero_level_elevation_m",
+  "footing_material", "wall_material", "concrete_class", "xps_thickness_cm",
+  "waterproofing_type", "blinding_concrete_thickness_cm", "floor_layers", "additional_components",
+]);
+export type FoundationSectionField = z.infer<typeof FoundationSectionFieldSchema>;
+const foundationSectionNumericFields = new Set<FoundationSectionField>([
+  "footing_width_cm", "footing_height_cm", "wall_thickness_cm", "wall_height_cm",
+  "foundation_bottom_elevation_m", "ground_elevation_m", "zero_level_elevation_m",
+  "xps_thickness_cm", "blinding_concrete_thickness_cm",
+]);
+const FoundationSectionOverrideSchema = z.object({
+  value: z.union([z.number().finite(), z.string().trim().min(1).max(2000)]),
+  unit: z.enum(["mm", "cm", "m", "tekst"]),
+  validated: z.boolean(),
+}).strict();
+export const FoundationSectionSchema = z.object({
+  id: z.uuid(),
+  label: z.string().trim().regex(/^[A-Z0-9]{1,8}-[A-Z0-9]{1,8}$/),
+  cutEntityId: z.uuid(),
+  viewDirection: z.enum(["left", "right"]),
+  visibilityRangeMm: z.number().finite().positive().max(100_000_000),
+  paperScale: z.union([z.literal(10), z.literal(20), z.literal(25), z.literal(50)]).optional(),
+  linkedElementIds: z.array(z.uuid()).max(5000).optional(),
+  overrides: z.partialRecord(FoundationSectionFieldSchema, FoundationSectionOverrideSchema),
+}).strict();
+export type FoundationSection = z.infer<typeof FoundationSectionSchema>;
+
 export const CalibrationReferenceSchema = z.object({
   startPx: CadPointSchema,
   endPx: CadPointSchema,
@@ -179,12 +209,39 @@ export const CadDocumentSchema = z.object({
     z.string().trim().max(240)).optional(),
   foundationSettings: FoundationSettingsSchema.optional(),
   paperScale: z.number().int().min(1).max(1000).optional(),
+  sections: z.array(FoundationSectionSchema).max(100).optional(),
   entities: z.array(CadEntitySchema).max(5000),
 }).strict().superRefine((document, ctx) => {
   const ids = new Set(document.entities.map(({ id }) => id));
   if (ids.size !== document.entities.length) ctx.addIssue({ code: "custom", path: ["entities"], message: "Identyfikatory obiektów CAD muszą być unikalne." });
   const marks = document.entities.flatMap((e) => e.mark ? [e.mark] : []);
   if (new Set(marks).size !== marks.length) ctx.addIssue({ code: "custom", path: ["entities"], message: "Oznaczenia elementów muszą być unikalne na rysunku." });
+  const sectionIds = new Set((document.sections ?? []).map(({ id }) => id));
+  const sectionLabels = (document.sections ?? []).map(({ label }) => label);
+  if (sectionIds.size !== (document.sections ?? []).length) {
+    ctx.addIssue({ code: "custom", path: ["sections"], message: "Identyfikatory przekrojów muszą być unikalne." });
+  }
+  if (new Set(sectionLabels).size !== sectionLabels.length) {
+    ctx.addIssue({ code: "custom", path: ["sections"], message: "Oznaczenia przekrojów muszą być unikalne." });
+  }
+  for (const [index, section] of (document.sections ?? []).entries()) {
+    const cut = document.entities.find(({ id }) => id === section.cutEntityId);
+    if (cut?.kind !== "construction-line" || cut.attributes.role !== "section-cut") {
+      ctx.addIssue({ code: "custom", path: ["sections", index, "cutEntityId"], message: "Przekrój musi wskazywać linię cięcia na tym rzucie." });
+    }
+    if (section.linkedElementIds?.some((id) => !ids.has(id))) {
+      ctx.addIssue({ code: "custom", path: ["sections", index, "linkedElementIds"], message: "Powiązane elementy przekroju muszą istnieć na tym rzucie." });
+    }
+    for (const [field, override] of Object.entries(section.overrides)) {
+      const unit = field.endsWith("_cm") ? "cm" : field.endsWith("_m") ? "m" : "tekst";
+      if (override.unit !== unit || foundationSectionNumericFields.has(field as FoundationSectionField) !== (typeof override.value === "number")) {
+        ctx.addIssue({ code: "custom", path: ["sections", index, "overrides", field], message: "Jednostka i typ wartości muszą odpowiadać polu." });
+      }
+      if (field.endsWith("_cm") && typeof override.value === "number" && override.value <= 0) {
+        ctx.addIssue({ code: "custom", path: ["sections", index, "overrides", field], message: "Wymiary muszą być dodatnie." });
+      }
+    }
+  }
   const walls = new Set(document.entities.filter(({ kind }) => kind === "wall").map(({ id }) => id));
   for (const [index, entity] of document.entities.entries()) {
     if (entity.foundationBase && (entity.kind !== "construction-line" || entity.attributes.role !== "foundation-wall")) {
@@ -193,6 +250,9 @@ export const CadDocumentSchema = z.object({
     if (entity.supportFor && ((entity.kind !== "footing" && entity.kind !== "slab") || entity.supportFor.some((id) =>
       !document.entities.some((host) => host.id === id && host.kind === "construction-line" && host.attributes.role === "foundation-wall")))) {
       ctx.addIssue({ code: "custom", path: ["entities", index], message: "Podparcie musi należeć do ścian fundamentowych tego rysunku." });
+    }
+    if (entity.relatedTo && (entity.relatedTo.includes(entity.id) || entity.relatedTo.some((id) => !ids.has(id)))) {
+      ctx.addIssue({ code: "custom", path: ["entities", index], message: "Powiązanie musi wskazywać inny element tego samego rysunku." });
     }
     if (entity.placement && (!ids.has(entity.placement.hostId) || entity.placement.hostId === entity.id)) {
       ctx.addIssue({ code: "custom", path: ["entities", index], message: "Zbrojenie musi wskazywać element podparcia w tym rysunku." });

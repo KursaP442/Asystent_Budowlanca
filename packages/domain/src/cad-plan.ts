@@ -107,6 +107,28 @@ export function getCadPlanFaces(document: CadDocument, kind: "walls" | "footings
   return result;
 }
 
+export function setCadWallHeightForRoom(document: CadDocument, wallId: string, heightMm: number): CadDocument {
+  if (!Number.isFinite(heightMm) || heightMm <= 0 || heightMm > 1_000_000) {
+    throw new RangeError("Wysokość ściany musi być dodatnia i nie większa niż 1 000 000 mm.");
+  }
+  const wall = document.entities.find(({ id }) => id === wallId);
+  if (wall?.kind !== "wall" && !(wall?.kind === "construction-line" && wall.attributes.role === "foundation-wall")) {
+    throw new Error("Wybierz ścianę, której wysokość chcesz zmienić.");
+  }
+  const room = getCadPlanFaces(document).find(({ ids }) => ids.includes(wallId));
+  const roomWallIds = new Set(room?.ids ?? [wallId]);
+  return CadDocumentSchema.parse({
+    ...document, status: "draft",
+    entities: document.entities.map((entity) => {
+      if (!roomWallIds.has(entity.id)) return entity;
+      if (entity.kind === "wall" || entity.kind === "construction-line" && entity.attributes.role === "foundation-wall") {
+        return CadEntitySchema.parse({ ...entity, attributes: { ...entity.attributes, heightMm }, reviewStatus: "draft" });
+      }
+      return entity;
+    }),
+  });
+}
+
 export function pointInCadPolygon(p: CadPoint, vertices: CadPoint[]): boolean {
   let inside = false;
   for (let i = 0, j = vertices.length - 1; i < vertices.length; j = i++) {
@@ -204,7 +226,10 @@ export function attachCadElement(entity: CadEntity, document: CadDocument, toler
     const projection = projectPointOnSegment(center, e.geometry.start, e.geometry.end);
     return { e, distance: Math.hypot(center.x - projection.x, center.y - projection.y) };
   }).sort((a, b) => a.distance - b.distance)[0];
-  if (!host || host.distance > cadStripWidth(host.e) / 2 + radius + toleranceMm || !("start" in host.e.geometry)) {
+  const insideRoom = entity.kind === "construction-area" && ["pad", "column"].includes(entity.attributes.role)
+    && getCadPlanFaces(document).some((face) => pointInCadPolygon(center, face.inner));
+  if (!host || !("start" in host.e.geometry)
+    || !insideRoom && host.distance > cadStripWidth(host.e) / 2 + radius + toleranceMm) {
     const detached = { ...entity }; delete detached.attachment; return detached;
   }
   return CadEntitySchema.parse({ ...entity, attachment: { hostId: host.e.id, start: host.e.geometry.start, end: host.e.geometry.end } });
@@ -254,10 +279,14 @@ export function synchronizeCadInfill(document: CadDocument): CadDocument {
 export interface CadDimensionRequest {
   start: CadPoint; end: CadPoint; color: string; group: string; side?: number; label?: string;
   entityId?: string; referenceId?: string; faceSide?: "left" | "right"; anchor?: CadPoint; description?: string;
-  fontMm?: number;
+  fontMm?: number; chainId?: string; chainSide?: number; chainStart?: CadPoint; chainEnd?: CadPoint;
+  chainColor?: string; chainLane?: number; offsetMm?: number; measurementKind?: "strip-width";
 }
 export interface CadDimensionLayout extends CadDimensionRequest {
   a: CadPoint; b: CadPoint; text: CadPoint; box: { x: number; y: number; width: number; height: number }; label: string;
+}
+export function formatCadDimensionMm(value: number): string {
+  return `${new Intl.NumberFormat("pl-PL", { maximumFractionDigits: 1 }).format(Math.round(value) / 10)} cm`;
 }
 export function layoutCadDimensions(requests: CadDimensionRequest[], fontMm: number,
   reserved: { x: number; y: number; width: number; height: number }[] = [], solids: CadPoint[][] = []): CadDimensionLayout[] {
@@ -267,12 +296,41 @@ export function layoutCadDimensions(requests: CadDimensionRequest[], fontMm: num
   for (const request of requests) {
     const { start, end } = request, length = Math.hypot(end.x - start.x, end.y - start.y), font = request.fontMm ?? fontMm;
     if (length < .001 && !request.anchor) continue;
-    const label = request.label ?? `${Math.round(length)} mm`,
+    const label = request.label ?? formatCadDimensionMm(length),
       nx = -(end.y - start.y) / Math.max(.001, length), ny = (end.x - start.x) / Math.max(.001, length);
     const width = (label.length * .62 + 1) * font, height = font * 1.5;
     let placed = false;
+    if (request.measurementKind === "strip-width") {
+      const a = start, b = end, ux = (end.x - start.x) / length, uy = (end.y - start.y) / length;
+      const requestedSide = request.side ?? 1;
+      let fallback: { text: CadPoint; box: typeof boxes[number] } | undefined, fallbackOverlap = Infinity;
+      for (let lane = 0; lane < 24; lane++) {
+        for (const side of [requestedSide, -requestedSide]) {
+          const outwardX = ux * side, outwardY = uy * side;
+          const projectedHalf = Math.abs(outwardX) * width / 2 + Math.abs(outwardY) * height / 2;
+          const distance = length / 2 + projectedHalf + font * (.5 + lane * .75);
+          const text = {
+            x: (a.x + b.x) / 2 + outwardX * distance,
+            y: (a.y + b.y) / 2 + outwardY * distance + font * .35,
+          };
+          const box = { x: text.x - width / 2, y: text.y - font, width, height };
+          const overlapArea = boxes.reduce((total, other) => total
+            + Math.max(0, Math.min(box.x + box.width, other.x + other.width) - Math.max(box.x, other.x))
+            * Math.max(0, Math.min(box.y + box.height, other.y + other.height) - Math.max(box.y, other.y)), 0);
+          if (overlapArea < fallbackOverlap) { fallback = { text, box }; fallbackOverlap = overlapArea; }
+          if (overlapArea > 0) continue;
+          boxes.push(box); result.push({ ...request, a, b, text, box, label }); placed = true; break;
+        }
+        if (placed) break;
+      }
+      if (!placed && fallback) {
+        boxes.push(fallback.box); result.push({ ...request, a, b, ...fallback, label }); placed = true;
+      }
+      if (!placed) throw new CadPlanError("Nie można umieścić wymiaru grubości.");
+      continue;
+    }
     for (let lane = 0; lane < 300; lane++) {
-      const offset = (request.side ?? 1) * font * (2.5 + lane * 2);
+      const offset = (request.side ?? 1) * ((request.offsetMm ?? font * 2.5) + font * lane * 2);
       const a = request.anchor ?? { x: start.x + nx * offset, y: start.y + ny * offset },
         b = request.anchor ?? { x: end.x + nx * offset, y: end.y + ny * offset };
       if (!request.anchor && solids.some((solid) => pointInCadPolygon(a, solid) || pointInCadPolygon(b, solid)
@@ -351,7 +409,6 @@ export function cadStripFaceSegment(document: CadDocument, entity: CadEntity, si
 export function getCadPlanDimensions(document: CadDocument, fontMm: number, hiddenLayers: readonly string[] = [],
   locationFontMm = fontMm, detailed = false): CadDimensionLayout[] {
   const requests: CadDimensionRequest[] = [];
-  const widths = new Set<string>();
   const visible = document.entities.filter((e) => !hiddenLayers.includes(e.layerId));
   const entities = visible.filter((e) => !["annotation", "rebar-annotation", "dimension", "trace-line", "trace-area", "rebar-line"].includes(e.kind));
   const boxes = entities.map(cadElementBounds);
@@ -367,27 +424,191 @@ export function getCadPlanDimensions(document: CadDocument, fontMm: number, hidd
   const references = walls.length ? walls : document.entities.filter((e) => e.kind === "footing");
   const visibleIds = new Set(visible.map((e) => e.id));
   const wallFaces = getCadPlanFaces(document), footingFaces = getCadPlanFaces(document, "footings");
+  const supportChainEntities = new Set<string>();
+  const stripChainEntities = new Set<string>();
+  let hasStripChainOverall = false;
+  const supportPoints = visible.flatMap((entity) => {
+    if (entity.kind !== "construction-area" || !["pad", "column"].includes(entity.attributes.role)
+      || !("vertices" in entity.geometry)) return [];
+    return [{ entity, center: polygonCenter(entity.geometry.vertices) }];
+  });
+  const referencePoints = references.flatMap((entity) => "start" in entity.geometry
+    ? [entity.geometry.start, entity.geometry.end] : []);
+  if (supportPoints.length && referencePoints.length) {
+    const minX = Math.min(...referencePoints.map((point) => point.x)), maxX = Math.max(...referencePoints.map((point) => point.x));
+    const minY = Math.min(...referencePoints.map((point) => point.y)), maxY = Math.max(...referencePoints.map((point) => point.y));
+    const centerX = (minX + maxX) / 2, centerY = (minY + maxY) / 2;
+    for (const axis of ["horizontal", "vertical"] as const) {
+      const coordinate = (point: CadPoint) => axis === "horizontal" ? point.y : point.x;
+      const station = (point: CadPoint) => axis === "horizontal" ? point.x : point.y;
+      const ordered = [...supportPoints].sort((a, b) => coordinate(a.center) - coordinate(b.center));
+      const rows: typeof ordered[] = [];
+      for (const item of ordered) {
+        const row = rows.at(-1);
+        if (!row || Math.abs(coordinate(item.center) - coordinate(row[0]!.center)) > 50) rows.push([item]);
+        else row.push(item);
+      }
+      for (const row of rows) {
+        if (row.length < 2) continue;
+        const fixed = row.reduce((total, item) => total + coordinate(item.center), 0) / row.length;
+        const positions: { point: CadPoint; entities: typeof row }[] = [];
+        for (const item of [...row].sort((a, b) => station(a.center) - station(b.center))) {
+          const previous = positions.at(-1);
+          if (previous && Math.abs(station(previous.point) - station(item.center)) <= 1) previous.entities.push(item);
+          else positions.push({ point: item.center, entities: [item] });
+        }
+        if (positions.length < 2) continue;
+        for (const item of row) supportChainEntities.add(item.entity.id);
+        const chainStart = axis === "horizontal" ? { x: minX, y: fixed } : { x: fixed, y: minY };
+        const chainEnd = axis === "horizontal" ? { x: maxX, y: fixed } : { x: fixed, y: maxY };
+        const length = Math.hypot(chainEnd.x - chainStart.x, chainEnd.y - chainStart.y);
+        if (length < .001) continue;
+        const outwardSide = axis === "horizontal" ? fixed < centerY ? -1 : 1 : fixed < centerX ? 1 : -1;
+        const chainId = `supports:${axis}:${Math.round(fixed)}`;
+        let previous = chainStart;
+        for (const position of positions) {
+          const entity = position.entities.find((item) => item.entity.attributes.role === "column")?.entity
+            ?? position.entities[0]!.entity;
+          const nearestHost = references.map((host) => {
+            if (!("start" in host.geometry)) return { host, distance: Infinity };
+            const projection = projectPointOnSegment(position.point, host.geometry.start, host.geometry.end);
+            return { host, distance: Math.hypot(position.point.x - projection.x, position.point.y - projection.y) };
+          }).sort((a, b) => (a.host.id === entity.attachment?.hostId ? -1 : b.host.id === entity.attachment?.hostId ? 1 : a.distance - b.distance))[0]?.host;
+          add(previous, position.point, `${entity.id}:location`, outwardSide, undefined, entity, {
+            referenceId: nearestHost?.id, anchor: position.point, fontMm: locationFontMm,
+            chainId, chainSide: outwardSide, chainStart, chainEnd,
+            chainColor: nearestHost ? cadEntityColor(nearestHost) : cadEntityColor(entity),
+            description: `Położenie w łańcuchu wymiarowym ${formatCadDimensionMm(station(position.point) - station(previous))}.`,
+          });
+          previous = position.point;
+        }
+      }
+    }
+  }
+  const stripFamilies = new Map<string, CadEntity[]>();
+  for (const entity of visible) {
+    if (!detailed && entity.kind !== "footing" && entity.supportFor?.some((id) => visibleIds.has(id))) continue;
+    const family = stripFamily(entity);
+    if (!family || !("start" in entity.geometry) || !cadStripWidth(entity)) continue;
+    const familyEntities = stripFamilies.get(family) ?? [];
+    familyEntities.push(entity);
+    stripFamilies.set(family, familyEntities);
+  }
+  for (const [family, familyEntities] of stripFamilies) {
+    const familyBounds = familyEntities.map((entity) => ({ entity, bounds: cadElementBounds(entity) }));
+    const familyMinX = Math.min(...familyBounds.map(({ bounds }) => bounds.x));
+    const familyMaxX = Math.max(...familyBounds.map(({ bounds }) => bounds.x + bounds.width));
+    const familyMinY = Math.min(...familyBounds.map(({ bounds }) => bounds.y));
+    const familyMaxY = Math.max(...familyBounds.map(({ bounds }) => bounds.y + bounds.height));
+    const familyColor = cadEntityColor(familyEntities[0]!);
+    const axesWithChains = new Set<"horizontal" | "vertical">();
+    for (const axis of ["horizontal", "vertical"] as const) {
+      const horizontal = axis === "horizontal";
+      const minAlong = horizontal ? familyMinX : familyMinY;
+      const maxAlong = horizontal ? familyMaxX : familyMaxY;
+      const minAcross = horizontal ? familyMinY : familyMinX;
+      const maxAcross = horizontal ? familyMaxY : familyMaxX;
+      const candidates = familyBounds.filter(({ entity }) => {
+        if (!("start" in entity.geometry)) return false;
+        const dx = entity.geometry.end.x - entity.geometry.start.x;
+        const dy = entity.geometry.end.y - entity.geometry.start.y;
+        return horizontal ? Math.abs(dy) > Math.abs(dx) : Math.abs(dx) > Math.abs(dy);
+      });
+      let axisHasChain = false;
+      for (const side of [-1, 1]) {
+        const edge = side < 0 ? minAcross : maxAcross;
+        const intervals = candidates.flatMap(({ entity, bounds }) => {
+          const acrossStart = horizontal ? bounds.y : bounds.x;
+          const acrossEnd = horizontal ? bounds.y + bounds.height : bounds.x + bounds.width;
+          if (edge < acrossStart - 1 || edge > acrossEnd + 1) return [];
+          const start = horizontal ? bounds.x : bounds.y;
+          const end = horizontal ? bounds.x + bounds.width : bounds.y + bounds.height;
+          return [{ start, end, entity }];
+        }).sort((a, b) => a.start - b.start);
+        const merged: { start: number; end: number; entities: CadEntity[] }[] = [];
+        for (const interval of intervals) {
+          const previous = merged.at(-1);
+          if (previous && (interval.start < previous.end - 1
+            || Math.abs(interval.start - previous.start) <= 1 && Math.abs(interval.end - previous.end) <= 1)) {
+            previous.end = Math.max(previous.end, interval.end);
+            previous.entities.push(interval.entity);
+          } else merged.push({ start: interval.start, end: interval.end, entities: [interval.entity] });
+        }
+        if (merged.length < 2) continue;
+        const chainStart = horizontal ? { x: minAlong, y: edge } : { x: edge, y: minAlong };
+        const chainEnd = horizontal ? { x: maxAlong, y: edge } : { x: edge, y: maxAlong };
+        if (Math.hypot(chainEnd.x - chainStart.x, chainEnd.y - chainStart.y) < 1) continue;
+        const chainId = `strips:${family}:${axis}:${side < 0 ? "start" : "end"}`;
+        axisHasChain = true;
+        const chainSide = horizontal ? side : -side;
+        const stations = [...new Set([minAlong, maxAlong, ...merged.flatMap(({ start, end }) => [start, end])])]
+          .filter((station) => station >= minAlong - 1 && station <= maxAlong + 1).sort((a, b) => a - b);
+        for (const interval of merged) for (const entity of interval.entities) stripChainEntities.add(entity.id);
+        for (let index = 1; index < stations.length; index++) {
+          const start = stations[index - 1]!, end = stations[index]!;
+          if (end - start < 1) continue;
+          const midpoint = (start + end) / 2;
+          const interval = intervals.find((item) => midpoint > item.start && midpoint < item.end);
+          const width = interval && Math.abs((end - start) - cadStripWidth(interval.entity)) <= 1;
+          const from = horizontal ? { x: start, y: edge } : { x: edge, y: start };
+          const to = horizontal ? { x: end, y: edge } : { x: edge, y: end };
+          add(from, to, `${chainId}:segments`, chainSide, formatCadDimensionMm(end - start),
+            width ? interval.entity : undefined, {
+              anchor: to, chainId, chainSide, chainStart, chainEnd, chainColor: familyColor, chainLane: 4,
+              color: familyColor, measurementKind: width ? "strip-width" : undefined,
+              description: width ? `Grubość ${interval.entity.mark ?? "elementu"}: ${formatCadDimensionMm(end - start)}.` : undefined,
+            });
+        }
+      }
+      if (axisHasChain) axesWithChains.add(axis);
+    }
+    for (const axis of axesWithChains) {
+      const horizontal = axis === "horizontal";
+      const start = horizontal ? { x: familyMinX, y: familyMaxY } : { x: familyMaxX, y: familyMinY };
+      const end = horizontal ? { x: familyMaxX, y: familyMaxY } : { x: familyMaxX, y: familyMaxY };
+      const side = horizontal ? 1 : -1;
+      if (Math.hypot(end.x - start.x, end.y - start.y) >= 1) {
+        add(start, end, "overall", side, formatCadDimensionMm(Math.hypot(end.x - start.x, end.y - start.y)),
+            undefined, { color: familyColor, offsetMm: fontMm * 14 });
+      }
+      hasStripChainOverall = true;
+    }
+  }
   for (const e of visible) {
-    if (!detailed && e.supportFor?.some((id) => visibleIds.has(id))) continue;
+    if (!detailed && e.kind !== "footing" && e.supportFor?.some((id) => visibleIds.has(id))) continue;
     if ("start" in e.geometry) {
       const width = cadStripWidth(e);
       if (width > 0) {
-        const p = segmentRectangle(e.geometry.start, e.geometry.end, width);
         const left = cadStripFaceSegment(document, e, "left"), right = cadStripFaceSegment(document, e, "right");
         const l = Math.hypot(left.end.x - left.start.x, left.end.y - left.start.y);
         const r = Math.hypot(right.end.x - right.start.x, right.end.y - right.start.y);
         const both = detailed && Math.abs(l - r) > .001;
+        if (stripChainEntities.has(e.id) && !both) continue;
         const exterior = cadLayerSides(e, "exterior", e.kind === "footing" ? footingFaces : wallFaces)[0];
         const side = exterior ?? (l >= r ? "left" : "right");
         if (both || side === "left") add(left.start, left.end, `${e.id}:exterior`, 1, undefined, e, { faceSide: "left" });
         if (both || side === "right") add(right.start, right.end, `${e.id}:exterior`, -1, undefined, e, { faceSide: "right" });
-        const widthKey = `${e.kind}:${e.kind === "construction-line" ? e.attributes.role : ""}:${width}`;
-        if (detailed && !widths.has(widthKey)) { add(p[1]!, p[2]!, `${e.id}:exterior`, 1, undefined, e); widths.add(widthKey); }
+        const isWall = e.kind === "wall" || e.kind === "construction-line" && e.attributes.role === "foundation-wall";
+        if ((isWall || e.kind === "footing" || detailed) && !stripChainEntities.has(e.id)) {
+          const dx = e.geometry.end.x - e.geometry.start.x, dy = e.geometry.end.y - e.geometry.start.y;
+          const length = Math.hypot(dx, dy), nx = -dy / length, ny = dx / length;
+          const center = { x: (e.geometry.start.x + e.geometry.end.x) / 2, y: (e.geometry.start.y + e.geometry.end.y) / 2 };
+          const thicknessStart = { x: center.x + nx * width / 2, y: center.y + ny * width / 2 };
+          const thicknessEnd = { x: center.x - nx * width / 2, y: center.y - ny * width / 2 };
+          add(thicknessStart, thicknessEnd, `${e.id}:thickness`, exterior === "left" ? -1 : 1, formatCadDimensionMm(width), e, {
+            measurementKind: "strip-width",
+            description: `Grubość ${isWall ? "ściany" : "elementu"} ${e.mark ?? ""}: ${formatCadDimensionMm(width)}.`,
+          });
+        }
       } else if (e.kind === "dimension") add(e.geometry.start, e.geometry.end, `${e.id}:manual`, 1,
-        e.attributes.label || `${Math.round(e.attributes.measuredMm)} mm`);
+        e.attributes.label || formatCadDimensionMm(e.attributes.measuredMm), e);
     } else if ("vertices" in e.geometry) {
       if (e.kind === "construction-area" && ["pad", "column"].includes(e.attributes.role)) {
         const center = polygonCenter(e.geometry.vertices), b = cadElementBounds(e);
+        if (supportChainEntities.has(e.id)) {
+          if (!b.width || !b.height) throw new Error("Stopa lub słup wymaga niezerowych wymiarów.");
+          continue;
+        }
         const ranked = references.map((host) => {
           if (!("start" in host.geometry)) throw new CadPlanError("Odniesienie wymiaru wymaga ściany.");
           const projection = projectPointOnSegment(center, host.geometry.start, host.geometry.end);
@@ -405,24 +626,27 @@ export function getCadPlanDimensions(document: CadDocument, fontMm: number, hidd
           const hostFace = cadStripFaceSegment(document, host, sign === 1 ? "left" : "right");
           const originAlong = (hostFace.start.x - g.start.x) * ux + (hostFace.start.y - g.start.y) * uy;
           const origin = { x: g.start.x + ux * originAlong, y: g.start.y + uy * originAlong };
-          const extra = { referenceId: host.id, anchor: center, fontMm: locationFontMm };
+          const extra = { referenceId: host.id, anchor: center, fontMm: locationFontMm,
+            chainStart: hostFace.start, chainEnd: hostFace.end, chainColor: cadEntityColor(host) };
           const face = { x: projection.x - uy * sign * cadStripWidth(host) / 2,
             y: projection.y + ux * sign * cadStripWidth(host) / 2 };
           const alongMm = Math.round(Math.hypot(projection.x - origin.x, projection.y - origin.y));
           const acrossMm = Math.round(Math.hypot(center.x - face.x, center.y - face.y));
           const prefix = `${e.mark ?? "Podpora"} → ${host.mark ?? "Ściana"}`;
           add(origin, projection, `${e.id}:location`, -1,
-            `${prefix} : ${alongMm}${detailed ? "" : ` / ${acrossMm}`} mm`, e,
-            { ...extra, description: `Położenie osi podpory: wzdłuż ściany od początku lica ${alongMm} mm; prostopadle od lica ${acrossMm} mm.` });
-          if (detailed) add(face, center, `${e.id}:location`, 1, `${prefix} : ${acrossMm} mm`, e,
+            `${prefix} : ${formatCadDimensionMm(alongMm)}${detailed ? "" : ` / ${formatCadDimensionMm(acrossMm)}`}`, e,
+            { ...extra, chainId: `${host.id}:support-locations:${sign}`,
+              chainSide: sign,
+              description: `Położenie osi podpory: wzdłuż ściany od początku lica ${formatCadDimensionMm(alongMm)}; prostopadle od lica ${formatCadDimensionMm(acrossMm)}.` });
+          if (detailed) add(face, center, `${e.id}:location`, 1, `${prefix} : ${formatCadDimensionMm(acrossMm)}`, e,
             { ...extra, description: "Prostopadłe odsunięcie osi podpory od lica ściany." });
         } else {
           const x = Math.round(center.x - minX), y = Math.round(center.y - minY);
           add({ x: minX, y: center.y }, center, `${e.id}:location`, 1,
-            `${e.mark ?? "Podpora"} X: ${x}${detailed ? "" : ` / Y: ${y}`} mm`, e,
-            { anchor: center, fontMm: locationFontMm, description: `Położenie od gabarytu rysunku: X ${x} mm; Y ${y} mm.` });
+            `${e.mark ?? "Podpora"} X: ${formatCadDimensionMm(x)}${detailed ? "" : ` / Y: ${formatCadDimensionMm(y)}`}`, e,
+            { anchor: center, fontMm: locationFontMm, description: `Położenie od gabarytu rysunku: X ${formatCadDimensionMm(x)}; Y ${formatCadDimensionMm(y)}.` });
           if (detailed) add({ x: center.x, y: minY }, center, `${e.id}:location`, -1,
-            `${e.mark ?? "Podpora"} Y: ${y} mm`, e, { anchor: center, fontMm: locationFontMm });
+            `${e.mark ?? "Podpora"} Y: ${formatCadDimensionMm(y)}`, e, { anchor: center, fontMm: locationFontMm });
         }
         // Size is printed inside the symbol; only its position uses external dimension chains.
         if (!b.width || !b.height) throw new Error("Stopa lub słup wymaga niezerowych wymiarów.");
@@ -432,7 +656,7 @@ export function getCadPlanDimensions(document: CadDocument, fontMm: number, hidd
       }
     }
   }
-  if (detailed && boxes.length) {
+  if (detailed && boxes.length && !hasStripChainOverall) {
     const maxX = Math.max(...boxes.map((b) => b.x + b.width)), maxY = Math.max(...boxes.map((b) => b.y + b.height));
     add({ x: minX, y: minY }, { x: maxX, y: minY }, "overall", -1);
     add({ x: maxX, y: minY }, { x: maxX, y: maxY }, "overall", -1);

@@ -3,9 +3,10 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { CadDocumentSchema, CadEntitySchema, emptyConstructionTechnologySelections, getCadDrawingTools } from "@asystent/schemas";
 import { assignCadMarks, attachCadElement, cadLayerOutline, cadLayerSides, connectCadWallJunctions, copyCadGeometry,
-  createCadElement, foundationSetupFromSettings, getCadPlanDimensions, getCadPlanFaces, layoutCadDimensions,
-  moveCadJunction, polygonCenter, resizeCadRectangle, synchronizeCadAttachments, synchronizeCadInfill, translateConnectedCadEntity,
-  cadStripFaceSegment, cadEntityColor, configureFoundationWall, synchronizeFoundationSupports, resizeCadStrip, updateConnectedCadEntity } from "../dist/index.js";
+  createCadElement, foundationSetupFromSettings, formatCadDimensionMm, getCadPlanDimensions, getCadPlanFaces, layoutCadDimensions,
+  moveCadJunction, polygonCenter, resizeCadRectangle, snapCadConnection, synchronizeCadAttachments, synchronizeCadInfill, translateConnectedCadEntity,
+  cadStripFaceSegment, cadEntityColor, configureFoundationWall, synchronizeFoundationSupports, resizeCadStrip, updateConnectedCadEntity,
+  setCadWallHeightForRoom } from "../dist/index.js";
 import { rectangleSize, segmentRectangle, segmentsIntersect } from "@asystent/geometry";
 
 const doc = (entities = [], projectId = randomUUID()) => CadDocumentSchema.parse({
@@ -13,6 +14,12 @@ const doc = (entities = [], projectId = randomUUID()) => CadDocumentSchema.parse
   status: "draft", calibration: null, entities,
 });
 const wall = (a, b) => createCadElement("wall", [a, b], { id: randomUUID() });
+
+test("dimension labels use centimeters without losing millimeter precision", () => {
+  assert.equal(formatCadDimensionMm(240), "24 cm");
+  assert.equal(formatCadDimensionMm(245), "24,5 cm");
+  assert.equal(formatCadDimensionMm(248.4), "24,8 cm");
+});
 const rectangle = (tool = "wall") => {
   const p = [{x:0,y:0},{x:6000,y:0},{x:6000,y:4000},{x:0,y:4000}];
   return p.map((a, i) => createCadElement(tool, [a,p[(i+1)%4]], {id:randomUUID()}));
@@ -45,6 +52,40 @@ test("X crossing creates one movable junction with four ends, is idempotent and 
   assert.equal(moved.entities.filter((e) => [e.geometry.start,e.geometry.end].some((p) => p.x===3200&&p.y===2300)).length,4);
 });
 
+test("excavation edges snap, join at corners and split at X without splitting foundation walls", () => {
+  const excavation = (a, b) => createCadElement("excavation", [a, b], {id:randomUUID()});
+  const wall = createCadElement("foundation-wall", [{x:0,y:2000},{x:4000,y:2000}], {id:randomUUID()});
+  const first = excavation({x:0,y:0},{x:4000,y:0});
+  const second = excavation({x:2000,y:-2000},{x:2000,y:2000});
+  const original = doc([wall, first, second]);
+  assert.deepEqual(snapCadConnection(original, {x:5,y:0}, 10), {x:0,y:0});
+  assert.deepEqual(snapCadConnection(original, {x:1000,y:12}, 20), {x:1000,y:0});
+  const connected = connectCadWallJunctions(original, randomUUID);
+  assert.equal(connected.entities.filter((entity) => entity.kind === "construction-line"
+    && entity.attributes.role === "excavation").length, 4);
+  assert.equal(connected.entities.find((entity) => entity.id === wall.id).geometry.end.x, 4000);
+  const moved = moveCadJunction(connected, {x:2000,y:0}, {x:2100,y:100});
+  assert.equal(moved.entities.filter((entity) => entity.kind === "construction-line" && entity.attributes.role === "excavation"
+    && [entity.geometry.start,entity.geometry.end].some((point) => point.x === 2100 && point.y === 100)).length, 4);
+  assert.deepEqual(connectCadWallJunctions(connected, randomUUID), connected);
+});
+
+test("excavation elements can keep a host relationship through foundation support synchronization", () => {
+  const host = createCadElement("foundation-wall", [{x:0,y:0},{x:4000,y:0}], {id:randomUUID()});
+  const line = createCadElement("excavation", [{x:0,y:-400},{x:4000,y:-400}], {id:randomUUID()});
+  const linked = CadEntitySchema.parse({...line, relatedTo:[host.id]});
+  const source = doc([host, linked]);
+  const synchronized = synchronizeFoundationSupports(source, randomUUID);
+  assert.ok(synchronized.entities.some((entity) => entity.id === linked.id && entity.relatedTo?.includes(host.id)));
+  const split = connectCadWallJunctions(doc([host, linked, wall({x:2000,y:-1000},{x:2000,y:1000})]), randomUUID);
+  const splitWallIds = split.entities.filter((entity) => entity.kind === "construction-line"
+    && entity.attributes.role === "foundation-wall").map(({ id }) => id);
+  assert.deepEqual(split.entities.find((entity) => entity.id === linked.id).relatedTo, splitWallIds);
+  const copied = copyCadGeometry(source, doc([], source.projectId), randomUUID);
+  assert.equal(copied.entities.find((entity) => entity.kind === "construction-line" && entity.attributes.role === "excavation")
+    .relatedTo[0], copied.entities.find((entity) => entity.kind === "construction-line" && entity.attributes.role === "foundation-wall").id);
+});
+
 test("closed fields use inner faces, reverse wall directions and identify multiple rooms after X", () => {
   const walls = rectangle();
   walls[1].geometry = {start:walls[1].geometry.end,end:walls[1].geometry.start};
@@ -62,6 +103,25 @@ test("closed fields use inner faces, reverse wall directions and identify multip
   const spurFaces = getCadPlanFaces(spur);
   assert.equal(spurFaces.length,1);
   assert.equal(spurFaces[0].areaMm2,5760*3760-240*2000);
+});
+
+test("changing a room wall height updates every wall in its closed room only", () => {
+  const rooms = connectCadWallJunctions(doc([
+    ...rectangle(),
+    wall({x:3000,y:0},{x:3000,y:4000}),
+  ]), randomUUID);
+  const faces = getCadPlanFaces(rooms);
+  assert.equal(faces.length, 2);
+  const firstRoomIds = new Set(faces[0].ids);
+  const originalHeights = new Map(rooms.entities.map((entity) => [entity.id, entity.attributes.heightMm]));
+  const next = setCadWallHeightForRoom(rooms, faces[0].ids[0], 3000);
+  for (const entity of next.entities) {
+    if (!("heightMm" in entity.attributes)) continue;
+    if (!firstRoomIds.has(entity.id)) assert.equal(entity.attributes.heightMm, originalHeights.get(entity.id));
+    else assert.equal(entity.attributes.heightMm, 3000);
+  }
+  assert.equal(rooms.entities.every((entity) => entity.attributes.heightMm === originalHeights.get(entity.id)), true);
+  assert.throws(() => setCadWallHeightForRoom(rooms, faces[0].ids[0], 0), /Wysokość/);
 });
 
 test("thermal outlines meet at corner outside actual wall faces rather than stopping at axes", () => {
@@ -93,6 +153,17 @@ test("columns attach to their wall and preserve size after translation, rotation
   assert.equal(far.attachment,undefined);
 });
 
+test("columns inside a closed room attach to the nearest wall and preserve their offset when it moves", () => {
+  const walls=rectangle();
+  const column=createCadElement("column",[{x:2800,y:1800},{x:3200,y:1800},{x:3200,y:2200},{x:2800,y:2200}],{id:randomUUID()});
+  const source=doc([...walls,column]);
+  const attached=attachCadElement(column,source,0);
+  assert.equal(attached.attachment.hostId,walls[0].id);
+  const movedHost=translateConnectedCadEntity(doc([...walls,attached]),walls[0].id,{x:0,y:300});
+  const moved=synchronizeCadAttachments(movedHost);
+  assert.deepEqual(polygonCenter(moved.entities.find((entity)=>entity.id===column.id).geometry.vertices),{x:3000,y:2300});
+});
+
 test("infill clicks represent exact inner footing polygon and retain relation on movement/copy", () => {
   const footings=rectangle("footing"),faces=getCadPlanFaces(doc(footings),"footings");
   const slab={...createCadElement("slab",faces[0].inner,{id:randomUUID()}),infillFor:faces[0].ids};
@@ -117,8 +188,8 @@ test("identifiers remain stable and unique including copies and regenerated defa
 test("dense external dimensions have no overlapping label boxes and include detached column positioning", () => {
   const column=createCadElement("column",[{x:2000,y:1000},{x:2400,y:1000},{x:2400,y:1400},{x:2000,y:1400}],{id:randomUUID()});
   const dims=getCadPlanDimensions(assignCadMarks(doc([...rectangle(),column])),250,[],undefined,true);
-  assert.ok(dims.some((d)=>d.label === "S1 → W1 : 2080 mm"));
-  assert.ok(dims.some((d)=>d.label === "S1 → W1 : 1080 mm"));
+  assert.ok(dims.some((d)=>d.label === "S1 → W1 : 208 cm"));
+  assert.ok(dims.some((d)=>d.label === "S1 → W1 : 108 cm"));
   assert.ok(!dims.some((d)=>d.label.includes("S1 X:") || d.label.includes("S1 Y:")));
   for(let i=0;i<dims.length;i++)for(let j=i+1;j<dims.length;j++){
     const a=dims[i].box,b=dims[j].box;
@@ -129,12 +200,54 @@ test("dense external dimensions have no overlapping label boxes and include deta
   assert.equal(CadEntitySchema.safeParse({...column,attachment:{hostId:randomUUID(),start:{x:0,y:0},end:{x:0,y:0}}}).success,false);
 });
 
+test("supports along one wall share a single dimension chain", () => {
+  const host=wall({x:0,y:0},{x:6000,y:0});
+  const supports=[
+    createCadElement("column",[{x:800,y:800},{x:1200,y:800},{x:1200,y:1200},{x:800,y:1200}],{id:randomUUID()}),
+    createCadElement("pad",[{x:3800,y:800},{x:4200,y:800},{x:4200,y:1200},{x:3800,y:1200}],{id:randomUUID()}),
+  ];
+  const dimensions=getCadPlanDimensions(assignCadMarks(doc([host,...supports])),125,[],undefined,true);
+  const chains=dimensions.filter((dimension)=>dimension.anchor&&dimension.chainId);
+  assert.equal(chains.length,2);
+  assert.equal(new Set(chains.map((dimension)=>dimension.chainId)).size,1);
+  assert.ok(chains.every((dimension)=>dimension.referenceId===host.id));
+  assert.ok(chains.every((dimension)=>dimension.chainStart.y===dimension.chainEnd.y
+    &&dimension.chainStart.x===0&&dimension.chainEnd.x===6000));
+  assert.ok(chains.every((dimension)=>dimension.chainColor===cadEntityColor(host)));
+  assert.ok(chains.every((dimension)=>dimension.color===cadEntityColor(supports.find((entity)=>entity.id===dimension.entityId))));
+});
+
+test("aligned supports share corner-to-corner chains and coincident columns and pads use one station", () => {
+  const walls=rectangle();
+  const support=(kind,x,y)=>createCadElement(kind,[{x:x-200,y:y-200},{x:x+200,y:y-200},
+    {x:x+200,y:y+200},{x:x-200,y:y+200}],{id:randomUUID()});
+  const supports=[
+    support("column",2000,1000),support("pad",2000,1000),
+    support("column",4000,1000),support("pad",4000,1000),
+    support("column",4000,3000),support("pad",4000,3000),
+  ];
+  const plan=assignCadMarks(doc([...walls,...supports]));
+  const chains=getCadPlanDimensions(plan,125).filter((dimension)=>dimension.chainId?.startsWith("supports:"));
+  assert.equal(new Set(chains.map((dimension)=>dimension.chainId)).size,2);
+  assert.equal(chains.length,4);
+  assert.ok(chains.every((dimension)=>dimension.entityId&&dimension.color===cadEntityColor(plan.entities.find((entity)=>entity.id===dimension.entityId))));
+  const horizontal=chains.filter((dimension)=>dimension.chainId.includes("horizontal"));
+  const vertical=chains.filter((dimension)=>dimension.chainId.includes("vertical"));
+  assert.equal(horizontal.length,2);
+  assert.equal(vertical.length,2);
+  assert.ok(horizontal.every((dimension)=>dimension.chainStart.y===1000
+    &&dimension.chainEnd.y===1000&&dimension.chainStart.x===0&&dimension.chainEnd.x===6000));
+  assert.ok(vertical.every((dimension)=>dimension.chainStart.x===4000
+    &&dimension.chainEnd.x===4000&&dimension.chainStart.y===0&&dimension.chainEnd.y===4000));
+});
+
 test("T and X dimension chains meet at junctions without adding wall caps at internal nodes", () => {
   const original = doc([wall({x:0,y:0},{x:6000,y:0}),wall({x:3000,y:-2000},{x:3000,y:2000})]);
   const split = connectCadWallJunctions(original,randomUUID);
   const dims = getCadPlanDimensions(split,125).filter((d)=>d.group.endsWith(":exterior") && Math.hypot(d.end.x-d.start.x,d.end.y-d.start.y)>240);
   assert.equal(dims.length,4);
-  assert.deepEqual(dims.map((d)=>Number(d.label.split(" ")[0])).sort((a,b)=>a-b),[2000,2000,3000,3000]);
+  assert.deepEqual(dims.map((d)=>Math.round(Math.hypot(d.end.x-d.start.x,d.end.y-d.start.y))).sort((a,b)=>a-b),
+    [2000,2000,3000,3000]);
   const horizontal = dims.filter((d)=>d.start.y===d.end.y);
   assert.ok(horizontal.some((d)=>d.end.x===2880));
   assert.ok(horizontal.some((d)=>d.start.x===3120));
@@ -161,22 +274,20 @@ test("detached supports beyond a wall end dimension from that wall, not drawing 
   const support=createCadElement("pad",[{x:5700,y:1700},{x:6300,y:1700},{x:6300,y:2300},{x:5700,y:2300}],{id:randomUUID()});
   const dims=getCadPlanDimensions(assignCadMarks(doc([host,support])),125,[],undefined,true).filter((d)=>d.group.endsWith(":location"));
   assert.equal(dims.length,2);
-  assert.equal(dims[0].label,"ST1 → W1 : 5120 mm");
-  assert.equal(dims[1].label,"ST1 → W1 : 880 mm");
+  assert.equal(dims[0].label,"ST1 → W1 : 512 cm");
+  assert.equal(dims[1].label,"ST1 → W1 : 88 cm");
   assert.equal(dims[1].start.x,dims[1].end.x);
   assert.equal(dims[0].start.y,dims[0].end.y);
 });
 
-test("each unequal wall face is dimensioned at real corners and unequal-width T joints", () => {
+test("aligned walls use complete dimension chains with wall thicknesses and an outer total", () => {
   const building=assignCadMarks(doc(rectangle()));
   const dims=getCadPlanDimensions(building,125,[],undefined,true);
-  for(const e of building.entities){
-    const longitudinal=dims.filter((d)=>d.entityId===e.id&&d.faceSide);
-    assert.equal(longitudinal.length,2);
-    const axisLength=Math.hypot(e.geometry.end.x-e.geometry.start.x,e.geometry.end.y-e.geometry.start.y);
-    assert.deepEqual(longitudinal.map((d)=>Math.hypot(d.end.x-d.start.x,d.end.y-d.start.y)).sort((a,b)=>a-b),
-      [axisLength-240,axisLength+240]);
-  }
+  const chains=dims.filter((d)=>d.chainId?.startsWith("strips:wall:"));
+  assert.ok(chains.some((d)=>d.measurementKind==="strip-width"&&d.label==="24 cm"));
+  assert.ok(dims.some((d)=>d.group==="overall"&&d.label==="624 cm"));
+  for(const e of building.entities)
+    assert.ok(chains.some((d)=>d.entityId===e.id&&d.measurementKind==="strip-width"));
   const wide={...wall({x:0,y:0},{x:6000,y:0}),attributes:{thicknessMm:400,heightMm:2800,material:"Beton"}};
   const branch=wall({x:2500,y:0},{x:2500,y:2000});
   const t=assignCadMarks(connectCadWallJunctions(doc([wide,branch]),randomUUID));
@@ -185,33 +296,41 @@ test("each unequal wall face is dimensioned at real corners and unequal-width T 
   assert.deepEqual(cadStripFaceSegment(t,first,"right"),{start:{x:-200,y:-200},end:{x:2500,y:-200}});
   const branchFace=cadStripFaceSegment(t,branch,"left");
   assert.equal(branchFace.start.y,200);
-  const measured=getCadPlanDimensions(t,125,[],undefined,true).filter((d)=>d.entityId===first.id&&d.faceSide);
-  assert.deepEqual(measured.map((d)=>d.label),["2580 mm","2700 mm"]);
+  const measured=getCadPlanDimensions(t,125,[],undefined,true).filter((d)=>d.entityId===first.id
+    &&d.measurementKind==="strip-width");
+  assert.ok(measured.some((d)=>d.label==="40 cm"));
 });
 
-test("simple plan has one exterior length per wall, no duplicate automatic supports or widths, and compact support position", () => {
+test("simple plan dimensions every wall length and thickness without duplicate automatic supports", () => {
   const walls=rectangle("foundation-wall").map((e)=>configureFoundationWall(e,foundationSetupFromSettings(settings,[])));
   walls[1].geometry={start:walls[1].geometry.end,end:walls[1].geometry.start};
   const pad=createCadElement("pad",[{x:1800,y:800},{x:2200,y:800},{x:2200,y:1200},{x:1800,y:1200}],{id:randomUUID()});
   const plan=assignCadMarks(synchronizeFoundationSupports(doc([...walls,pad]),randomUUID));
   const simple=getCadPlanDimensions(plan,125),detail=getCadPlanDimensions(plan,125,[],undefined,true);
-  assert.equal(simple.length,5);
+  assert.ok(simple.length>9);
   for(const e of walls){
     const dimensions=simple.filter((d)=>d.entityId===e.id);
-    assert.equal(dimensions.length,1);
-    assert.equal(dimensions[0].faceSide,e.id===walls[1].id?"left":"right");
-    const expected=Math.hypot(e.geometry.end.x-e.geometry.start.x,e.geometry.end.y-e.geometry.start.y)+240;
-    assert.equal(Number(dimensions[0].label.split(" ")[0]),expected);
+    assert.ok(dimensions.some((d)=>d.chainId?.startsWith("strips:wall:")&&d.measurementKind==="strip-width"));
+    assert.ok(dimensions.every((d)=>d.color===cadEntityColor(e)));
   }
-  assert.ok(!simple.some((d)=>d.group==="overall"||plan.entities.find((e)=>e.id===d.entityId)?.supportFor));
+  assert.ok(simple.some((d)=>d.group==="overall"));
+  const generatedFootings=plan.entities.filter((e)=>e.kind==="footing"&&e.supportFor?.some((id)=>plan.entities.some((host)=>host.id===id)));
+  const simpleFootingDimensions=simple.filter((d)=>d.chainId?.startsWith("strips:footing:"));
+  assert.ok(generatedFootings.length>0);
+  assert.ok(simpleFootingDimensions.some((d)=>d.measurementKind==="strip-width"&&d.label==="80 cm"));
+  assert.ok(simple.some((d)=>d.group==="overall"&&d.color===cadEntityColor(generatedFootings[0])));
+  assert.ok(simpleFootingDimensions.every((d)=>d.color===cadEntityColor(generatedFootings[0])));
+  assert.ok(!simple.some((d)=>plan.entities.find((e)=>e.id===d.entityId)?.supportFor
+    &&!d.chainId?.startsWith("strips:footing:")));
   const position=simple.find((d)=>d.entityId===pad.id);
-  assert.equal(position.label,"ST1 → SF1 : 1880 / 880 mm");
+  assert.equal(position.label,"ST1 → SF1 : 188 cm / 88 cm");
   assert.deepEqual(position.a,position.anchor);
   assert.deepEqual(position.b,position.anchor);
-  assert.ok(detail.length>simple.length*2);
+  assert.ok(detail.length>simple.length);
+  assert.ok(detail.some((d)=>d.chainId?.startsWith("strips:footing:")));
   const hidden=getCadPlanDimensions(plan,125,["foundation-wall"]);
   for(const footing of plan.entities.filter((e)=>e.kind==="footing"))
-    assert.equal(hidden.filter((d)=>d.entityId===footing.id).length,1);
+    assert.ok(hidden.some((d)=>d.chainId?.startsWith("strips:footing:")&&d.entityId===footing.id));
 });
 
 test("slanted building dimensions avoid crossing strips and remain sparse with T junction, infill and zoom fonts", () => {
@@ -222,15 +341,17 @@ test("slanted building dimensions avoid crossing strips and remain sparse with T
   const solids=plan.entities.map((e)=>segmentRectangle(e.geometry.start,e.geometry.end,e.kind==="footing"?800:240));
   for(const font of [125,250,500]){
     const dims=getCadPlanDimensions(plan,font);
-    assert.equal(dims.length,6);
-    for(const d of dims)for(const solid of solids)for(let i=0;i<solid.length;i++)
+    assert.equal(dims.length,24);
+    assert.equal(dims.filter((d)=>d.measurementKind==="strip-width").length,12);
+    for(const d of dims.filter((dimension)=>dimension.measurementKind!=="strip-width"))
+      for(const solid of solids)for(let i=0;i<solid.length;i++)
       assert.ok(!segmentsIntersect(d.a,d.b,solid[i],solid[(i+1)%solid.length]));
     for(let i=0;i<dims.length;i++)for(let j=i+1;j<dims.length;j++){
       const a=dims[i].box,b=dims[j].box;
       assert.ok(!(a.x<b.x+b.width&&a.x+a.width>b.x&&a.y<b.y+b.height&&a.y+a.height>b.y));
     }
   }
-  assert.equal(getCadPlanDimensions(moveCadJunction(plan,points[4],{x:-22000,y:13000}),125).length,6);
+  assert.equal(getCadPlanDimensions(moveCadJunction(plan,points[4],{x:-22000,y:13000}),125).length,24);
 });
 
 test("support at reference origin keeps its zero station and nonzero offset in the compact label", () => {
@@ -238,7 +359,7 @@ test("support at reference origin keeps its zero station and nonzero offset in t
   const support=createCadElement("pad",[{x:-220,y:800},{x:-20,y:800},{x:-20,y:1200},{x:-220,y:1200}],{id:randomUUID()});
   const dimensions=getCadPlanDimensions(assignCadMarks(doc([host,support])),125).filter((d)=>d.anchor);
   assert.equal(dimensions.length,1);
-  assert.equal(dimensions[0].label,"ST1 → W1 : 0 / 880 mm");
+  assert.equal(dimensions[0].label,"ST1 → W1 : 0 cm / 88 cm");
 });
 
 test("oblique T dimensions intersect actual neighbor faces and update immediately after movement", () => {
@@ -255,10 +376,7 @@ test("oblique T dimensions intersect actual neighbor faces and update immediatel
   const before=getCadPlanDimensions(t,125);
   const moved=moveCadJunction(t,{x:500,y:4000},{x:800,y:4300});
   const after=getCadPlanDimensions(moved,125);
-  for(const e of moved.entities){
-    const a=after.filter((d)=>d.entityId===e.id&&d.faceSide),b=before.filter((d)=>d.entityId===e.id&&d.faceSide);
-    assert.notDeepEqual(a.map((d)=>[d.start,d.end]),b.map((d)=>[d.start,d.end]));
-  }
+  assert.notDeepEqual(after.map((d)=>[d.group,d.start,d.end]),before.map((d)=>[d.group,d.start,d.end]));
 });
 
 test("generated footing dimensions and wall dimensions have separate colors and both track resized shared nodes", () => {
@@ -271,13 +389,16 @@ test("generated footing dimensions and wall dimensions have separate colors and 
   const next=synchronizeFoundationSupports(updateConnectedCadEntity(original,updated),randomUUID);
   assert.deepEqual(next.entities.find((e)=>e.id===walls[1].id).geometry.start,updated.geometry.end);
   const after=getCadPlanDimensions(next,125,[],undefined,true);
-  for(const e of next.entities.filter((e)=>e.kind==="footing"||e.id===walls[0].id||e.id===walls[1].id)){
-    const dimensions=after.filter((d)=>d.entityId===e.id&&d.faceSide);
-    assert.ok(dimensions.length>0);
-    assert.ok(dimensions.every((d)=>d.color===cadEntityColor(e)));
-    if(e.id===walls[0].id||e.id===walls[1].id||e.supportFor?.includes(walls[0].id)||e.supportFor?.includes(walls[1].id))
-      assert.notDeepEqual(dimensions.map((d)=>d.label),before.filter((d)=>d.entityId===e.id&&d.faceSide).map((d)=>d.label));
-  }
+  const wallDimensions=after.filter((d)=>d.chainId?.startsWith("strips:wall:"));
+  const footingDimensions=after.filter((d)=>d.chainId?.startsWith("strips:footing:"));
+  assert.ok(wallDimensions.some((d)=>d.measurementKind==="strip-width"&&d.label==="24 cm"));
+  assert.ok(footingDimensions.some((d)=>d.measurementKind==="strip-width"&&d.label==="80 cm"));
+  assert.ok(wallDimensions.every((d)=>d.color===cadEntityColor(walls[0])));
+  assert.ok(footingDimensions.every((d)=>d.color===cadEntityColor(next.entities.find((e)=>e.kind==="footing"))));
+  assert.notDeepEqual(wallDimensions.map((d)=>[d.chainId,d.start,d.end]),
+    before.filter((d)=>d.chainId?.startsWith("strips:wall:")).map((d)=>[d.chainId,d.start,d.end]));
+  assert.notDeepEqual(footingDimensions.map((d)=>[d.chainId,d.start,d.end]),
+    before.filter((d)=>d.chainId?.startsWith("strips:footing:")).map((d)=>[d.chainId,d.start,d.end]));
   const excavation=createCadElement("excavation",[{x:0,y:9000},{x:5000,y:9000}],{id:randomUUID()});
   assert.equal(new Set([cadEntityColor(excavation),cadEntityColor(walls[0]),cadEntityColor(original.entities[0])]).size,3);
 });

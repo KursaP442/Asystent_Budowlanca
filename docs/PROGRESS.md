@@ -1288,3 +1288,86 @@ odświeżano jego formularza.
 - Dodano niezależny przełącznik „Ukryj/Pokaż wymiary” w ustawieniach canvasu.
 - Ukrycie obejmuje wymiary geometryczne i etykiety pól m²; geometria, siatka i prowadnice pozostają bez zmian.
 - Web lint/typecheck **PASS**, dev server **PASS** HTTP 200.
+
+## Sesja 40 — 13 października 2026
+
+### Przekroje fundamentów — działający zakres i ograniczenia
+
+- Dodano opcjonalne metadane przekrojów do istniejącego JSON CAD: stabilny identyfikator, oznaczenie, odnośnik do linii cięcia, kierunek, zakres, skala, elementy powiązane i walidowane nadpisania. Bez migracji bazy; starsze dokumenty pozostają zgodne.
+- Panel istniejącego edytora pokazuje rzut tylko do odczytu w tych samych współrzędnych, obsługuje wybór istniejącej linii cięcia, oznaczenia, przesuwanie/zoom, wskazanie elementów i podgląd SVG. Zmiany metadanych przechodzą przez dotychczasowy zapis CAD.
+- Geometria przekroju korzysta z rzeczywistych przecięć geometrii rzutu. Formularz pokazuje dostępne wartości i ich źródło; nadpisanie przekroju nie mutuje encji rzutu. Konflikty pozostają jawne, nieznane wartości nie dostają wartości domyślnych.
+- SVG przedstawia znane wymiary, materiały, rzędne tylko gdy zostały podane, elementy interaktywne i eksport wektorowy. Lista elementów pokazuje status roboczy/zweryfikowany; ilości celowo oznaczane są jako nieobliczone.
+- Zakres nadal nie obejmuje przedmiarów/objętości, PDF/PNG, pełnego resolvera parametrów typów i ustawień projektu, mobilnego gestu pinch, automatycznego wykrywania warstw budowy ani testu UI end-to-end. Moduł nie jest projektem konstrukcyjnym.
+- Schematy **PASS 33/33**, domena **PASS 50/50**, Web typecheck **PASS**, lint **PASS**, build produkcyjny **PASS**. UI/E2E **NOT RUN**.
+
+### Kontynuacja
+
+- Dodać testy UI/E2E dla zapisu, ponownego otwarcia, nadpisania, synchronizacji zaznaczenia i eksportu SVG.
+- Następnie rozbudować resolver źródeł danych i dokładną geometrię warstw; przedmiotów nie wyliczać, dopóki model nie umożliwi wiarygodnego uniknięcia podwójnego zliczania.
+
+## Sesja 41 — 13 października 2026
+
+### Zakładka przekrojów i legenda znaczników CAD
+
+- Przekroje fundamentów i poziomy posadowienia przeniesiono z rozwijanego bloku pod canvasem do osobnej zakładki nawigacji rysunków etapu fundamentów. Widok przekrojów nadal pracuje na aktywnym dokumencie CAD i jego dotychczasowym autosave.
+- Dodano na canvasie przewijaną, responsywną legendę kategorii znaczników. Wpisy grupują typy elementów (bez wypisywania konkretnych egzemplarzy); obrys i płyta mają wspólny zielony kwadrat.
+- Walidacja zmian: Web typecheck/lint/build **PASS**. HTTP aplikacji na porcie 3001 **PASS** (200). Test wizualny UI **NOT RUN**.
+
+## Sesja 42 — 13 października 2026
+
+### Kolorowe znaczniki i edycja ściany z canvasu
+
+- Legenda prezentuje już kwadratowe, jawnie blokowe próbki kolorów obok kategorii; nie wylicza konkretnych encji. Obrys/płyta pozostaje wspólną pozycją zieloną.
+- Dwuklik na encji otwiera panel właściwości na canvasie z przyciskiem ×. Dla ścian dostępne są długość, wysokość, grubość i materiał; zatwierdzenie pola zmianą wartości uruchamia dotychczasowy autosave.
+- Zmiana długości ściany korzysta z istniejącej aktualizacji wspólnych węzłów, więc sąsiadujące połączone ściany i otwory podążają za geometrią. Wysokość jest aktualizowana dla ścian zamkniętego pomieszczenia; przy otwartym obrysie zmienia się tylko zaznaczona ściana.
+- Dodano przycisk pokaż/ukryj wymiary bezpośrednio na canvasie.
+- Test domeny **PASS 51/51**, Web typecheck/lint/build **PASS**, `git diff --check` **PASS**. Browser smoke: kolory legendy, otwarcie/zamknięcie panelu i przełącznik wymiarów **PASS**; test zapisu zmian ściany end-to-end **NOT RUN**.
+
+## Sesja 43 — 13 października 2026
+
+### Łączenie wykopów i właściwości powiązanych elementów
+
+- Wykop zachowuje rysowanie odcinkami, a końce wykopów przyciągają się do narożników i odcinków wykopów. Skrzyżowania dzielą linię na połączone krawędzie; przesunięcie wspólnego narożnika aktualizuje sąsiednie odcinki bez łączenia topologii wykopu ze ścianą.
+- Pojedyncze kliknięcie elementu w trybie zaznaczania otwiera istniejący inspektor „Właściwości elementu”. Kliknięcie nie otwiera go przy przeciąganiu geometrii; dwuklik na ścianie zachowuje dotychczasowe okno z przyciskiem zamknięcia.
+- Dodano opcjonalne, zwalidowane relacje `relatedTo` w JSON CAD. Kopiowanie i podział ściany zachowują relacje, a istniejące dokumenty bez tego pola pozostają zgodne. Inspektor pozwala przechodzić do szczegółów powiązanych elementów; powiązane wykopy w przykładowym rzucie otwierają edytowalne pola długości, szerokości, głębokości, materiału i odniesienia.
+- Właściwości automatycznej ławy/płyty zmienia się w elemencie źródłowym ściany; nie da się przypadkowo nadpisać wygenerowanego podparcia.
+- Testy schematów **PASS 34/34**, domeny **PASS 53/53**, Web typecheck/lint **PASS**. Browser smoke rzeczywistego kliknięcia ściany SF3, widoczności inspektora oraz otwarcia szczegółów powiązanego wykopu **PASS**. Zapis zmienionych danych w przeglądarce **NOT RUN** (test UI nie zmieniał ani nie zapisywał parametrów projektu).
+
+## Sesja 44 — 13 października 2026
+
+### Łańcuchy wymiarowe i edycja czteroklikiem
+
+- Wymiary podpór przy tej samej ścianie i po tej samej stronie są prezentowane wspólną, czytelną linią wymiarową; podpory w zamkniętym obrysie zachowują powiązanie i odsunięcie przy przesuwaniu ściany.
+- Cztery szybkie kliknięcia etykiety wymiaru otwierają edycję wartości na canvasie. Cztery szybkie kliknięcia elementu otwierają osobny dialog właściwości; przechwycenie wskaźnika przez SVG nie gubi już celu kliknięcia.
+- Dodano regułę widoczności dialogu w pełnoekranowym canvasie, który domyślnie ukrywa inspektor razem z ustawieniami arkusza.
+- Schematy **PASS 34/34**, domena **PASS 55/55**, Web typecheck/lint oraz `git diff --check` **PASS**.
+- Końcowa wizualna weryfikacja dialogu po poprawce CSS **NOT RUN**; browser smoke wykazał stan dialogu przed poprawką, ale inspektor pozostawał ukryty przez regułę pełnego ekranu. Ponowne sprawdzenie otwarcia/zamknięcia i trwałego zapisu pozostaje do wykonania.
+
+## Sesja 45 — 13 października 2026
+
+### Czytelność łańcuchów i indywidualne grubości ścian
+
+- Zachowano wcześniejsze kolory znaczników elementów; linie wymiarowe są neutralne, tak aby kolory rzutu nie konkurowały z opisami.
+- Każda ściana otrzymuje osobny wymiar grubości w mm obok wymiaru długości. Czteroklik etykiety grubości pozwala zmienić wartość na canvasie; dla automatycznej ławy aktualizuje źródłową szerokość w parametrach fundamentu.
+- Dostosowano końcowe znaczniki wymiarowe do krótkich ukośnych kresek oraz ujednolicono wygląd linii pomocniczych i wymiarowych.
+- Testy domeny **PASS 55/55**, Web typecheck/lint oraz `git diff --check` **PASS**. Browser smoke i końcowa kontrola wizualna **NOT RUN** — lokalny serwer `localhost:3001` zakończył pracę przed zmianą.
+
+## Sesja 46 — 13 października 2026
+
+### Położenie wymiarów grubości na każdej ścianie
+
+- Znaczniki grubości są teraz umieszczane przy środku odcinka każdej ściany; zachowano linię wymiarową na rzeczywistym przekroju przez grubość i neutralny styl opisów.
+- Rozmieszczenie szuka najbliższego wolnego pola dla tekstu, a w zatłoczonych rzutach wybiera miejsce o najmniejszym nakładaniu zamiast usuwać cały zestaw wymiarów.
+- Kolory znaczników elementów pozostały bez zmian. Test domeny sprawdza również, że wymiar grubości jest zakotwiczony w środku ściany.
+- Domena **PASS 55/55**. Browser smoke **PASS**: 7/7 oznaczeń grubości widoczne na rzucie bez błędu renderowania.
+- Pozostało: zewnętrzne opisy położeń podpór i wymiarów nadal miejscami konkurują o przestrzeń; wymagają osobnej korekty wizualnej łańcuchów.
+
+## Sesja 47 — 13 października 2026
+
+### Kolorowe łańcuchy wymiarowe podpór
+
+- Przywrócono kolor elementu dla linii, kresek i etykiet wymiarowych zamiast jednego czarnego koloru dla całego rysunku.
+- Położenia słupów i stóp przy tej samej ścianie tworzą jeden wymiarowy łańcuch od lica narożnego do lica narożnego. Kreski obejmują oba narożniki i osie podpór, a opisy podają długości kolejnych odcinków zamiast kilku odrębnych opisów z odnośnikami.
+- Współpołożone słup i stopa tworzą jeden węzeł łańcucha, nie dwa nakładające się opisy. Edycja wymiaru odcinka nadal przesuwa skojarzony element wzdłuż ściany.
+- Wymiar grubości pozostaje indywidualny dla każdego odcinka ściany i zachowuje kolor ściany.
+- Weryfikacja domeny, Web typecheck/lint i browser smoke po wdrożeniu zmian: **NOT RUN**.

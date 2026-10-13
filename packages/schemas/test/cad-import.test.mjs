@@ -41,6 +41,34 @@ test("documents reject duplicate entity ids and openings without a wall", () => 
   assert.equal(CadDocumentSchema.safeParse(document([wall, opening])).success, true);
 });
 
+test("entity relationships only reference other entities in the same document", () => {
+  const host = entity();
+  const related = entity({ relatedTo: [host.id] });
+  assert.equal(CadDocumentSchema.safeParse(document([host, related])).success, true);
+  assert.equal(CadDocumentSchema.safeParse(document([host, entity({ relatedTo: [randomUUID()] })])).success, false);
+  const self = entity();
+  assert.equal(CadDocumentSchema.safeParse(document([entity({ id: self.id, relatedTo: [self.id] })])).success, false);
+});
+
+test("foundation sections add optional version-compatible cut references and validated overrides", () => {
+  const line = entity({
+    kind: "construction-line", layerId: "section-cut", mark: "A-A",
+    attributes: { role: "section-cut", widthMm: 240, heightMm: 2800, material: "Do uzupełnienia z projektu",
+      designReference: "Do uzupełnienia z projektu" },
+  });
+  const savedSection = { id: randomUUID(), label: "A-A", cutEntityId: line.id, viewDirection: "left",
+    visibilityRangeMm: 8000, paperScale: 20, linkedElementIds: [line.id],
+    overrides: { foundation_bottom_elevation_m: { value: -1.2, unit: "m", validated: true } } };
+  assert.equal(CadDocumentSchema.safeParse(document([line], { sections: [savedSection] })).success, true);
+  assert.equal(CadDocumentSchema.safeParse(document([line])).success, true);
+  assert.equal(CadDocumentSchema.safeParse(document([line], { sections: [{ ...savedSection, cutEntityId: randomUUID() }] })).success, false);
+  assert.equal(CadDocumentSchema.safeParse(document([line], { sections: [{ ...savedSection, paperScale: 30 }] })).success, false);
+  assert.equal(CadDocumentSchema.safeParse(document([line], { sections: [{ ...savedSection, linkedElementIds: [randomUUID()] }] })).success, false);
+  assert.equal(CadDocumentSchema.safeParse(document([line], { sections: [{ ...savedSection, overrides: {
+    footing_width_cm: { value: 0, unit: "m", validated: true },
+  } }] })).success, false);
+});
+
 test("AI proposals require provenance and cannot approve geometry or reinforcement", () => {
   const ai = entity({ source: { documentId: randomUUID(), page: 1, origin: "openai", confidence: 0.8 } });
   assert.equal(CadProposalSchema.safeParse(proposal([ai])).success, true);

@@ -71,7 +71,9 @@ export function synchronizeFoundationSupports(document: CadDocument, createId: (
       attributes: { thicknessMm: base.thicknessMm, material: base.material },
     }));
   }
-  const entities = [...supports, ...document.entities.filter((e) => !e.supportFor || e.derivedFrom)];
+  const generatedSupportIds = new Set(document.entities.filter((entity) => !entity.derivedFrom && entity.supportFor
+    && (entity.kind === "footing" || entity.kind === "slab")).map(({ id }) => id));
+  const entities = [...supports, ...document.entities.filter((entity) => !generatedSupportIds.has(entity.id))];
   return CadDocumentSchema.parse({ ...document, entities });
 }
 

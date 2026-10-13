@@ -3,6 +3,114 @@
 Zasada: zapisujemy **dokładne komendy**, **datę**, **środowisko** i **rzeczywisty wynik** (PASS/FAIL/BLOCKED/NOT RUN).
 Nigdy nie wpisujemy ogólnego „działa” bez dowodu z uruchomienia.
 
+## Sesja 47 — 13 października 2026
+
+Środowisko: Windows, Node 26.7.0, pnpm 12.11.2.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/domain test` | końce wspólnych łańcuchów i kolory wymiarów podpór | PASS | 55/55 |
+| `pnpm --filter web typecheck` | renderer kolorowych łańcuchów i edytowalnych odcinków | PASS | TypeScript Web |
+| `pnpm --filter web lint` | renderer łańcuchów | PASS | ESLint Web |
+| Browser smoke `localhost:3001` | rzeczywisty układ kolorów i pojedynczego łańcucha podpór | NOT RUN | |
+| `git diff --check` | kontrola whitespace diff | PASS | brak błędów |
+
+## Sesja 46 — 13 października 2026
+
+Środowisko: Windows, Node 26.7.0, pnpm 12.11.2.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/domain test` | pozycja i zachowanie indywidualnych wymiarów grubości ścian | PASS | 55/55 |
+| `pnpm --filter web typecheck` | renderer wymiarów grubości | PASS | TypeScript Web |
+| `pnpm --filter web lint` | renderer wymiarów grubości | PASS | ESLint Web |
+| Browser smoke `localhost:3001` | rzut CAD, kolory znaczników i wymiary ścian | PASS | 7/7 wymiarów grubości renderuje się; alertów brak |
+| `git diff --check` | kontrola whitespace diff | PASS | brak błędów |
+
+## Sesja 43 — 13 października 2026
+
+Środowisko: Windows, Node 26.7.0, pnpm 12.11.2.
+
+## Sesja 45 — 13 października 2026
+
+Środowisko: Windows, Node 26.7.0, pnpm 12.11.2.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/domain test` | indywidualne wymiary grubości ścian i nakładanie etykiet | PASS | 55/55 |
+| `pnpm --filter web typecheck` | edycja wartości grubości po czterokliku etykiety | PASS | TypeScript Web |
+| `pnpm --filter web lint` | renderer wymiarów i edycja właściwości | PASS | ESLint Web |
+| `git diff --check` | kontrola whitespace diff | PASS | brak błędów |
+| Browser smoke i kontrola końcowego układu | wymiary każdej ściany na pełnym rzucie | NOT RUN | lokalny serwer `localhost:3001` był zatrzymany |
+
+## Sesja 44 — 13 października 2026
+
+Środowisko: Windows, Node 26.7.0, pnpm 12.11.2.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/schemas test` | walidacja zmian w modelu CAD | PASS | 34/34 |
+| `pnpm --filter @asystent/domain test` | łańcuchy wymiarowe i relacje podpór | PASS | 55/55 |
+| `pnpm --filter web typecheck` | czteroklik i okno właściwości na canvasie | PASS | TypeScript Web |
+| `pnpm --filter web lint` | obsługa kliknięć i dialogu właściwości | PASS | ESLint Web |
+| `git diff --check` | kontrola whitespace diff | PASS | brak błędów |
+| Browser smoke — finalna widoczność dialogu w trybie pełnoekranowym | okno właściwości niezależne od ustawień arkusza | NOT RUN | przed poprawką CSS czteroklik ustawił stan dialogu, ale reguła pełnego ekranu ukrywała inspektor; wyjątek CSS dodano, wymaga ponownego sprawdzenia wizualnego |
+| Weryfikacja trwałego zapisu po ponownym wczytaniu | stan lokalnego rzutu | NOT RUN | próbne interakcje cofnięto do widocznych wymiarów początkowych; ponowne wczytanie wróciło do wejścia trybu testowego |
+
+## Sesja 43 — 13 października 2026
+
+Środowisko: Windows, Node 26.7.0, pnpm 12.11.2.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/schemas test` | walidacja relacji CAD `relatedTo` | PASS | 34/34 |
+| `pnpm --filter @asystent/domain test` | snap, połączenia, przecięcia X, przesuwanie i kopiowanie wykopów | PASS | 53/53 |
+| `pnpm --filter web typecheck` | inspektor po kliknięciu i edycja powiązanych elementów | PASS | TypeScript Web |
+| `pnpm --filter web lint` | obsługa inspektora i wykopów | PASS | ESLint Web |
+| Browser smoke (Playwright) | lewy klik SF3 otwiera „Właściwości elementu”; lista relacji i pola wykopu | PASS | przetestowano klik w rysunku oraz otwarcie szczegółów wykopu bez zmiany wartości |
+| Test zapisu zmienionych parametrów w przeglądarce | autosave i ponowne wczytanie | NOT RUN | smoke test nie zmieniał danych projektu |
+| `git diff --check` | kontrola whitespace diff | PASS | brak błędów |
+
+## Sesja 42 — 13 października 2026
+
+Środowisko: Windows, Node 26.7.0, pnpm 12.11.2.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/domain test` | propagacja wysokości ścian do zamkniętego pomieszczenia | PASS | 51/51 |
+| `pnpm --filter web typecheck` | canvasowe właściwości, autosave i przełącznik wymiarów | PASS | TypeScript Web |
+| `pnpm --filter web lint` | canvasowe właściwości, autosave i przełącznik wymiarów | PASS | ESLint Web |
+| `pnpm --filter web build` | panel właściwości i widoczne próbki kolorów | PASS | Next.js 16.4 |
+| `git diff --check` | kontrola whitespace diff | PASS | brak błędów |
+| Browser smoke (Playwright) | próbki kolorów, panel właściwości, X oraz przełącznik wymiarów | PASS | panel otwarty zdarzeniem `dblclick`; przycisk toggla wymiary i wraca do stanu początkowego |
+| Test zapisu edytowanych wymiarów end-to-end | trwały zapis i ponowne wczytanie edycji ściany | NOT RUN | logika geometrii i autosave pokryte oddzielnie, bez mutowania danych testowej budowy w przeglądarce |
+
+## Sesja 41 — 13 października 2026
+
+Środowisko: Windows, Node 26.7.0, pnpm 12.11.2.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter web typecheck` | osobna zakładka przekrojów i legenda znaczników | PASS | TypeScript Web |
+| `pnpm --filter web lint` | osobna zakładka przekrojów i legenda znaczników | PASS | ESLint Web |
+| `pnpm --filter web build` | osobna zakładka przekrojów i grupowanie legendy | PASS | Next.js 16.4 |
+| HTTP `127.0.0.1:3001/` | działająca aplikacja lokalna | PASS | HTTP 200 |
+| Test wizualny UI | zakładka przekrojów i legenda kategorii | NOT RUN | brak dedykowanego testu UI dla tego przepływu |
+
+## Sesja 40 — 13 października 2026
+
+Środowisko: Windows, Node 26.7.0, pnpm 12.11.2.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/schemas test` | wsteczna zgodność CAD i walidacja metadanych przekrojów | PASS | 33/33 |
+| `pnpm --filter @asystent/domain test` | geometria i resolver przekrojów | PASS | 50/50; testy budują pakiet przed uruchomieniem |
+| `pnpm --filter web typecheck` | integracja panelu i CAD | PASS | TypeScript Web |
+| `pnpm --filter web lint` | integracja panelu i CAD | PASS | ESLint Web |
+| `pnpm --filter web build` | produkcyjny build aplikacji | PASS | Next.js 16.4 |
+| UI/E2E przekroju | kreator, ponowne otwarcie i eksport | NOT RUN | brak testu UI dedykowanego nowemu modułowi w tej sesji |
+| `git diff --check` | kontrola whitespace diff | PASS | brak błędów |
+
 ## Sesja 39 — 13 października 2026
 
 Środowisko: GitHub Codespaces, Ubuntu 24.04.5, Node 24.21.0, pnpm 12.11.2.

@@ -39,3 +39,4 @@ export * from "./cad-reinforcement.js";
 export * from "./cad-foundation.js";
 export * from "./cad-elements.js";
 export * from "./cad-plan.js";
+export * from "./cad-sections.js";

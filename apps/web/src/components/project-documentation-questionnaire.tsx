@@ -31,6 +31,7 @@ export function ProjectDocumentationQuestionnaire({ jobId, scope, onBack, onSave
   const [notice, setNotice] = useState("");
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [drawingIndex, setDrawingIndex] = useState(0);
+  const [showFoundationSections, setShowFoundationSections] = useState(false);
   const [cadPending, setCadPending] = useState(false);
   const [completion, setCompletion] = useState<Record<string, number>>({});
   const [completionLoaded, setCompletionLoaded] = useState(false);
@@ -127,6 +128,7 @@ export function ProjectDocumentationQuestionnaire({ jobId, scope, onBack, onSave
   function navigateDrawing(position: number) {
     const next = drawingSteps[position];
     if (!next || !draft) return;
+    setShowFoundationSections(false);
     void save({ ...draft, step: next.stageId }, "stay", next.index);
   }
   return <section className="panel workflow-form form-stack cad-survey" aria-label="Dokumentacja projektu">
@@ -150,21 +152,28 @@ export function ProjectDocumentationQuestionnaire({ jobId, scope, onBack, onSave
               aria-current={item.id === current.id ? "step" : undefined}
               data-completion={complete ? "saved" : "empty"}
               title={complete ? "Wszystkie rysunki zapisane — nie oznacza zatwierdzenia" : "Etap ma puste rysunki"}
-              onClick={() => void save({ ...draft, step: item.id })}><b>{complete ? "✓" : i + 1}</b><span>{item.label}</span>
+              onClick={() => { setShowFoundationSections(false); void save({ ...draft, step: item.id }); }}><b>{complete ? "✓" : i + 1}</b><span>{item.label}</span>
               <small>{item.drawings.filter((_, j) => (completion[`${item.id}-drawing-${j}`] ?? 0) > 0).length}/{item.drawings.length} rysunków</small>
             </button>;
           })}
         </nav>
         <div className="cad-stage-tabs cad-drawing-tabs" role="tablist" aria-label="Rysunki etapu">
-          {current.drawings.map((label, i) => <button key={label} type="button" role="tab" aria-label={label} aria-selected={drawingIndex === i}
+          {current.drawings.map((label, i) => <button key={label} type="button" role="tab" aria-label={label} aria-selected={!showFoundationSections && drawingIndex === i}
             data-completion={(completion[`${current.id}-drawing-${i}`] ?? 0) > 0 ? "saved" : "empty"}
-            disabled={busy || cadPending} onClick={() => navigateDrawing(drawingSteps.findIndex((item) => item.id === `${current.id}-drawing-${i}`))}>
+            disabled={busy || cadPending} onClick={() => {
+              setShowFoundationSections(false);
+              navigateDrawing(drawingSteps.findIndex((item) => item.id === `${current.id}-drawing-${i}`));
+            }}>
             <span aria-hidden="true">{i + 1}. </span>{label}</button>)}
+          {current.kind === "foundation" && <button type="button" role="tab" aria-selected={showFoundationSections}
+            aria-label="Przekroje fundamentów i poziomy posadowienia" disabled={busy || cadPending}
+            onClick={() => setShowFoundationSections(true)}>
+            Przekroje fundamentów i poziomy posadowienia</button>}
         </div>
         <StageCadEditor key={`${current.id}-drawing-${drawingIndex}`} jobId={jobId} demoMode={demoMode}
           requirementId={currentDrawingId} title={current.drawings[drawingIndex]} kind={current.kind}
           technology={scope.technology} basement={scope.basement === true} disabled={busy}
-          technologyHints={technologyHints}
+          technologyHints={technologyHints} viewMode={showFoundationSections ? "foundation-sections" : "plan"}
           sources={drawingSteps.filter((item) => (completion[item.id] ?? 0) > 0)} onPendingChange={onCadPending} onSavedDrawing={onSavedDrawing} />
         <p className="cad-disclaimer">Zielony: zapisano obiekty. Czerwony: pusty rysunek. Kolory nie oznaczają zatwierdzenia ani kompletności przedmiaru.</p>
         <div className="form-actions">

@@ -470,7 +470,7 @@ geometrii przyczepionych elementów/płyty i wymaga odpowiedzi „tak” w techn
 
 Wspólne rozmieszczenie wymiarów wyznacza bezkolizyjne ramki etykiet poza geometrią. Tekst ekranowy ma
 minimum 13 px; maska pod tekstem zachowuje czytelność przy krzyżowaniu linii pomocniczych.
-Powtarzalną grubość/szerokość tej samej roli opisuje się raz. Pozycje podpór mają wymiary od hosta
+Pozycje podpór mają wymiary od hosta
 oraz X/Y od zewnętrznego gabarytu. `mark` jest trwałym, unikalnym oznaczeniem do przyszłych powiązań
 zbrojenia; stare elementy dostają oznaczenia przy wczytaniu. Kopie otrzymują własne oznaczenia.
 
@@ -557,3 +557,34 @@ SVG używa wybranego trybu oraz istniejącego układu papierowego. Reload wraca 
 **Konsekwencje:** Bez migracji i utraty danych. ADR-028 zastępuje domyślne jednoczesne pokazywanie
 obu lic z ADR-027, nie jego obliczenia. Szczegółowy rzut nadal może być gęsty; nie deklarujemy
 pełnego odwzorowania dowolnego projektu ani zatwierdzonego przedmiaru.
+
+## ADR-029: Przekroje fundamentów jako opcjonalne metadane istniejącego CAD
+
+**Kontekst:** Przekrój musi odnosić się do istniejącego rzutu i jego stabilnych identyfikatorów, bez osobnego
+edytora ani ryzyka odrzucenia starszych dokumentów CAD. Model projektu nie udostępnia jeszcze kompletnego
+źródła parametrów typów elementów ani danych do wiarygodnego przedmiaru.
+
+**Decyzja:** Przechowywać odnośniki do istniejących linii cięcia, ustawienia widoku i jawne nadpisania
+w opcjonalnym polu `sections` dokumentu CAD. Obliczać geometrię przekroju z bieżących przecięć encji rzutu,
+nie utrzymywać drugiej, rozjeżdżającej się kopii konstrukcji. Puste lub sprzeczne dane pozostają nieznane
+albo są sygnalizowane; nie wolno wyprowadzać poziomów, warstw, klas betonu ani ilości bez danych źródłowych.
+
+**Konsekwencje:** Nie wymaga migracji bazy i zachowuje zgodność starych rysunków. Istniejący zapis CAD
+zachowuje metadane. Obecny renderer i resolver to funkcjonalny zakres początkowy, nie pełna realizacja
+przedmiaru, eksportu PDF/PNG, mobilnego workflow, parametrów typów/projektu ani weryfikacji konstrukcyjnej.
+
+## ADR-030: Połączenia wykopów i właściwości elementów powiązanych
+
+**Kontekst:** Wykop jest odcinkiem w istniejącym modelu CAD, lecz nie korzystał ze wspólnych węzłów i
+przyciągania ścian. Inspektor właściwości był ukryty w pełnym widoku canvasu, a wieloelementowe relacje
+nie mogły być przedstawione bez mylenia ich z automatycznym podparciem konstrukcyjnym.
+
+**Decyzja:** Wykopy mają własną rodzinę topologii: snapują się do narożników/odcinków i dzielą na wspólnych
+węzłach, niezależnie od ścian. Kliknięcie elementu bez przeciągania otwiera istniejący inspektor.
+Opcjonalne `relatedTo` opisuje powiązanie do edycji; `supportFor` pozostaje wyłącznie relacją automatycznej
+ławy/płyty. Powiązania są walidowane w obrębie dokumentu, remapowane przy kopiowaniu i przenoszone przy
+podziale hosta. Parametry wygenerowanego podparcia zmienia się na encji źródłowej, nie na kopii.
+
+**Konsekwencje:** Starszy JSON nie wymaga migracji, a nowe pole jest opcjonalne. Relacja grupuje elementy
+w inspektorze, nie zgaduje geometrii wykopu ani jego szerokości/głębokości. Automatyczne wyznaczanie
+parametrów wykopu nadal wymaga danych projektu i nie jest generowane z niepotwierdzonych założeń.

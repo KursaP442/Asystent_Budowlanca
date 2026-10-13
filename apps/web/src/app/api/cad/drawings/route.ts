@@ -1,5 +1,6 @@
 import { CadDocumentSchema, ConstructionTechnologySchema, cadEntityTool, getCadDrawingTools, getFoundationSupportOptions } from "@asystent/schemas";
-import { CadPlanError, FoundationAssemblyError, synchronizeCadAttachments, synchronizeCadInfill, synchronizeFoundationSupports } from "@asystent/domain";
+import { CadPlanError, FoundationAssemblyError, synchronizeCadAttachments, synchronizeCadInfill, synchronizeFoundationSections,
+  synchronizeFoundationSupports } from "@asystent/domain";
 import { OutlineGeometryError } from "@asystent/geometry";
 import { apiError, createAdminClient } from "@/lib/server-supabase";
 import { findDrawingRequirement, requireCadOwner } from "@/lib/cad-api";
@@ -9,7 +10,7 @@ export async function POST(request: Request) {
     if (Number(request.headers.get("content-length")) > 2000000) return apiError("Rysunek przekracza limit rozmiaru.", 413);
     const input = CadDocumentSchema.safeParse(await request.json());
     if (!input.success || input.data.status !== "draft") return apiError("Nieprawidłowy szkic CAD. Zatwierdzanie nie jest dostępne w tym edytorze.", 400);
-    const document = input.data;
+    const document = synchronizeFoundationSections(input.data);
     if (JSON.stringify(document).length > 2000000) return apiError("Rysunek przekracza limit rozmiaru.", 413);
     if (document.entities.some((entity) => entity.reviewStatus !== "draft"
       || (entity.kind === "rebar-line" || entity.kind === "rebar-annotation") && entity.attributes.specialistVerified)) {
@@ -19,6 +20,9 @@ export async function POST(request: Request) {
     if (access.response) return access.response;
     const drawingRequirement = findDrawingRequirement(access.job, document.requirementId);
     if (!drawingRequirement) return apiError("Etap nie należy do zakresu budowy.", 400);
+    if (document.sections?.length && drawingRequirement.requirement.kind !== "foundation") {
+      return apiError("Przekroje fundamentów można zapisać wyłącznie w rysunku etapu fundamentów.", 400);
+    }
     const technology = ConstructionTechnologySchema.parse(JSON.parse(access.job.materials));
     const allowed = getCadDrawingTools(drawingRequirement.requirement.kind, drawingRequirement.requirement.drawings[drawingRequirement.index], technology, access.job.basement === true);
     const supportOptions = getFoundationSupportOptions(technology);
