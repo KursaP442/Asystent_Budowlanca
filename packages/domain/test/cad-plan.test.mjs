@@ -6,7 +6,7 @@ import { assignCadMarks, attachCadElement, cadLayerOutline, cadLayerSides, conne
   createCadElement, foundationSetupFromSettings, formatCadDimensionMm, getCadPlanDimensions, getCadPlanFaces, layoutCadDimensions,
   moveCadJunction, polygonCenter, resizeCadRectangle, snapCadConnection, synchronizeCadAttachments, synchronizeCadInfill, translateConnectedCadEntity,
   cadStripFaceSegment, cadEntityColor, configureFoundationWall, synchronizeFoundationSupports, resizeCadStrip, updateConnectedCadEntity,
-  setCadWallHeightForRoom } from "../dist/index.js";
+  cadDimensionLabelAngle, cadDimensionLabelRect, setCadWallHeightForRoom } from "../dist/index.js";
 import { rectangleSize, segmentRectangle, segmentsIntersect } from "@asystent/geometry";
 
 const doc = (entities = [], projectId = randomUUID()) => CadDocumentSchema.parse({
@@ -333,6 +333,21 @@ test("simple plan dimensions every wall length and thickness without duplicate a
     assert.ok(hidden.some((d)=>d.chainId?.startsWith("strips:footing:")&&d.entityId===footing.id));
 });
 
+test("strip dimension lanes stay ordered wall, footing, excavation regardless of entity storage order", () => {
+  const excavation=rectangle("excavation");
+  const footings=rectangle("footing");
+  const walls=rectangle("foundation-wall");
+  const dimensions=getCadPlanDimensions(doc([...excavation,...footings,...walls]),125);
+  const chain=(family)=>dimensions.find((dimension)=>dimension.chainId===`strips:${family}:horizontal:end`);
+  const wallChain=chain("wall"),footingChain=chain("footing"),excavationChain=chain("excavation");
+  assert.ok(wallChain&&footingChain&&excavationChain);
+  const baselineY=(dimension)=>dimension.chainStart.y+dimension.chainSide*125*dimension.chainLane;
+  assert.ok(baselineY(wallChain)<baselineY(footingChain));
+  assert.ok(baselineY(footingChain)<baselineY(excavationChain));
+  assert.deepEqual([...new Set(dimensions.filter((dimension)=>dimension.chainId?.startsWith("strips:"))
+    .map((dimension)=>dimension.chainId.split(":")[1]))],["wall","footing","excavation"]);
+});
+
 test("slanted building dimensions avoid crossing strips and remain sparse with T junction, infill and zoom fonts", () => {
   const points=[{x:-26000,y:1000},{x:-6000,y:2500},{x:-6500,y:20700},{x:-21000,y:22300},{x:-22400,y:12800}];
   const walls=points.map((p,i)=>createCadElement("foundation-wall",[p,points[(i+1)%points.length]],{id:randomUUID()}));
@@ -425,4 +440,28 @@ test("moving junctions updates manual geometric dimensions but retains explicit 
   assert.equal(moved.entities[1].attributes.measuredMm,7000);
   assert.equal(moved.entities[2].attributes.measuredMm,6200);
   assert.equal(moved.entities[1].geometry.end.x,7000);
+});
+
+test("dimension labels read along their dimension line instead of across it", () => {
+  assert.equal(cadDimensionLabelAngle({x:0,y:0},{x:1000,y:0}),0);
+  assert.equal(cadDimensionLabelAngle({x:0,y:0},{x:0,y:1000}),-90);
+  assert.equal(cadDimensionLabelAngle({x:0,y:1000},{x:0,y:0}),-90);
+  assert.equal(cadDimensionLabelAngle({x:0,y:0},{x:0,y:0}),0);
+  assert.equal(Math.round(cadDimensionLabelAngle({x:0,y:0},{x:1000,y:1000})),45);
+  assert.equal(Math.round(cadDimensionLabelAngle({x:0,y:0},{x:-1000,y:1000})),-45);
+  const font=125;
+  const [horizontal]=layoutCadDimensions([{start:{x:0,y:0},end:{x:4000,y:0},color:"#000",group:"g"}],font);
+  const [vertical]=layoutCadDimensions([{start:{x:0,y:0},end:{x:0,y:4000},color:"#000",group:"g"}],font);
+  assert.equal(horizontal.labelAngle,0);
+  assert.equal(vertical.labelAngle,-90);
+  assert.ok(horizontal.box.width>horizontal.box.height);
+  assert.ok(vertical.box.height>vertical.box.width,"pionowa etykieta zajmuje pas wzdłuż linii, nie w poprzek");
+  assert.ok(Math.abs(vertical.box.height-horizontal.box.width)<.001);
+  assert.ok(Math.abs(vertical.box.width-horizontal.box.height)<.001);
+  const rect=cadDimensionLabelRect(vertical.text,vertical.label,font);
+  assert.ok(Math.abs(rect.width-horizontal.box.width)<.001);
+  assert.equal(rect.height,font*1.5);
+  for(const dimension of getCadPlanDimensions(assignCadMarks(doc(rectangle("foundation-wall")
+    .map((e)=>configureFoundationWall(e,foundationSetupFromSettings(settings,[]))))),font))
+    assert.ok(dimension.labelAngle>=-90&&dimension.labelAngle<90);
 });

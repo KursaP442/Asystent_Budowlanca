@@ -1371,3 +1371,49 @@ odświeżano jego formularza.
 - Współpołożone słup i stopa tworzą jeden węzeł łańcucha, nie dwa nakładające się opisy. Edycja wymiaru odcinka nadal przesuwa skojarzony element wzdłuż ściany.
 - Wymiar grubości pozostaje indywidualny dla każdego odcinka ściany i zachowuje kolor ściany.
 - Weryfikacja domeny, Web typecheck/lint i browser smoke po wdrożeniu zmian: **NOT RUN**.
+
+## Sesja 48 — 13 października 2026
+
+### Hierarchia pełnych pasów wymiarowych
+
+- Pobrano i uruchomiono pełną implementację wymiarów z commita `6d3ff3a`; zachowano łańcuchy ścian, ław,
+  wykopów, podpór, indywidualne grubości oraz przekroje fundamentów.
+- Każda rodzina wymiarów otrzymała stabilny priorytet niezależny od kolejności encji: ściany → ławy fundamentowe
+  → wykopy → podpory/pozostałe opisy → gabaryty.
+- Łańcuchy korzystają ze wspólnego zewnętrznego obrysu wszystkich pasów konstrukcyjnych. Ściany zajmują pierwszy
+  wolny pas, ławy kolejny, a wykopy następny; rodziny nie startują już z tego samego `chainLane`.
+- Dodano regresję z encjami zapisanymi jako wykopy, ławy, ściany. Domena **PASS 58/58**, Web typecheck/lint
+  **PASS**, HTTP `localhost:3000` **PASS** 200, `git diff --check` **PASS**.
+
+## Sesja 49 — 13 października 2026
+
+### Stała mała czcionka i płynniejszy zoom wymiarów
+
+- Usunięto globalne wypychanie etykiet między rodzinami. Kolizje są rozwiązywane tylko wewnątrz jednego
+  łańcucha, a ściany, ławy i wykopy pozostają na pasach ustalonych w sesji 48.
+- Ekranowy tekst wymiarów ma stałe 8 px, a opisów podpór 7 px niezależnie od zoomu. Eksport nadal używa
+  projektowego tekstu 2,5 mm na arkuszu.
+- Memoizacja zatrzymuje ponowne obliczanie całego układu przy samym ruchu kursora. Wheel i pinch łączą wiele
+  zdarzeń do jednej aktualizacji widoku na klatkę animacji.
+- Domena **PASS 58/58**, Web typecheck/lint **PASS**, kompilacja dev bez błędów, HTTP `localhost:3000`
+  **PASS** 200, `git diff --check` **PASS**.
+
+## Sesja 50 — 13 października 2026
+
+### Opisy wymiarów wzdłuż linii znaczników
+
+- Etykieta każdego wymiaru jest obracana zgodnie z kierunkiem swojej linii wymiarowej i czytana od dołu
+  albo od prawej; żaden opis nie biegnie już w poprzek znaczników.
+- Pionowe i ukośne łańcuchy zajmują wąski pas wzdłuż linii, więc wymiary ścian, ław i wykopów przestają
+  nawzajem wypychać swoje wartości.
+- Kolizje, dopasowanie widoku i atrybut `data-label-box` liczone są na obwiedni obróconej ramki; tło,
+  obszar klikalny i pole edycji obracają się razem z tekstem.
+- Wzór rozmiaru etykiety został wyniesiony do wspólnych funkcji domeny (`cadDimensionLabelSize`,
+  `cadDimensionLabelRect`, `cadDimensionLabelPlacement`, `cadDimensionLabelAngle`), bez duplikacji w rendererze.
+- Domena **PASS 59/59**, Web typecheck/lint **PASS**, kompilacja dev bez błędów, HTTP `localhost:3000`
+  **PASS** 200, `git diff --check` **PASS**.
+
+### Dalej
+
+- Wizualna weryfikacja obróconych opisów w przeglądarce pozostaje **NOT RUN** (brak zależności systemowych
+  Playwright, `libatk-1.0.so.0`).

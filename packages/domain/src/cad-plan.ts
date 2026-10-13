@@ -281,24 +281,55 @@ export interface CadDimensionRequest {
   entityId?: string; referenceId?: string; faceSide?: "left" | "right"; anchor?: CadPoint; description?: string;
   fontMm?: number; chainId?: string; chainSide?: number; chainStart?: CadPoint; chainEnd?: CadPoint;
   chainColor?: string; chainLane?: number; offsetMm?: number; measurementKind?: "strip-width";
+  layoutPriority?: number;
 }
 export interface CadDimensionLayout extends CadDimensionRequest {
   a: CadPoint; b: CadPoint; text: CadPoint; box: { x: number; y: number; width: number; height: number }; label: string;
+  labelAngle: number;
 }
 export function formatCadDimensionMm(value: number): string {
   return `${new Intl.NumberFormat("pl-PL", { maximumFractionDigits: 1 }).format(Math.round(value) / 10)} cm`;
+}
+export function cadDimensionLabelSize(label: string, fontMm: number) {
+  return { width: (label.length * .62 + 1) * fontMm, height: fontMm * 1.5 };
+}
+
+// Labels follow the dimension line; ISO keeps them readable from the bottom or the right.
+export function cadDimensionLabelAngle(start: CadPoint, end: CadPoint): number {
+  const dx = end.x - start.x, dy = end.y - start.y;
+  if (Math.hypot(dx, dy) < .001) return 0;
+  const degrees = Math.atan2(dy, dx) * 180 / Math.PI;
+  return degrees >= 90 ? degrees - 180 : degrees < -90 ? degrees + 180 : degrees;
+}
+
+export function cadDimensionLabelRect(text: CadPoint, label: string, fontMm: number) {
+  const { width, height } = cadDimensionLabelSize(label, fontMm);
+  return { x: text.x - width / 2, y: text.y - fontMm, width, height };
+}
+
+export function cadDimensionLabelPlacement(center: CadPoint, angleDegrees: number, label: string, fontMm: number) {
+  const { width, height } = cadDimensionLabelSize(label, fontMm);
+  const radians = angleDegrees * Math.PI / 180, cos = Math.cos(radians), sin = Math.sin(radians);
+  const text = { x: center.x + sin * fontMm * .35, y: center.y - cos * fontMm * .35 };
+  const halfX = Math.abs(cos) * width / 2 + Math.abs(sin) * height / 2;
+  const halfY = Math.abs(sin) * width / 2 + Math.abs(cos) * height / 2;
+  const boxCenter = { x: text.x + sin * fontMm * .25, y: text.y - cos * fontMm * .25 };
+  return { text, width, height,
+    box: { x: boxCenter.x - halfX, y: boxCenter.y - halfY, width: halfX * 2, height: halfY * 2 } };
 }
 export function layoutCadDimensions(requests: CadDimensionRequest[], fontMm: number,
   reserved: { x: number; y: number; width: number; height: number }[] = [], solids: CadPoint[][] = []): CadDimensionLayout[] {
   const boxes = [...reserved], result: CadDimensionLayout[] = [];
   const overlaps = (a: typeof boxes[number], b: typeof boxes[number]) => a.x < b.x + b.width && a.x + a.width > b.x
     && a.y < b.y + b.height && a.y + a.height > b.y;
-  for (const request of requests) {
+  const ordered = requests.map((request, index) => ({ request, index }))
+    .sort((a, b) => (a.request.layoutPriority ?? 3) - (b.request.layoutPriority ?? 3) || a.index - b.index);
+  for (const { request } of ordered) {
     const { start, end } = request, length = Math.hypot(end.x - start.x, end.y - start.y), font = request.fontMm ?? fontMm;
     if (length < .001 && !request.anchor) continue;
     const label = request.label ?? formatCadDimensionMm(length),
       nx = -(end.y - start.y) / Math.max(.001, length), ny = (end.x - start.x) / Math.max(.001, length);
-    const width = (label.length * .62 + 1) * font, height = font * 1.5;
+    const { width } = cadDimensionLabelSize(label, font), labelAngle = cadDimensionLabelAngle(start, end);
     let placed = false;
     if (request.measurementKind === "strip-width") {
       const a = start, b = end, ux = (end.x - start.x) / length, uy = (end.y - start.y) / length;
@@ -307,24 +338,22 @@ export function layoutCadDimensions(requests: CadDimensionRequest[], fontMm: num
       for (let lane = 0; lane < 24; lane++) {
         for (const side of [requestedSide, -requestedSide]) {
           const outwardX = ux * side, outwardY = uy * side;
-          const projectedHalf = Math.abs(outwardX) * width / 2 + Math.abs(outwardY) * height / 2;
-          const distance = length / 2 + projectedHalf + font * (.5 + lane * .75);
-          const text = {
+          const distance = length / 2 + width / 2 + font * (.5 + lane * .75);
+          const { text, box } = cadDimensionLabelPlacement({
             x: (a.x + b.x) / 2 + outwardX * distance,
-            y: (a.y + b.y) / 2 + outwardY * distance + font * .35,
-          };
-          const box = { x: text.x - width / 2, y: text.y - font, width, height };
+            y: (a.y + b.y) / 2 + outwardY * distance,
+          }, labelAngle, label, font);
           const overlapArea = boxes.reduce((total, other) => total
             + Math.max(0, Math.min(box.x + box.width, other.x + other.width) - Math.max(box.x, other.x))
             * Math.max(0, Math.min(box.y + box.height, other.y + other.height) - Math.max(box.y, other.y)), 0);
           if (overlapArea < fallbackOverlap) { fallback = { text, box }; fallbackOverlap = overlapArea; }
           if (overlapArea > 0) continue;
-          boxes.push(box); result.push({ ...request, a, b, text, box, label }); placed = true; break;
+          boxes.push(box); result.push({ ...request, a, b, text, box, label, labelAngle }); placed = true; break;
         }
         if (placed) break;
       }
       if (!placed && fallback) {
-        boxes.push(fallback.box); result.push({ ...request, a, b, ...fallback, label }); placed = true;
+        boxes.push(fallback.box); result.push({ ...request, a, b, ...fallback, label, labelAngle }); placed = true;
       }
       if (!placed) throw new CadPlanError("Nie można umieścić wymiaru grubości.");
       continue;
@@ -336,19 +365,19 @@ export function layoutCadDimensions(requests: CadDimensionRequest[], fontMm: num
       if (!request.anchor && solids.some((solid) => pointInCadPolygon(a, solid) || pointInCadPolygon(b, solid)
         || solid.some((p, i) => segmentsIntersect(a, b, p, solid[(i + 1) % solid.length]!)))) continue;
       const gap = font * (2.5 + Math.floor(lane / 4) * 2);
-      const text = request.anchor
+      const center = request.anchor
         ? lane % 4 < 2
           ? { x: request.anchor.x, y: request.anchor.y + (lane % 4 ? 1 : -1) * gap }
-          : { x: request.anchor.x + (lane % 4 === 2 ? -1 : 1) * (width / 2 + gap), y: request.anchor.y - font * .35 }
-        : { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 - font * .35 };
-      const box = { x: text.x - width / 2, y: text.y - font, width, height };
+          : { x: request.anchor.x + (lane % 4 === 2 ? -1 : 1) * (width / 2 + gap), y: request.anchor.y }
+        : { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      const { text, box } = cadDimensionLabelPlacement(center, labelAngle, label, font);
       if (boxes.some((other) => overlaps(box, other))) continue;
       const corners = [{ x: box.x, y: box.y }, { x: box.x + box.width, y: box.y },
         { x: box.x + box.width, y: box.y + box.height }, { x: box.x, y: box.y + box.height }];
       if (solids.some((solid) => corners.some((p) => pointInCadPolygon(p, solid))
         || solid.some((p) => p.x >= box.x && p.x <= box.x + box.width && p.y >= box.y && p.y <= box.y + box.height)
         || solid.some((p, i) => corners.some((q, j) => segmentsIntersect(p, solid[(i + 1) % solid.length]!, q, corners[(j + 1) % 4]!))))) continue;
-      boxes.push(box); result.push({ ...request, a, b, text, box, label }); placed = true; break;
+      boxes.push(box); result.push({ ...request, a, b, text, box, label, labelAngle }); placed = true; break;
     }
     if (!placed) throw new CadPlanError("Za dużo wymiarów w jednym miejscu. Zwiększ skalę arkusza lub rozdziel rysunek.");
   }
@@ -367,6 +396,15 @@ function stripFamily(e: CadEntity): string | null {
   return e.kind === "wall" || e.kind === "construction-line" && e.attributes.role === "foundation-wall" ? "wall"
     : e.kind === "footing" ? "footing"
       : e.kind === "construction-line" && e.attributes.role === "excavation" ? "excavation" : null;
+}
+
+function stripFamilyDimensionPriority(family: string): number {
+  return family === "wall" ? 0 : family === "footing" ? 1 : family === "excavation" ? 2 : 3;
+}
+
+function cadDimensionLayoutPriority(entity?: CadEntity): number {
+  const family = entity ? stripFamily(entity) : null;
+  return family ? stripFamilyDimensionPriority(family) : 3;
 }
 
 export function cadStripFaceSegment(document: CadDocument, entity: CadEntity, side: "left" | "right") {
@@ -418,7 +456,8 @@ export function getCadPlanDimensions(document: CadDocument, fontMm: number, hidd
   const minX = boxes.length ? Math.min(...boxes.map((b) => b.x)) : 0, minY = boxes.length ? Math.min(...boxes.map((b) => b.y)) : 0;
   const add = (start: CadPoint, end: CadPoint, group: string, side = 1, label?: string, entity?: CadEntity,
     extra: Partial<CadDimensionRequest> = {}) => requests.push({ start, end, group,
-      color: entity ? cadEntityColor(entity) : "#334155", side, label, entityId: entity?.id, ...extra });
+      color: entity ? cadEntityColor(entity) : "#334155", side, label, entityId: entity?.id,
+      layoutPriority: cadDimensionLayoutPriority(entity), ...extra });
   const walls = document.entities.filter((e) => e.kind === "wall"
     || e.kind === "construction-line" && e.attributes.role === "foundation-wall");
   const references = walls.length ? walls : document.entities.filter((e) => e.kind === "footing");
@@ -494,7 +533,18 @@ export function getCadPlanDimensions(document: CadDocument, fontMm: number, hidd
     familyEntities.push(entity);
     stripFamilies.set(family, familyEntities);
   }
-  for (const [family, familyEntities] of stripFamilies) {
+  const allStripBounds = [...stripFamilies.values()].flatMap((familyEntities) =>
+    familyEntities.map((entity) => cadElementBounds(entity)));
+  const stripEnvelope = allStripBounds.length ? {
+    minX: Math.min(...allStripBounds.map((bounds) => bounds.x)),
+    maxX: Math.max(...allStripBounds.map((bounds) => bounds.x + bounds.width)),
+    minY: Math.min(...allStripBounds.map((bounds) => bounds.y)),
+    maxY: Math.max(...allStripBounds.map((bounds) => bounds.y + bounds.height)),
+  } : null;
+  const orderedStripFamilies = [...stripFamilies.entries()]
+    .sort(([familyA], [familyB]) => stripFamilyDimensionPriority(familyA) - stripFamilyDimensionPriority(familyB));
+  for (const [family, familyEntities] of orderedStripFamilies) {
+    const familyPriority = stripFamilyDimensionPriority(family);
     const familyBounds = familyEntities.map((entity) => ({ entity, bounds: cadElementBounds(entity) }));
     const familyMinX = Math.min(...familyBounds.map(({ bounds }) => bounds.x));
     const familyMaxX = Math.max(...familyBounds.map(({ bounds }) => bounds.x + bounds.width));
@@ -541,6 +591,11 @@ export function getCadPlanDimensions(document: CadDocument, fontMm: number, hidd
         const chainId = `strips:${family}:${axis}:${side < 0 ? "start" : "end"}`;
         axisHasChain = true;
         const chainSide = horizontal ? side : -side;
+        const envelopeEdge = horizontal
+          ? side < 0 ? stripEnvelope?.minY ?? edge : stripEnvelope?.maxY ?? edge
+          : side < 0 ? stripEnvelope?.minX ?? edge : stripEnvelope?.maxX ?? edge;
+        const distanceToEnvelope = Math.abs(edge - envelopeEdge);
+        const chainLane = 4 + distanceToEnvelope / fontMm + familyPriority * 4;
         const stations = [...new Set([minAlong, maxAlong, ...merged.flatMap(({ start, end }) => [start, end])])]
           .filter((station) => station >= minAlong - 1 && station <= maxAlong + 1).sort((a, b) => a - b);
         for (const interval of merged) for (const entity of interval.entities) stripChainEntities.add(entity.id);
@@ -554,8 +609,9 @@ export function getCadPlanDimensions(document: CadDocument, fontMm: number, hidd
           const to = horizontal ? { x: end, y: edge } : { x: edge, y: end };
           add(from, to, `${chainId}:segments`, chainSide, formatCadDimensionMm(end - start),
             width ? interval.entity : undefined, {
-              anchor: to, chainId, chainSide, chainStart, chainEnd, chainColor: familyColor, chainLane: 4,
+              anchor: to, chainId, chainSide, chainStart, chainEnd, chainColor: familyColor, chainLane,
               color: familyColor, measurementKind: width ? "strip-width" : undefined,
+              layoutPriority: familyPriority,
               description: width ? `Grubość ${interval.entity.mark ?? "elementu"}: ${formatCadDimensionMm(end - start)}.` : undefined,
             });
         }
@@ -568,8 +624,12 @@ export function getCadPlanDimensions(document: CadDocument, fontMm: number, hidd
       const end = horizontal ? { x: familyMaxX, y: familyMaxY } : { x: familyMaxX, y: familyMaxY };
       const side = horizontal ? 1 : -1;
       if (Math.hypot(end.x - start.x, end.y - start.y) >= 1) {
+        const familyEdge = horizontal ? familyMaxY : familyMaxX;
+        const envelopeEdge = horizontal ? stripEnvelope?.maxY ?? familyEdge : stripEnvelope?.maxX ?? familyEdge;
         add(start, end, "overall", side, formatCadDimensionMm(Math.hypot(end.x - start.x, end.y - start.y)),
-            undefined, { color: familyColor, offsetMm: fontMm * 14 });
+            undefined, { color: familyColor,
+              offsetMm: envelopeEdge - familyEdge + fontMm * (14 + familyPriority * 2),
+              layoutPriority: 4 });
       }
       hasStripChainOverall = true;
     }
@@ -658,8 +718,8 @@ export function getCadPlanDimensions(document: CadDocument, fontMm: number, hidd
   }
   if (detailed && boxes.length && !hasStripChainOverall) {
     const maxX = Math.max(...boxes.map((b) => b.x + b.width)), maxY = Math.max(...boxes.map((b) => b.y + b.height));
-    add({ x: minX, y: minY }, { x: maxX, y: minY }, "overall", -1);
-    add({ x: maxX, y: minY }, { x: maxX, y: maxY }, "overall", -1);
+    add({ x: minX, y: minY }, { x: maxX, y: minY }, "overall", -1, undefined, undefined, { layoutPriority: 4 });
+    add({ x: maxX, y: minY }, { x: maxX, y: maxY }, "overall", -1, undefined, undefined, { layoutPriority: 4 });
   }
-  return layoutCadDimensions([...requests.filter((d) => d.anchor), ...requests.filter((d) => !d.anchor)], fontMm, [], solids);
+  return layoutCadDimensions(requests, fontMm, [], solids);
 }

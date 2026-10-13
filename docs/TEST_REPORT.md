@@ -3,6 +3,46 @@
 Zasada: zapisujemy **dokładne komendy**, **datę**, **środowisko** i **rzeczywisty wynik** (PASS/FAIL/BLOCKED/NOT RUN).
 Nigdy nie wpisujemy ogólnego „działa” bez dowodu z uruchomienia.
 
+## Sesja 50 — 13 października 2026
+
+Środowisko: GitHub Codespaces, Ubuntu 24.04.5, pnpm 12.11.2.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/domain build` | przebudowa `dist` przed testami | PASS | tsc bez błędów |
+| `pnpm --filter @asystent/domain test` | nowy test orientacji etykiet + pełna regresja wymiarów | PASS | 59/59 |
+| `pnpm --filter web typecheck` | obrót etykiet w rendererze SVG | PASS | TypeScript Web |
+| `pnpm --filter web lint` | renderer wymiarów po refaktorze ramek | PASS | ESLint Web |
+| `curl http://127.0.0.1:3000/` | hot reload po zmianie domeny i renderera | PASS | HTTP 200; kompilacja Next bez błędów |
+| `git diff --check` | kod i dokumentacja przed końcowym wpisem | PASS | brak błędów whitespace |
+| Kontrola wizualna obróconych opisów na canvasie | działający canvas | NOT RUN | brak zależności systemowych Playwright (`libatk-1.0.so.0`) |
+
+## Sesja 49 — 13 października 2026
+
+Środowisko: GitHub Codespaces, Ubuntu 24.04.5, pnpm 12.11.2.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/domain test` | regresja pełnego wymiarowania po zmianie renderera | PASS | 58/58 |
+| `pnpm --filter web typecheck` | stały font, memoizacja i buforowanie zoomu | PASS | TypeScript Web |
+| `pnpm --filter web lint` | renderer wymiarów i obsługa wheel/pinch | PASS | ESLint Web |
+| `curl http://127.0.0.1:3000/` | hot reload po zmianach | PASS | HTTP 200; kompilacja Next bez błędów |
+| `git diff --check` | kod i dokumentacja przed końcowym wpisem | PASS | brak błędów whitespace |
+| Kontrola wizualna rozmiaru przy wielu poziomach zoomu | działający canvas | NOT RUN | stały przelicznik 8/7 px zweryfikowany przez typy i kod; brak automatycznego testu przeglądarkowego |
+
+## Sesja 48 — 13 października 2026
+
+Środowisko: GitHub Codespaces, Ubuntu 24.04.5, pnpm 12.11.2.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/schemas build && pnpm --filter @asystent/domain test` | pełny model CAD i hierarchia pasów | PASS | 58/58; odwrotna kolejność encji daje ściana → ława → wykop |
+| `pnpm --filter web typecheck` | renderer pełnych łańcuchów po zmianie priorytetów | PASS | TypeScript Web |
+| `pnpm --filter web lint` | generator i renderer wymiarów | PASS | ESLint Web |
+| `curl --head http://127.0.0.1:3000/` | uruchomiona aplikacja z commita `6d3ff3a` i lokalną poprawką | PASS | HTTP 200 |
+| `git diff --check` | kod hierarchii i regresja | PASS | brak błędów whitespace |
+| Kontrola wizualna kolejności pasów w przeglądarce | pełny rzut demo | NOT RUN | kolejność współrzędnych bazowych sprawdzona testem domenowym |
+
 ## Sesja 47 — 13 października 2026
 
 Środowisko: Windows, Node 26.7.0, pnpm 12.11.2.

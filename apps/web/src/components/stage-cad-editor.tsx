@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { flushSync } from "react-dom";
 import { CadDocumentSchema, CadEntitySchema, cadDrawingTools, cadEntityTool, foundationDocumentChecklist, getCadDrawingTools, getCadWallDefaults, getFoundationSupportOptions,
   type ConstructionTechnologySelections, type CadDrawingTool, type ProjectDocumentationKind, type CadDocument, type CadEntity, type CadPoint } from "@asystent/schemas";
@@ -229,6 +229,19 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
   const [canvasHeight, setCanvasHeight] = useState(640);
   const [exporting, setExporting] = useState(false);
   const [fullScreen, setFullScreen] = useState(false);
+  const pendingZoomView = useRef<typeof view | null>(null);
+  const zoomFrame = useRef<number | null>(null);
+
+  const scheduleZoomView = useCallback((next: typeof view) => {
+    pendingZoomView.current = next;
+    if (zoomFrame.current !== null) return;
+    zoomFrame.current = window.requestAnimationFrame(() => {
+      zoomFrame.current = null;
+      const pending = pendingZoomView.current;
+      pendingZoomView.current = null;
+      if (pending) setView(pending);
+    });
+  }, []);
 
   function countCanvasClick(id: string, onFourClicks: () => void) {
     const now = Date.now(), previous = canvasClick.current;
@@ -239,6 +252,7 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
 
   useEffect(() => () => {
     if (toolHelpTimer.current !== null) window.clearTimeout(toolHelpTimer.current);
+    if (zoomFrame.current !== null) window.cancelAnimationFrame(zoomFrame.current);
   }, []);
 
   const fit = useCallback((document: CadDocument) => {
@@ -292,12 +306,13 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
     const wheel = (event: WheelEvent) => {
       event.preventDefault();
       if (gesture.current || pinchGesture.current) return;
-      const anchor = viewportToWorld({ x: event.clientX, y: event.clientY }, svg.getBoundingClientRect(), view);
-      setView(zoomDrawingView(view, anchor, Math.exp(Math.max(-1, Math.min(1, event.deltaY / 500)))));
+      const currentView = pendingZoomView.current ?? view;
+      const anchor = viewportToWorld({ x: event.clientX, y: event.clientY }, svg.getBoundingClientRect(), currentView);
+      scheduleZoomView(zoomDrawingView(currentView, anchor, Math.exp(Math.max(-1, Math.min(1, event.deltaY / 500)))));
     };
     svg.addEventListener("wheel", wheel, { passive: false });
     return () => svg.removeEventListener("wheel", wheel);
-  }, [view, drawing?.id]);
+  }, [view, drawing?.id, scheduleZoomView]);
 
   useEffect(() => {
     alive.current = true;
@@ -627,8 +642,7 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
       const deltaX = (center.x - pinch.startCenter.x) * zoomed.width / bounds.width;
       const deltaY = (center.y - pinch.startCenter.y) * zoomed.height / bounds.height;
       const nextView = { ...zoomed, x: zoomed.x - deltaX, y: zoomed.y - deltaY };
-      setView(nextView);
-      setCursor(viewportToWorld(center, bounds, nextView));
+      scheduleZoomView(nextView);
       return;
     }
     const point = world(event, tool !== "select");
@@ -967,13 +981,20 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
     }] as const];
   })).entries()];
   const dimensionFont = exporting ? 2.5 * (drawing?.paperScale ?? 100)
-    : Math.max(2.5 * (drawing?.paperScale ?? 100), view.width * 13 / Math.max(1, canvasWidth));
-  let faces: ReturnType<typeof getCadPlanFaces> = [], dimensions: ReturnType<typeof getCadPlanDimensions> = [], planError = "";
-  try {
-    if (drawing) faces = getCadPlanFaces(drawing);
-    if (drawing) dimensions = getCadPlanDimensions(drawing, dimensionFont, hiddenLayers,
-      exporting ? dimensionFont : view.width * 12 / Math.max(1, canvasWidth), detailedDimensions);
-  } catch (cause) { planError = cadError(cause); }
+    : view.width * 8 / Math.max(1, canvasWidth);
+  const locationDimensionFont = exporting ? dimensionFont : view.width * 7 / Math.max(1, canvasWidth);
+  const planLayout = useMemo(() => {
+    let faces: ReturnType<typeof getCadPlanFaces> = [];
+    let dimensions: ReturnType<typeof getCadPlanDimensions> = [];
+    let planError = "";
+    try {
+      if (drawing) faces = getCadPlanFaces(drawing);
+      if (drawing) dimensions = getCadPlanDimensions(drawing, dimensionFont, hiddenLayers,
+        locationDimensionFont, detailedDimensions);
+    } catch (cause) { planError = cadError(cause); }
+    return { faces, dimensions, planError };
+  }, [drawing, dimensionFont, hiddenLayers, locationDimensionFont, detailedDimensions]);
+  const { faces, dimensions, planError } = planLayout;
   const legendEntries = [
     `Skala arkusza 1:${drawing?.paperScale ?? 100} · Wymiary w mm`,
     ...technologyHints.map((h) => `${h.label}: ${h.material}`),

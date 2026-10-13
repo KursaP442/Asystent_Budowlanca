@@ -197,16 +197,23 @@ geotechnikę, opis materiałów i przejścia branżowe; numer referencji nie ozn
 
 Wymiary mają układ łańcuchowy zgodny z rysunkiem technicznym: równoległe linie po zewnętrznych stronach
 rzutu, cienkie linie pomocnicze, ukośne kreski końcowe i osobny wymiar całkowity. Etykiety nie mogą
-nakładać się ani wchodzić w geometrię. Zwykłe wymiary mają ekranowe minimum 13 px; zwarte opisy
-położenia podpór mają 12 px i odnośnik do środka symbolu. Kolor linii, kresek i etykiet wymiarowych
+wchodzić w geometrię. Zwykłe wymiary mają stałe 8 px na ekranie, a zwarte opisy położenia podpór 7 px;
+zoom nie zmienia ich rozmiaru ekranowego. Eksport zachowuje tekst 2,5 mm na arkuszu. Kolor linii, kresek i etykiet wymiarowych
 odpowiada kolorowi wymiarowanego elementu. Współliniowe ściany, wykopy i ławy tworzą łańcuchy na
 zewnątrz rzutu: kreski obejmują krawędzie pasów, a kolejne opisy pokazują naprzemiennie ich grubości
 i odległości między nimi (np. `240 | odległość | 240 | odległość | 240`). Osobna, dalsza linia pokazuje
 wymiar całkowity tego samego układu. Wspólny łańcuch podpór biegnie między końcami ściany, ma kreski
 poprzeczne na narożnikach i osiach podpór oraz opisuje odległości między kolejnymi kreskami.
 Wartości wymiarów na canvasie są wyświetlane i edytowane w centymetrach z dokładnością 1 mm;
-geometria, pomiary i zapis pozostają w milimetrach. Rozmieszczenie etykiet wszystkich rodzin wymiarów
-uwzględnia wcześniej zajęte pola, a etykiety łańcuchów zajmują osobne, wolne pasy.
+geometria, pomiary i zapis pozostają w milimetrach. Etykiety są zapisywane wzdłuż własnej linii
+wymiarowej — tekst jest obracany zgodnie z jej kierunkiem i pozostaje czytelny od dołu lub od prawej
+(kąt w zakresie od −90° do poniżej 90°). Żaden opis nie biegnie w poprzek linii znaczników, dlatego
+pionowe łańcuchy zajmują wąski pas zamiast rozpychać sąsiednie rodziny. Tło, obszar klikalny i pole
+edycji etykiety są obracane razem z tekstem, a kolizje liczy się na obrysie obróconej ramki.
+Rozmieszczenie etykiet wszystkich rodzin wymiarów
+usuwa kolizje wewnątrz danego łańcucha, ale nie przesuwa etykiet innej rodziny. Pasy liczone od wspólnego
+zewnętrznego obrysu mają stałą kolejność: ściany, ławy fundamentowe, wykopy, podpory i pozostałe opisy,
+a na końcu gabaryty. Kolejność encji w dokumencie nie może zmieniać tej hierarchii.
 Elementy ukośne i nieujęte w łańcuchu zachowują indywidualne wymiary lic. Generowane ławy nie dublują
 wymiarów ścian hosta, ale mają własne łańcuchy wymiarowe — również w widoku uproszczonym. Płyty nie
 dublują wymiarów widocznego hosta. Samodzielna ława/wykop albo ława z ukrytą ścianą zachowuje swój wymiar.

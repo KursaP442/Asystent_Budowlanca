@@ -588,3 +588,57 @@ podziale hosta. Parametry wygenerowanego podparcia zmienia się na encji źród�
 **Konsekwencje:** Starszy JSON nie wymaga migracji, a nowe pole jest opcjonalne. Relacja grupuje elementy
 w inspektorze, nie zgaduje geometrii wykopu ani jego szerokości/głębokości. Automatyczne wyznaczanie
 parametrów wykopu nadal wymaga danych projektu i nie jest generowane z niepotwierdzonych założeń.
+
+## ADR-031: Hierarchia pasów pełnych łańcuchów wymiarowych
+
+**Kontekst:** Pełny renderer łańcuchów przydzielał wszystkim rodzinom ten sam pas `chainLane`, a łańcuchy podpór
+powstawały przed wymiarami konstrukcji. Ławy, wykopy i opisy podpór mogły przez to nakładać się na wymiary ścian
+albo wypychać ich etykiety. Kolejność zależała również od kolejności encji zapisanych w dokumencie.
+
+**Decyzja:** Wszystkie żądania wymiarów otrzymują stabilny priorytet: ściany, ławy fundamentowe, wykopy,
+podpory i pozostałe opisy, a następnie gabaryty. Rodziny pasów są sortowane według tego priorytetu. Położenie
+każdego łańcucha jest liczone od wspólnego zewnętrznego obrysu wszystkich pasów konstrukcyjnych, z osobnym
+odsunięciem dla kolejnych rodzin. W ramach jednego priorytetu zachowujemy stabilną kolejność wejściową.
+
+**Konsekwencje:** Pełne łańcuchy, indywidualne grubości, kolory i edycja wymiarów pozostają zachowane,
+ale ława ani wykop nie mogą zająć pasa ściany. Zmiana nie modyfikuje geometrii ani zapisanego JSON i nie wymaga
+migracji. Test regresyjny zapisuje encje w odwrotnej kolejności i potwierdza układ ściana → ława → wykop.
+
+## ADR-032: Stały mały tekst wymiarów i izolowane kolizje rodzin
+
+**Kontekst:** Renderer używał wspólnej listy zajętych ramek dla wszystkich łańcuchów, dlatego etykieta jednej
+rodziny mogła przesuwać etykietę innej rodziny poza jej pas. Ekranowy font był równocześnie ograniczony wielkością
+papierową `2,5 mm × skala`, więc podczas przybliżania tekst wizualnie rósł. Kosztowny układ wymiarów był liczony
+ponownie także przy renderach kursora i dla każdego zdarzenia zoomu.
+
+**Decyzja:** Kolizje etykiet rozwiązujemy wyłącznie wewnątrz pojedynczego łańcucha; odseparowane pasy rodzin
+zapewnia ADR-031. Na ekranie zwykły wymiar ma stałe 8 px, a położenie podpory 7 px, przeliczone do jednostek modelu
+według bieżącego viewBox. Eksport nadal używa fizycznego tekstu 2,5 mm. Układ ścian, pól i wymiarów jest memoizowany,
+a kolejne zdarzenia wheel/pinch są łączone do jednej aktualizacji widoku na klatkę animacji.
+
+**Konsekwencje:** Zoom nie zmienia wizualnego rozmiaru tekstu, jedna rodzina nie wypycha etykiet innej, a ruch
+kursora nie uruchamia ponownie całego algorytmu wymiarowania. Mniejszy tekst świadomie zastępuje wcześniejsze
+minimum 13 px. Zmiana dotyczy prezentacji i wydajności; nie modyfikuje geometrii ani zapisu CAD.
+
+## ADR-033: Etykiety wymiarów zapisywane wzdłuż linii znaczników
+
+**Kontekst:** Wszystkie opisy wymiarów były rysowane poziomo, niezależnie od kierunku linii wymiarowej.
+Przy pionowych i ukośnych łańcuchach tekst biegł w poprzek znaczników, wystawał daleko poza swój pas
+i wymuszał przesuwanie sąsiednich etykiet, co odtwarzało chaos mimo hierarchii pasów z ADR-031.
+Jest to też niezgodne z konwencją rysunku technicznego.
+
+**Decyzja:** `cadDimensionLabelAngle` wyznacza kąt etykiety z kierunku `start → end` i normalizuje go do
+przedziału `[-90°, 90°)`, więc tekst nigdy nie jest do góry nogami i czyta się od dołu albo od prawej.
+`cadDimensionLabelPlacement` zwraca punkt bazowy tekstu odsunięty prostopadle w układzie obróconym oraz
+obwiednię (AABB) obróconej ramki, używaną do wykrywania kolizji, dopasowania widoku i atrybutu
+`data-label-box`. Renderer rysuje tło, obszar trafienia, tekst i pole edycji wewnątrz
+`<g transform="rotate(...)">`, korzystając z nieobróconego prostokąta `cadDimensionLabelRect`.
+Wymiar grubości pasa odsuwa się teraz o połowę szerokości etykiety wzdłuż linii, bo po obrocie to jej
+rzeczywisty zasięg w tym kierunku.
+
+**Konsekwencje:** Pionowy opis zajmuje pas wąski jak wysokość fontu zamiast całej swojej długości, więc
+rodziny wymiarów przestają się wypychać, a rysunek jest zgodny z konwencją techniczną. Wspólne funkcje
+pomiarowe etykiety usuwają dotychczasową duplikację wzoru szerokości w domenie i w rendererze.
+Zmiana dotyczy wyłącznie prezentacji — geometria, jednostki i zapis CAD pozostają bez zmian, migracja
+nie jest potrzebna. Czterokliknięcie etykiety nadal otwiera edycję, ale pole wejściowe jest obrócone
+razem z opisem.

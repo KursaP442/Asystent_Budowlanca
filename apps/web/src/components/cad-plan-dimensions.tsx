@@ -1,4 +1,5 @@
-import { formatCadDimensionMm, type CadDimensionLayout } from "@asystent/domain";
+import { cadDimensionLabelAngle, cadDimensionLabelPlacement, cadDimensionLabelRect, formatCadDimensionMm,
+  type CadDimensionLayout } from "@asystent/domain";
 
 const TICK_ANGLE = Math.PI / 4;
 
@@ -24,7 +25,6 @@ export function CadPlanDimensions({ dimensions, fontMm, onDimensionClick, editin
   const chains = [...new Set(dimensions.flatMap((d) => d.chainId ? [d.chainId] : []))];
   const dimensionTicks = new Map<string, { point: { x: number; y: number }; start: { x: number; y: number };
     end: { x: number; y: number }; length: number; color: string }>();
-  const occupiedLabelBoxes = dimensions.filter((item) => !item.chainId).map((item) => item.box);
   const boxesOverlap = (a: CadDimensionLayout["box"], b: CadDimensionLayout["box"]) =>
     a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
   for (const dimension of dimensions.filter((item) => !item.anchor)) {
@@ -51,6 +51,7 @@ export function CadPlanDimensions({ dimensions, fontMm, onDimensionClick, editin
       if (!length) return null;
       const ux = (finish.x - origin.x) / length, uy = (finish.y - origin.y) / length;
       const nx = -uy, ny = ux;
+      const chainAngle = cadDimensionLabelAngle(origin, finish);
       const stations: { station: number; point: { x: number; y: number }; items: CadDimensionLayout[] }[] = [
         { station: 0, point: origin, items: [] },
         { station: length, point: finish, items: [] },
@@ -70,19 +71,21 @@ export function CadPlanDimensions({ dimensions, fontMm, onDimensionClick, editin
         if (segmentLength < 1) return [];
         const owner = next.items[0];
         const label = formatCadDimensionMm(segmentLength);
-        const font = owner?.fontMm ?? fontMm, width = (label.length * .62 + 1) * font;
-        return [{ station, next, owner, label, font, width, height: font * 1.5 }];
+        const font = owner?.fontMm ?? fontMm;
+        return [{ station, next, owner, label, font }];
       });
       const lane = first.chainLane ?? 6, side = first.chainSide ?? first.side ?? 1;
-      const labelBoxes = segments.map(({ station, next, width, height, font }) => {
+      const occupiedLabelBoxes: CadDimensionLayout["box"][] = [];
+      const labelPlacements = segments.map(({ station, next, label, font }) => {
         for (let labelLane = lane; ; labelLane++) {
           const offset = side * fontMm * labelLane;
-          const midpointX = (station.point.x + next.point.x) / 2 + nx * offset;
-          const midpointY = (station.point.y + next.point.y) / 2 + ny * offset - font * .35;
-          const box = { x: midpointX - width / 2, y: midpointY - font, width, height };
-          if (occupiedLabelBoxes.some((other) => boxesOverlap(box, other))) continue;
-          occupiedLabelBoxes.push(box);
-          return box;
+          const placement = cadDimensionLabelPlacement({
+            x: (station.point.x + next.point.x) / 2 + nx * offset,
+            y: (station.point.y + next.point.y) / 2 + ny * offset,
+          }, chainAngle, label, font);
+          if (occupiedLabelBoxes.some((other) => boxesOverlap(placement.box, other))) continue;
+          occupiedLabelBoxes.push(placement.box);
+          return placement;
         }
       });
       const offset = side * fontMm * lane;
@@ -109,13 +112,11 @@ export function CadPlanDimensions({ dimensions, fontMm, onDimensionClick, editin
         })}
         {segments.map(({ station, next, owner, label, font }, index) => {
           const segmentLength = next.station - station.station;
-          const box = labelBoxes[index]!;
+          const { text, box } = labelPlacements[index]!;
           const dimension = owner ? { ...owner, start: station.point, end: next.point,
             a: baseline[index]!.point, b: baseline[index + 1]!.point,
-            label, color: owner.color,
-            text: { x: box.x + box.width / 2, y: box.y + font },
-            box } satisfies CadDimensionLayout : undefined;
-          const text = { x: box.x + box.width / 2, y: box.y + font };
+            label, color: owner.color, labelAngle: chainAngle, text, box } satisfies CadDimensionLayout : undefined;
+          const labelRect = cadDimensionLabelRect(text, label, font);
           const key = `${chainId}:segment:${index}`;
           const selectEntity = dimension?.entityId ? () => onDimensionClick?.(dimension, key) : undefined;
           const isEditing = editing?.key === key;
@@ -131,7 +132,8 @@ export function CadPlanDimensions({ dimensions, fontMm, onDimensionClick, editin
             onKeyDown={selectEntity ? (event) => {
               if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectEntity(); }
             } : undefined}>
-            {isEditing ? <foreignObject x={box.x} y={box.y} width={Math.max(box.width, font * 7)} height={Math.max(box.height, font * 1.8)}
+            <g transform={`rotate(${chainAngle} ${text.x} ${text.y})`}>
+            {isEditing ? <foreignObject x={labelRect.x} y={labelRect.y} width={Math.max(labelRect.width, font * 7)} height={Math.max(labelRect.height, font * 1.8)}
               pointerEvents="auto" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>
               <input autoFocus type="number" min={0.1} step="any" aria-label="Nowy wymiar (cm)" defaultValue={editing.value}
                 className="cad-dimension-input" onChange={(event) => onEditingValueChange?.(event.target.value)}
@@ -142,10 +144,11 @@ export function CadPlanDimensions({ dimensions, fontMm, onDimensionClick, editin
                   if (event.key === "Escape") { event.preventDefault(); onCancelDimension?.(); }
                 }} />
             </foreignObject> : <>
-              {selectEntity && <rect {...box} fill="transparent" stroke="none" pointerEvents="all" />}
-              <rect {...box} fill="#fff" fillOpacity=".96" stroke="none" />
+              {selectEntity && <rect {...labelRect} fill="transparent" stroke="none" pointerEvents="all" />}
+              <rect {...labelRect} fill="#fff" fillOpacity=".96" stroke="none" />
               <text x={text.x} y={text.y} fill={color} stroke="none" fontSize={font} textAnchor="middle">{label}</text>
             </>}
+            </g>
           </g>;
         })}
       </g>;
@@ -162,7 +165,7 @@ export function CadPlanDimensions({ dimensions, fontMm, onDimensionClick, editin
     className={group === "overall" ? "cad-overall-dimensions" : group.endsWith(":location") ? "cad-location-dimensions" : "cad-exterior-dimensions"}>
     {dimensions.filter((d) => d.group === group && !d.chainId).map((d, i) => {
       const { start, end, a, b, text } = d;
-      const font = d.fontMm ?? fontMm, box = d.box;
+      const font = d.fontMm ?? fontMm, box = d.box, labelRect = cadDimensionLabelRect(text, d.label, font);
       const key = `${group}:${i}`;
       const extensionStart = (origin: typeof start, tip: typeof a) => {
         const length = Math.hypot(tip.x - origin.x, tip.y - origin.y);
@@ -205,7 +208,8 @@ export function CadPlanDimensions({ dimensions, fontMm, onDimensionClick, editin
             x2={d.anchor.x} y2={d.anchor.y} vectorEffect="non-scaling-stroke" />
           <circle cx={d.anchor.x} cy={d.anchor.y} r={font / 5} fill={d.color} stroke="none" />
         </g>}
-        {isEditing ? <foreignObject x={box.x} y={box.y} width={Math.max(box.width, font * 7)} height={Math.max(box.height, font * 1.8)}
+        <g transform={`rotate(${d.labelAngle} ${text.x} ${text.y})`}>
+        {isEditing ? <foreignObject x={labelRect.x} y={labelRect.y} width={Math.max(labelRect.width, font * 7)} height={Math.max(labelRect.height, font * 1.8)}
           pointerEvents="auto" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>
           <input autoFocus type="number" min={0.1} step="any" aria-label="Nowy wymiar (cm)" defaultValue={editing.value}
             className="cad-dimension-input" onChange={(event) => onEditingValueChange?.(event.target.value)}
@@ -216,14 +220,15 @@ export function CadPlanDimensions({ dimensions, fontMm, onDimensionClick, editin
               if (event.key === "Escape") { event.preventDefault(); onCancelDimension?.(); }
             }} />
         </foreignObject> : <>
-          {selectEntity && onDimensionClick && <rect {...box} fill="transparent" stroke="none" pointerEvents="all"
+          {selectEntity && onDimensionClick && <rect {...labelRect} fill="transparent" stroke="none" pointerEvents="all"
             onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); selectEntity(); }}
             onKeyDown={(event) => {
               if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectEntity(); }
             }} />}
-          <rect {...box} fill="#fff" fillOpacity=".96" stroke="none" />
+          <rect {...labelRect} fill="#fff" fillOpacity=".96" stroke="none" />
           <text x={text.x} y={text.y} fill={d.color} stroke="none" fontSize={font} textAnchor="middle">{d.label}</text>
         </>}
+        </g>
       </g>;
     })}
   </g>)}</g>;
