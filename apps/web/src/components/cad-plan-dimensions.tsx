@@ -77,12 +77,13 @@ export function CadPlanDimensions({ dimensions, fontMm, onDimensionClick, editin
       const lane = first.chainLane ?? 6, side = first.chainSide ?? first.side ?? 1;
       const occupiedLabelBoxes: CadDimensionLayout["box"][] = [];
       const labelPlacements = segments.map(({ station, next, label, font }) => {
+        const placementAt = (labelLane: number) => cadDimensionLabelPlacement({
+          x: (station.point.x + next.point.x) / 2 + nx * side * fontMm * labelLane,
+          y: (station.point.y + next.point.y) / 2 + ny * side * fontMm * labelLane,
+        }, chainAngle, label, font);
+        if (first.chainFixedLabels) return placementAt(lane);
         for (let labelLane = lane; ; labelLane++) {
-          const offset = side * fontMm * labelLane;
-          const placement = cadDimensionLabelPlacement({
-            x: (station.point.x + next.point.x) / 2 + nx * offset,
-            y: (station.point.y + next.point.y) / 2 + ny * offset,
-          }, chainAngle, label, font);
+          const placement = placementAt(labelLane);
           if (occupiedLabelBoxes.some((other) => boxesOverlap(placement.box, other))) continue;
           occupiedLabelBoxes.push(placement.box);
           return placement;
@@ -104,8 +105,9 @@ export function CadPlanDimensions({ dimensions, fontMm, onDimensionClick, editin
           const [tickStart, tickEnd] = tickEndpoints(at, baseline[0]!.point, baseline.at(-1)!.point, fontMm * .8);
           const color = station.items[0]?.color ?? chainColor;
           return <g key={`${chainId}:tick:${index}`} color={color} stroke={color}>
-            <line className="cad-dimension-extension" x1={station.point.x} y1={station.point.y} x2={at.x} y2={at.y}
-              vectorEffect="non-scaling-stroke" />
+            {first.chainExtensions !== false && <line className="cad-dimension-extension"
+              x1={station.point.x} y1={station.point.y} x2={at.x} y2={at.y}
+              vectorEffect="non-scaling-stroke" />}
             <line x1={tickStart.x} y1={tickStart.y} x2={tickEnd.x} y2={tickEnd.y}
               vectorEffect="non-scaling-stroke" />
           </g>;

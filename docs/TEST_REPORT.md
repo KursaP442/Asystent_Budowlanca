@@ -3,6 +3,20 @@
 Zasada: zapisujemy **dokładne komendy**, **datę**, **środowisko** i **rzeczywisty wynik** (PASS/FAIL/BLOCKED/NOT RUN).
 Nigdy nie wpisujemy ogólnego „działa” bez dowodu z uruchomienia.
 
+## Sesja 51 — 14 października 2026
+
+Środowisko: GitHub Codespaces, Ubuntu 24.04.5, pnpm 12.11.2.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/domain test` | hierarchia rodzin, osie słupów i krawędzie stóp | PASS | 61/61; dwa nowe testy pomieszczeń i ciąg 425/50/300 |
+| `pnpm --filter web typecheck` | nowe metadane i renderer łańcuchów | PASS | TypeScript Web |
+| `pnpm --filter web lint` | linie bez przedłużeń i stałe etykiety | PASS | ESLint Web |
+| `pnpm --filter web build` | końcowy bundle aplikacji | PASS | Next.js 16.4; 9 stron, typy i bundle bez błędów |
+| `pnpm dev:web` + `curl http://127.0.0.1:3000/` | aktualny dev server | PASS | HTTP 200; serwer pozostawiony uruchomiony |
+| `git diff --check` | kod i dokumentacja | PASS | brak błędów whitespace |
+| Kontrola wizualna nowych łańcuchów | canvas demo | NOT RUN | automatyczna przeglądarka nadal wymaga brakującego `libatk-1.0.so.0` |
+
 ## Sesja 50 — 13 października 2026
 
 Środowisko: GitHub Codespaces, Ubuntu 24.04.5, pnpm 12.11.2.

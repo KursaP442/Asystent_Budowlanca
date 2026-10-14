@@ -642,3 +642,28 @@ pomiarowe etykiety usuwają dotychczasową duplikację wzoru szerokości w domen
 Zmiana dotyczy wyłącznie prezentacji — geometria, jednostki i zapis CAD pozostają bez zmian, migracja
 nie jest potrzebna. Czterokliknięcie etykiety nadal otwiera edycję, ale pole wejściowe jest obrócone
 razem z opisem.
+
+## ADR-034: Hierarchia wewnątrz rodzin oraz osie słupów i krawędzie stóp
+
+**Kontekst:** ADR-031 porządkował rodziny ściana → ława → wykop, ale wszystkie wymiary całkowite miały
+wspólny końcowy priorytet. W efekcie po cząstkowych wymiarach ściany mogły pojawić się ławy lub wykopy,
+a gabaryt ścian dopiero za nimi. Dotychczasowy algorytm podpór łączył słupy i stopy, grupował je według
+zbliżonej współrzędnej i tworzył osobne rzędy zamiast stałych dwóch kierunków na pomieszczenie.
+
+**Decyzja:** Każda rodzina zajmuje dwa następujące po sobie poziomy układu: cząstkowe łańcuchy mają
+priorytet `family × 2`, a ich zablokowany gabaryt `family × 2 + 1`. Odległości od wspólnej obwiedni
+są odpowiednio `4 + family × 8` i `8 + family × 8` wysokości fontu. Układ nie może przesunąć gabarytu
+na pas następnej rodziny podczas rozwiązywania kolizji.
+
+Zamknięte pola ścian (awaryjnie ław, gdy nie ma ścian) są jednostką wymiarowania podpór. Słupy tworzą
+na każde pole dokładnie jeden poziomy i jeden pionowy łańcuch, którego stacje są osiami słupów.
+Stopy tworzą osobną parę łańcuchów, a stacjami są minimalna i maksymalna krawędź ich obrysu w danej osi.
+Końcami są wewnętrzne lica pola. Łańcuchy podpór mają tylko linię bazową i przecinające kreski; bez
+indywidualnych linii pomocniczych. Etykiety pozostają na tej linii pomiędzy znacznikami i nie są
+przenoszone na kolejne pasy. Obwiednie zwracane przez domenę odpowiadają rzeczywistemu położeniu renderera.
+
+**Konsekwencje:** Pełna kolejność to ściany cząstkowe → ściany całkowite → ławy cząstkowe → ławy
+całkowite → wykopy cząstkowe → wykopy całkowite → podpory. Słupy i stopy współpołożone zachowują
+oddzielne łańcuchy, ponieważ opisują inne odniesienia (oś oraz krawędzie). Przykładowa stopa daje
+ciąg `425 cm | 50 cm | 300 cm`. Podpory bez zamkniętego pola zachowują dotychczasowe lokalne
+odniesienie do ściany. Zmiana nie modyfikuje geometrii ani JSON CAD i nie wymaga migracji.

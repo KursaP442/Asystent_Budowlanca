@@ -213,7 +213,9 @@ edycji etykiety są obracane razem z tekstem, a kolizje liczy się na obrysie ob
 Rozmieszczenie etykiet wszystkich rodzin wymiarów
 usuwa kolizje wewnątrz danego łańcucha, ale nie przesuwa etykiet innej rodziny. Pasy liczone od wspólnego
 zewnętrznego obrysu mają stałą kolejność: ściany, ławy fundamentowe, wykopy, podpory i pozostałe opisy,
-a na końcu gabaryty. Kolejność encji w dokumencie nie może zmieniać tej hierarchii.
+a gabaryt każdej rodziny znajduje się bezpośrednio po jej wymiarach cząstkowych. Pełna kolejność to:
+podziały ścian → gabaryt ścian → podziały ław → gabaryt ław → podziały wykopów → gabaryt wykopów,
+a dopiero potem podpory i pozostałe opisy. Kolejność encji w dokumencie nie może zmieniać tej hierarchii.
 Elementy ukośne i nieujęte w łańcuchu zachowują indywidualne wymiary lic. Generowane ławy nie dublują
 wymiarów ścian hosta, ale mają własne łańcuchy wymiarowe — również w widoku uproszczonym. Płyty nie
 dublują wymiarów widocznego hosta. Samodzielna ława/wykop albo ława z ukrytą ścianą zachowuje swój wymiar.
@@ -224,13 +226,15 @@ Po odświeżeniu rozpoczynamy od uproszczonego rzutu. Eksport używa wybranego t
 Ściany i samodzielne ławy dzielą się również przy przecięciu X; ruch węzła zmienia wszystkie cztery końce.
 Stopy i słupy dotykające ściany otrzymują relację położenia; podążają za jej przesunięciem i obrotem,
 zachowując rzeczywiste wymiary przekroju. Rozmiar X × X i oznaczenie (np. S1, ST1) są wewnątrz symbolu.
-Pozycję opisują dwa wymiary od lic ściany, z którą symbol jest związany, albo najbliższej ściany:
-wzdłuż jej kierunku i prostopadle do niej. Dotyczy to również podpór poza końcem ściany.
-Współliniowe podpory są wymiarowane jednym łańcuchem równoległym do ich osi, od jednego skrajnego lica
-ściany do przeciwległego; kolejne odcinki kończą się na osiach podpór. Współpołożony słup i stopa są jednym
-stanowiskiem wymiarowym. Pozostałe podpory są wymiarowane względem najbliższej ściany, a gabaryt X/Y
-jest odniesieniem tylko gdy rysunek nie ma ścian ani ław. Etykiety szukają miejsca bez kolizji z innymi
-wymiarami i geometrią; kreski pomocnicze są krótkie, do 1,5 wysokości fontu.
+Każde zamknięte pomieszczenie ze słupami ma dokładnie dwa łańcuchy ich położenia: jeden poziomy i jeden
+pionowy. Końce łańcucha odnoszą się do wewnętrznych lic pomieszczenia, a kolejne znaczniki przecinające
+linię wskazują wyłącznie osie słupów. Wartości są zapisane pomiędzy sąsiednimi znacznikami na tej samej
+linii; nie rysujemy osobnych linii pomocniczych od każdego słupa.
+Stopy fundamentowe mają własne, niezależne dwa łańcuchy na pomieszczenie. Zamiast osi znaczone są obie
+krawędzie każdej stopy, dlatego ciąg pokazuje kolejno odległość do stopy, jej rzeczywistą szerokość i dalszy
+odstęp (np. `425 | 50 | 300`). Słup i stopa w tym samym miejscu nie są łączone w jeden znacznik.
+Podpory poza zamkniętym pomieszczeniem zachowują lokalne odniesienie do przyczepionej albo najbliższej ściany;
+gabaryt X/Y jest odniesieniem tylko gdy rysunek nie ma ścian ani ław.
 Wymiary przy T/X i narożnikach kończą się na przecięciach rzeczywistych lic, z grubością sąsiedniego
 elementu, także przy połączeniach ukośnych. Ukrywanie warstw nie usuwa topologii ani odniesień.
 Ruch całego elementu, narożnika/węzła i liczbowy resize aktualizują połączoną geometrię oraz wymiary

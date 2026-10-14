@@ -1417,3 +1417,19 @@ odświeżano jego formularza.
 
 - Wizualna weryfikacja obróconych opisów w przeglądarce pozostaje **NOT RUN** (brak zależności systemowych
   Playwright, `libatk-1.0.so.0`).
+
+## Sesja 51 — 14 października 2026
+
+### Hierarchia rodzin oraz osobne łańcuchy słupów i stóp
+
+- Pełna hierarchia obejmuje teraz także gabaryt wewnątrz rodziny: podziały ścian → gabaryt ścian →
+  podziały ław → gabaryt ław → podziały wykopów → gabaryt wykopów. Gabaryt ma zablokowany pas,
+  więc kolizja nie może przenieść go za następną rodzinę.
+- Każde zamknięte pomieszczenie ze słupami otrzymuje dokładnie dwa łańcuchy: poziomy i pionowy.
+  Przecinające kreski wskazują osie słupów, a wartości pozostają na linii między sąsiednimi kreskami.
+- Stopy mają niezależne dwa łańcuchy na pomieszczenie. Kreski wskazują obie krawędzie stopy, dzięki czemu
+  widoczna jest odległość do stopy, jej szerokość i pozostały odstęp, np. `425 | 50 | 300`.
+- Łańcuchy słupów i stóp nie mają indywidualnych linii pomocniczych. Dopasowanie widoku korzysta z ramek
+  odpowiadających rzeczywistemu położeniu nieprzesuwanych etykiet.
+- Domena **PASS 61/61**, Web typecheck/lint/build **PASS**, uruchomiony Web **PASS** HTTP 200,
+  `git diff --check` **PASS**. Commit i push są wykonywane po końcowej kontroli tego wpisu.
