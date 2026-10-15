@@ -1,5 +1,20 @@
 # PROGRESS — dziennik postępu prac
 
+## Sesja 94 — przenośny autostart Web na Windows i Codespaces
+
+### Zrobione
+
+- Autostart VS Code nie wywołuje już `bash`, więc działa także w lokalnym PowerShell bez WSL.
+- Dodano przenośny skrypt Node `scripts/dev-web.mjs`, który sprawdza działający serwer, instaluje brakujące
+  zależności i uruchamia `pnpm dev:web` z poprawną obsługą `pnpm.cmd` na Windows.
+- Poprawiono filtr budowania `dev:web`, aby zależności workspace były budowane również na Windows.
+
+### Walidacja
+
+- Autostart na zajętym porcie — PASS; wykrywa HTTP 200 i nie uruchamia drugiego serwera.
+- `pnpm typecheck` — NOT RUN po zmianie skryptów; wcześniejszy stan po instalacji zależności był PASS.
+- `pnpm lint` — NOT RUN po zmianie skryptów; wcześniejszy stan po instalacji zależności był PASS.
+
 Ten plik jest aktualizowany po każdej sesji pracy. Zawiera stan: co zostało zrobione, co jest zablokowane,
 i od czego zacząć kolejną sesję. **To jest pierwszy plik, który agent powinien przeczytać po wznowieniu pracy.**
 

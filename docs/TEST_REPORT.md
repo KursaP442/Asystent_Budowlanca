@@ -1,5 +1,15 @@
 # TEST_REPORT — rzeczywiste wyniki komend
 
+## Sesja 94 — 15 października 2026
+
+Środowisko: Windows PowerShell, Node 26.7.0, pnpm 12.11.2.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm dev:web:auto` przy działającym HTTP 200 na porcie 3018 | przenośny autostart | PASS | serwer wykryty, drugi proces nie został uruchomiony |
+| uruchomienie `pnpm dev:web:auto` bez Bash/WSL | lokalny Windows | PASS | `pnpm.cmd` uruchamiane przez skrypt Node |
+| walidacja `.vscode/tasks.json` | autostart VS Code | PASS | task używa `pnpm dev:web:auto`, nie `bash` |
+
 Zasada: zapisujemy **dokładne komendy**, **datę**, **środowisko** i **rzeczywisty wynik** (PASS/FAIL/BLOCKED/NOT RUN).
 Nigdy nie wpisujemy ogólnego „działa” bez dowodu z uruchomienia.
 

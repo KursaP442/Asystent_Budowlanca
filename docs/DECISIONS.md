@@ -679,8 +679,9 @@ do ściany. Zmiana nie modyfikuje geometrii ani JSON CAD i nie wymaga migracji.
 od ręcznego `pnpm dev:web`, a repozytorium nie miało ani `.devcontainer`, ani `.vscode`.
 
 **Decyzja:** Dodajemy zadanie VS Code `Start aplikacji web (autostart)` w `.vscode/tasks.json`
-z `runOptions.runOn: folderOpen` i `isBackground: true`. Zadanie uruchamia `scripts/dev-web.sh`, który
-sprawdza port `3000`, w razie potrzeby instaluje zależności i wywołuje `pnpm dev:web`. Świadomie nie
+z `runOptions.runOn: folderOpen` i `isBackground: true`. Zadanie uruchamia `scripts/dev-web.mjs`
+przez `pnpm`, więc nie wymaga Bash ani WSL i działa w PowerShell, lokalnym VS Code oraz Codespaces.
+Skrypt sprawdza port `3000`, w razie potrzeby instaluje zależności i wywołuje `pnpm dev:web`. Świadomie nie
 dodajemy pliku `.devcontainer/devcontainer.json`: w istniejącym Codespace jego pojawienie się wymusza
 przebudowę kontenera, a zadanie `folderOpen` działa tak samo w Codespaces i w lokalnym VS Code.
 

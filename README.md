@@ -25,7 +25,8 @@ pnpm dev:web
 
 Serwer startuje też **automatycznie przy każdym otwarciu projektu** w VS Code (również w Codespaces) — robi to
 zadanie `Start aplikacji web (autostart)` z [.vscode/tasks.json](.vscode/tasks.json), które uruchamia
-[scripts/dev-web.sh](scripts/dev-web.sh). Skrypt sam instaluje zależności, gdy brakuje `node_modules`, i pomija
+[scripts/dev-web.mjs](scripts/dev-web.mjs) przez `pnpm`, bez wymagania Bash/WSL. Skrypt sam instaluje zależności,
+gdy brakuje `node_modules`, i pomija
 start, jeśli port `3000` jest już zajęty przez działający serwer. Autostart wyłączysz, usuwając z zadania sekcję
 `runOptions.runOn`; ręcznie uruchomisz go przez **Terminal → Run Task…**.
 
