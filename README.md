@@ -23,6 +23,12 @@ Uruchom samą aplikację webową:
 pnpm dev:web
 ```
 
+Serwer startuje też **automatycznie przy każdym otwarciu projektu** w VS Code (również w Codespaces) — robi to
+zadanie `Start aplikacji web (autostart)` z [.vscode/tasks.json](.vscode/tasks.json), które uruchamia
+[scripts/dev-web.sh](scripts/dev-web.sh). Skrypt sam instaluje zależności, gdy brakuje `node_modules`, i pomija
+start, jeśli port `3000` jest już zajęty przez działający serwer. Autostart wyłączysz, usuwając z zadania sekcję
+`runOptions.runOn`; ręcznie uruchomisz go przez **Terminal → Run Task…**.
+
 Po chwili Codespaces wykryje port `3000`. W panelu **Ports** wybierz **Open in Browser**, aby otworzyć aplikację
 pod prywatnym linkiem Codespaces. Pozostaw terminal z serwerem uruchomiony; zmiany w kodzie będą widoczne po
 automatycznym odświeżeniu strony. Jeśli port nie pojawi się sam, dodaj `3000` ręcznie w panelu **Ports**.

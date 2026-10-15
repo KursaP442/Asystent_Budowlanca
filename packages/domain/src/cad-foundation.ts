@@ -1,7 +1,120 @@
 import { CadDocumentSchema, CadEntitySchema, type CadDocument, type CadEntity, type FoundationBase } from "@asystent/schemas";
 import { isSimplePolygon, offsetPolygon, segmentRectangle } from "@asystent/geometry";
+import { getCadPlanFaces } from "./cad-plan.js";
+import { foundationSectionMissingFields, foundationSectionState } from "./cad-sections.js";
 
 export class FoundationAssemblyError extends Error {}
+
+export type FoundationPlanCheckStatus = "complete" | "requires-completion" | "requires-review" | "error";
+export type FoundationPlanCheckIssue = {
+  code: string;
+  status: "missing" | "review" | "error";
+  message: string;
+  target?: "cad-canvas" | "cad-foundation-settings" | "cad-foundation-documents" | "foundation-sections";
+};
+
+const isMissingProjectValue = (value: string | undefined) =>
+  !value?.trim() || /do uzupełnienia|do potwierdzenia|zgodnie z projektem/i.test(value);
+
+export function checkFoundationPlanCompleteness(document: CadDocument): {
+  status: FoundationPlanCheckStatus;
+  issues: FoundationPlanCheckIssue[];
+} {
+  const issues: FoundationPlanCheckIssue[] = [];
+  const add = (issue: FoundationPlanCheckIssue) => {
+    if (!issues.some(({ code }) => code === issue.code)) issues.push(issue);
+  };
+  const foundationEntities = document.entities.filter((entity) =>
+    entity.kind === "footing" || entity.kind === "slab"
+    || entity.kind === "construction-line" && entity.attributes.role === "foundation-wall"
+    || entity.kind === "construction-area" && ["pad", "column"].includes(entity.attributes.role));
+
+  if (!foundationEntities.length) {
+    add({ code: "geometry", status: "missing", target: "cad-canvas",
+      message: "Brak geometrii fundamentów. Narysuj ją albo wprowadź z dokumentacji źródłowej." });
+  } else {
+    const axes = document.entities.filter((entity) =>
+      entity.kind === "construction-line" && entity.attributes.role === "axis");
+    if (!axes.length) {
+      add({ code: "axes", status: "missing", target: "cad-canvas",
+        message: "Brak osi konstrukcyjnych na rzucie." });
+    } else {
+      if (axes.some((axis) => !axis.mark?.trim())) {
+        add({ code: "axis-labels", status: "missing", target: "cad-canvas",
+          message: "Oznacz każdą oś konstrukcyjną literą lub cyfrą." });
+      }
+      if (axes.some((axis) => axis.reviewStatus !== "verified")) {
+        add({ code: "axis-review", status: "review", target: "cad-canvas",
+          message: "Sprawdź położenie i oznaczenia osi z dokumentacją projektową." });
+      }
+    }
+    try {
+      getCadPlanFaces(document);
+    } catch (cause) {
+      add({ code: "geometry-conflict", status: "error", target: "cad-canvas",
+        message: cause instanceof Error ? cause.message : "Nie można wyznaczyć poprawnej geometrii rzutu." });
+    }
+    for (const entity of foundationEntities) {
+      if ("vertices" in entity.geometry && !isSimplePolygon(entity.geometry.vertices)) {
+        add({ code: "invalid-outline", status: "error", target: "cad-canvas",
+          message: `Nieprawidłowy lub samoprzecinający się obrys${entity.mark ? ` ${entity.mark}` : ""}.` });
+      }
+      if (entity.kind === "construction-line" && entity.attributes.role === "foundation-wall") {
+        if (entity.foundationBase?.type === "strip" && entity.foundationBase.widthMm < entity.attributes.widthMm) {
+          add({ code: `support-${entity.id}`, status: "error", target: "cad-foundation-settings",
+            message: `Ława${entity.mark ? ` ${entity.mark}` : ""} jest węższa niż ściana.` });
+        }
+        if (!entity.foundationBase) {
+          add({ code: `support-${entity.id}`, status: "missing", target: "cad-foundation-settings",
+            message: `Brak danych podparcia ściany${entity.mark ? ` ${entity.mark}` : ""}.` });
+        }
+      }
+      const material = entity.kind === "construction-line" || entity.kind === "construction-area" || entity.kind === "slab"
+        ? entity.attributes.material : undefined;
+      const reference = entity.kind === "construction-line" || entity.kind === "construction-area" || entity.kind === "footing"
+        ? entity.attributes.designReference : undefined;
+      if (material !== undefined && isMissingProjectValue(material)) {
+        add({ code: `material-${entity.id}`, status: "missing", target: "cad-foundation-settings",
+          message: `Uzupełnij materiał elementu${entity.mark ? ` ${entity.mark}` : ""} na podstawie projektu.` });
+      }
+      const baseReference = entity.kind === "construction-line" && entity.foundationBase
+        ? entity.foundationBase.designReference : undefined;
+      if (isMissingProjectValue(reference) || baseReference !== undefined && isMissingProjectValue(baseReference)) {
+        add({ code: `reference-${entity.id}`, status: "review", target: "cad-foundation-documents",
+          message: `Potwierdź odniesienie do dokumentacji elementu${entity.mark ? ` ${entity.mark}` : ""}.` });
+      }
+      if (entity.reviewStatus !== "verified") {
+        add({ code: "designer-review", status: "review",
+          message: "Geometria fundamentów wymaga weryfikacji projektanta; zapis CAD nie jest zatwierdzeniem konstrukcyjnym." });
+      }
+    }
+  }
+
+  if (!document.sections?.length) {
+    add({ code: "sections", status: "missing", target: "foundation-sections",
+      message: "Brak powiązanego przekroju fundamentów i rzędnych posadowienia." });
+  } else if (document.sections.some((section) => section.state === "outdated"
+    || foundationSectionMissingFields(document, section).length > 0)) {
+    add({ code: "section-data", status: "missing", target: "foundation-sections",
+      message: "Uzupełnij albo zaktualizuj dane w przekrojach fundamentów." });
+  } else if (document.sections.some((section) => foundationSectionState(document, section) === "needs-review")) {
+    add({ code: "section-review", status: "review", target: "foundation-sections",
+      message: "Przekroje fundamentów wymagają sprawdzenia z dokumentacją projektową." });
+  }
+
+  for (const key of ["geotechnics", "concrete", "reinforcement", "isolation"] as const) {
+    if (!document.documentReferences?.[key]?.trim()) {
+      add({ code: `document-${key}`, status: "review", target: "cad-foundation-documents",
+        message: "Sprawdź odwołania do dokumentacji geotechnicznej, materiałowej i detali." });
+    }
+  }
+
+  const status: FoundationPlanCheckStatus = issues.some(({ status: itemStatus }) => itemStatus === "error")
+    ? "error" : issues.some(({ status: itemStatus }) => itemStatus === "missing")
+      ? "requires-completion" : issues.some(({ status: itemStatus }) => itemStatus === "review")
+        ? "requires-review" : "complete";
+  return { status, issues };
+}
 
 export function synchronizeFoundationSupports(document: CadDocument, createId: () => string): CadDocument {
   const walls = document.entities.filter((e) => e.kind === "construction-line" && e.attributes.role === "foundation-wall" && e.foundationBase && !e.derivedFrom);

@@ -21,11 +21,13 @@ export function foundationSetupFromSettings(values: FoundationSettings,
   hints: { material: string; thermal: boolean; label: string }[]): FoundationWallSetup {
   const thermal = hints.find((h) => h.thermal);
   const waterproof = hints.find((h) => /Izolacja przeciwwilgociowa|Hydroizolacja/i.test(h.label));
+  const needsProjectValue = (value: string) =>
+    !value.trim() || /do uzupełnienia|do potwierdzenia|zgodnie z projektem/i.test(value);
   const required: (keyof FoundationSettings)[] = ["wallWidth", "wallHeight", "wallMaterial",
     ...(values.type === "strip" ? ["baseWidth", "baseDepth"] as const : values.type === "slab"
       ? ["slabThickness", "overhang", "slabMaterial"] as const : []),
     ...(thermal ? ["thermal"] as const : []), ...(waterproof ? ["waterproof"] as const : [])];
-  if (!values.type || required.some((key) => !String(values[key]).trim())) {
+  if (!values.type || required.some((key) => needsProjectValue(String(values[key])))) {
     throw new Error("Uzupełnij parametry ściany i podparcia z projektu. Zmiany zapisują się automatycznie.");
   }
   const reference = values.reference.trim() || "Do uzupełnienia z projektu";
@@ -310,10 +312,10 @@ export function cadDimensionLabelRect(text: CadPoint, label: string, fontMm: num
 export function cadDimensionLabelPlacement(center: CadPoint, angleDegrees: number, label: string, fontMm: number) {
   const { width, height } = cadDimensionLabelSize(label, fontMm);
   const radians = angleDegrees * Math.PI / 180, cos = Math.cos(radians), sin = Math.sin(radians);
-  const text = { x: center.x + sin * fontMm * .35, y: center.y - cos * fontMm * .35 };
+  const text = { x: center.x + sin * fontMm * .7, y: center.y - cos * fontMm * .7 };
   const halfX = Math.abs(cos) * width / 2 + Math.abs(sin) * height / 2;
   const halfY = Math.abs(sin) * width / 2 + Math.abs(cos) * height / 2;
-  const boxCenter = { x: text.x + sin * fontMm * .25, y: text.y - cos * fontMm * .25 };
+  const boxCenter = { x: text.x + sin * fontMm * .15, y: text.y - cos * fontMm * .15 };
   return { text, width, height,
     box: { x: boxCenter.x - halfX, y: boxCenter.y - halfY, width: halfX * 2, height: halfY * 2 } };
 }
@@ -327,19 +329,28 @@ export function layoutCadDimensions(requests: CadDimensionRequest[], fontMm: num
   for (const { request } of ordered) {
     const { start, end } = request, length = Math.hypot(end.x - start.x, end.y - start.y), font = request.fontMm ?? fontMm;
     if (length < .001 && !request.anchor) continue;
-    const label = request.label ?? formatCadDimensionMm(length),
-      nx = -(end.y - start.y) / Math.max(.001, length), ny = (end.x - start.x) / Math.max(.001, length);
-    const { width } = cadDimensionLabelSize(label, font), labelAngle = cadDimensionLabelAngle(start, end);
+    const horizontal = Math.abs(end.x - start.x) >= Math.abs(end.y - start.y);
+    const axisStart = horizontal
+      ? { x: start.x, y: (start.y + end.y) / 2 }
+      : { x: (start.x + end.x) / 2, y: start.y };
+    const axisEnd = horizontal
+      ? { x: end.x, y: axisStart.y }
+      : { x: axisStart.x, y: end.y };
+    const label = request.label ?? formatCadDimensionMm(length);
+    const { width } = cadDimensionLabelSize(label, font), labelAngle = cadDimensionLabelAngle(axisStart, axisEnd);
     let placed = false;
     if (request.chainFixedLabels && request.chainStart && request.chainEnd) {
       const chainLength = Math.hypot(request.chainEnd.x - request.chainStart.x, request.chainEnd.y - request.chainStart.y);
       if (chainLength < .001) continue;
-      const chainNx = -(request.chainEnd.y - request.chainStart.y) / chainLength;
-      const chainNy = (request.chainEnd.x - request.chainStart.x) / chainLength;
+      const chainHorizontal = Math.abs(request.chainEnd.x - request.chainStart.x)
+        >= Math.abs(request.chainEnd.y - request.chainStart.y);
       const offset = (request.chainSide ?? request.side ?? 1) * fontMm * (request.chainLane ?? 0);
-      const a = { x: start.x + chainNx * offset, y: start.y + chainNy * offset };
-      const b = { x: end.x + chainNx * offset, y: end.y + chainNy * offset };
-      const angle = cadDimensionLabelAngle(request.chainStart, request.chainEnd);
+      const fixedAcross = chainHorizontal
+        ? (request.chainStart.y + request.chainEnd.y) / 2 + offset
+        : (request.chainStart.x + request.chainEnd.x) / 2 - offset;
+      const a = chainHorizontal ? { x: start.x, y: fixedAcross } : { x: fixedAcross, y: start.y };
+      const b = chainHorizontal ? { x: end.x, y: fixedAcross } : { x: fixedAcross, y: end.y };
+      const angle = cadDimensionLabelAngle(a, b);
       const { text, box } = cadDimensionLabelPlacement({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
         angle, label, font);
       boxes.push(box);
@@ -347,7 +358,9 @@ export function layoutCadDimensions(requests: CadDimensionRequest[], fontMm: num
       continue;
     }
     if (request.measurementKind === "strip-width") {
-      const a = start, b = end, ux = (end.x - start.x) / length, uy = (end.y - start.y) / length;
+      const a = axisStart, b = axisEnd;
+      const axisLength = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+      const ux = (b.x - a.x) / axisLength, uy = (b.y - a.y) / axisLength;
       const requestedSide = request.side ?? 1;
       let fallback: { text: CadPoint; box: typeof boxes[number] } | undefined, fallbackOverlap = Infinity;
       for (let lane = 0; lane < 24; lane++) {
@@ -373,10 +386,18 @@ export function layoutCadDimensions(requests: CadDimensionRequest[], fontMm: num
       if (!placed) throw new CadPlanError("Nie można umieścić wymiaru grubości.");
       continue;
     }
-    for (let lane = 0; lane < (request.lockOffset ? 1 : 300); lane++) {
-      const offset = (request.side ?? 1) * ((request.offsetMm ?? font * 2.5) + font * lane * 2);
-      const a = request.anchor ?? { x: start.x + nx * offset, y: start.y + ny * offset },
-        b = request.anchor ?? { x: end.x + nx * offset, y: end.y + ny * offset };
+    for (let lane = 0; lane < 300; lane++) {
+      const side = request.side ?? 1;
+      const offset = side * ((request.offsetMm ?? font * 2.5) + font * lane * 2);
+      const across = horizontal
+        ? side > 0 ? Math.max(start.y, end.y) : Math.min(start.y, end.y)
+        : side > 0 ? Math.min(start.x, end.x) : Math.max(start.x, end.x);
+      const a = request.anchor ?? (horizontal
+        ? { x: start.x, y: across + offset }
+        : { x: across - offset, y: start.y });
+      const b = request.anchor ?? (horizontal
+        ? { x: end.x, y: across + offset }
+        : { x: across - offset, y: end.y });
       if (!request.anchor && solids.some((solid) => pointInCadPolygon(a, solid) || pointInCadPolygon(b, solid)
         || solid.some((p, i) => segmentsIntersect(a, b, p, solid[(i + 1) % solid.length]!)))) continue;
       const gap = font * (2.5 + Math.floor(lane / 4) * 2);
@@ -415,6 +436,69 @@ function stripFamily(e: CadEntity): string | null {
 
 function stripFamilyDimensionPriority(family: string): number {
   return family === "wall" ? 0 : family === "footing" ? 1 : family === "excavation" ? 2 : 3;
+}
+
+type DimensionStrip = Extract<CadEntity, { kind: "wall" | "footing" | "construction-line" }>;
+
+function isDimensionStrip(entity: CadEntity): entity is DimensionStrip {
+  return stripFamily(entity) !== null && "start" in entity.geometry;
+}
+
+function collapseCollinearDimensionStrips(entities: readonly CadEntity[]): CadEntity[] {
+  const strips = entities.filter(isDimensionStrip);
+  const grouped = new Set<string>();
+  const result: CadEntity[] = entities.filter((entity) => !strips.some(({ id }) => id === entity.id));
+  const connectedAndCollinear = (left: typeof strips[number], right: typeof strips[number]) => {
+    if (stripFamily(left) !== stripFamily(right) || Math.abs(cadStripWidth(left) - cadStripWidth(right)) > .001) return false;
+    if (!("start" in left.geometry) || !("start" in right.geometry)) return false;
+    const leftDx = left.geometry.end.x - left.geometry.start.x;
+    const leftDy = left.geometry.end.y - left.geometry.start.y;
+    const rightDx = right.geometry.end.x - right.geometry.start.x;
+    const rightDy = right.geometry.end.y - right.geometry.start.y;
+    const leftLength = Math.hypot(leftDx, leftDy);
+    const rightLength = Math.hypot(rightDx, rightDy);
+    if (!leftLength || !rightLength
+      || Math.abs(leftDx * rightDy - leftDy * rightDx) / (leftLength * rightLength) > .001) return false;
+    return [left.geometry.start, left.geometry.end].some((leftPoint) =>
+      [right.geometry.start, right.geometry.end].some((rightPoint) =>
+        Math.hypot(leftPoint.x - rightPoint.x, leftPoint.y - rightPoint.y) <= 1));
+  };
+  for (const first of strips) {
+    if (grouped.has(first.id)) continue;
+    const group = [first];
+    grouped.add(first.id);
+    for (let index = 0; index < group.length; index++) {
+      const current = group[index]!;
+      for (const candidate of strips) {
+        if (grouped.has(candidate.id) || !connectedAndCollinear(current, candidate)) continue;
+        grouped.add(candidate.id);
+        group.push(candidate);
+      }
+    }
+    if (group.length === 1) {
+      result.push(first);
+      continue;
+    }
+    const dx = first.geometry.end.x - first.geometry.start.x;
+    const dy = first.geometry.end.y - first.geometry.start.y;
+    const length = Math.hypot(dx, dy);
+    const ux = dx / length;
+    const uy = dy / length;
+    const stations = group.flatMap((entity) => "start" in entity.geometry
+      ? [entity.geometry.start, entity.geometry.end].map((point) =>
+        (point.x - first.geometry.start.x) * ux + (point.y - first.geometry.start.y) * uy)
+      : []);
+    const startStation = Math.min(...stations);
+    const endStation = Math.max(...stations);
+    result.push({
+      ...first,
+      geometry: {
+        start: { x: first.geometry.start.x + ux * startStation, y: first.geometry.start.y + uy * startStation },
+        end: { x: first.geometry.start.x + ux * endStation, y: first.geometry.start.y + uy * endStation },
+      },
+    });
+  }
+  return result;
 }
 
 function cadDimensionLayoutPriority(entity?: CadEntity): number {
@@ -464,6 +548,7 @@ export function getCadPlanDimensions(document: CadDocument, fontMm: number, hidd
   const requests: CadDimensionRequest[] = [];
   const visible = document.entities.filter((e) => !hiddenLayers.includes(e.layerId));
   const entities = visible.filter((e) => !["annotation", "rebar-annotation", "dimension", "trace-line", "trace-area", "rebar-line"].includes(e.kind));
+  const dimensionEntities = collapseCollinearDimensionStrips(entities);
   const boxes = entities.map(cadElementBounds);
   const solids = entities.flatMap((e) => "start" in e.geometry && cadStripWidth(e)
     ? [segmentRectangle(e.geometry.start, e.geometry.end, cadStripWidth(e))]
@@ -478,11 +563,17 @@ export function getCadPlanDimensions(document: CadDocument, fontMm: number, hidd
   const references = walls.length ? walls : document.entities.filter((e) => e.kind === "footing");
   const visibleIds = new Set(visible.map((e) => e.id));
   const wallFaces = getCadPlanFaces(document), footingFaces = getCadPlanFaces(document, "footings");
+  const wallFaceMembership = new Map<string, number>();
+  for (const face of wallFaces) for (const id of face.ids)
+    wallFaceMembership.set(id, (wallFaceMembership.get(id) ?? 0) + 1);
+  const isInteriorStrip = (entity: CadEntity) =>
+    [entity.id, ...(entity.supportFor ?? []), ...(entity.relatedTo ?? [])]
+      .some((id) => (wallFaceMembership.get(id) ?? 0) > 1);
   const supportChainEntities = new Set<string>();
   const stripChainEntities = new Set<string>();
   let hasStripChainOverall = false;
   const stripFamilies = new Map<string, CadEntity[]>();
-  for (const entity of visible) {
+  for (const entity of dimensionEntities) {
     if (!detailed && entity.kind !== "footing" && entity.supportFor?.some((id) => visibleIds.has(id))) continue;
     const family = stripFamily(entity);
     if (!family || !("start" in entity.geometry) || !cadStripWidth(entity)) continue;
@@ -503,102 +594,171 @@ export function getCadPlanDimensions(document: CadDocument, fontMm: number, hidd
   for (const [family, familyEntities] of orderedStripFamilies) {
     const familyPriority = stripFamilyDimensionPriority(family);
     const segmentPriority = familyPriority * 2;
-    const overallPriority = segmentPriority + 1;
-    const familyBounds = familyEntities.map((entity) => ({ entity, bounds: cadElementBounds(entity) }));
+    const interiorFamilyEntities = familyEntities.filter(isInteriorStrip);
+    const exteriorFamilyEntities = familyEntities.filter((entity) => !isInteriorStrip(entity));
+    const overallBounds = familyEntities.map((entity) => cadElementBounds(entity));
+    const overallMinX = Math.min(...overallBounds.map((bounds) => bounds.x));
+    const overallMaxX = Math.max(...overallBounds.map((bounds) => bounds.x + bounds.width));
+    const overallMinY = Math.min(...overallBounds.map((bounds) => bounds.y));
+    const overallMaxY = Math.max(...overallBounds.map((bounds) => bounds.y + bounds.height));
+    for (const entity of interiorFamilyEntities) {
+      if (!("start" in entity.geometry)) continue;
+      const dx = entity.geometry.end.x - entity.geometry.start.x;
+      const dy = entity.geometry.end.y - entity.geometry.start.y;
+      const length = Math.hypot(dx, dy);
+      if (length < 1) continue;
+      const horizontal = Math.abs(dx) >= Math.abs(dy);
+      const midpoint = {
+        x: (entity.geometry.start.x + entity.geometry.end.x) / 2,
+        y: (entity.geometry.start.y + entity.geometry.end.y) / 2,
+      };
+      const chainSide = horizontal
+        ? midpoint.y <= (overallMinY + overallMaxY) / 2 ? 1 : -1
+        : midpoint.x <= (overallMinX + overallMaxX) / 2 ? -1 : 1;
+      const chainId = `interior:${family}:${entity.id}:length`;
+      add(entity.geometry.start, entity.geometry.end, `${chainId}:segments`, chainSide,
+        formatCadDimensionMm(length), entity, {
+          anchor: entity.geometry.end, chainId, chainSide,
+          chainStart: entity.geometry.start, chainEnd: entity.geometry.end,
+          chainColor: cadEntityColor(entity), chainLane: 2, chainExtensions: false,
+          chainFixedLabels: true, color: cadEntityColor(entity), layoutPriority: segmentPriority,
+          description: `Długość wewnętrznego elementu ${entity.mark ?? ""}: ${formatCadDimensionMm(length)}.`,
+        });
+      const width = cadStripWidth(entity);
+      const nx = -dy / length;
+      const ny = dx / length;
+      const widthStart = { x: midpoint.x + nx * width / 2, y: midpoint.y + ny * width / 2 };
+      const widthEnd = { x: midpoint.x - nx * width / 2, y: midpoint.y - ny * width / 2 };
+      add(widthStart, widthEnd, `interior:${family}:${entity.id}:width`, chainSide,
+        formatCadDimensionMm(width), entity, {
+          measurementKind: "strip-width", color: cadEntityColor(entity), layoutPriority: segmentPriority,
+          description: `Grubość wewnętrznego elementu ${entity.mark ?? ""}: ${formatCadDimensionMm(width)}.`,
+        });
+      stripChainEntities.add(entity.id);
+    }
+    if (!exteriorFamilyEntities.length) continue;
+    const familyBounds = exteriorFamilyEntities.map((entity) => ({ entity, bounds: cadElementBounds(entity) }));
     const familyMinX = Math.min(...familyBounds.map(({ bounds }) => bounds.x));
     const familyMaxX = Math.max(...familyBounds.map(({ bounds }) => bounds.x + bounds.width));
     const familyMinY = Math.min(...familyBounds.map(({ bounds }) => bounds.y));
     const familyMaxY = Math.max(...familyBounds.map(({ bounds }) => bounds.y + bounds.height));
-    const familyColor = cadEntityColor(familyEntities[0]!);
-    const axesWithChains = new Set<"horizontal" | "vertical">();
+    const familyColor = cadEntityColor(exteriorFamilyEntities[0]!);
     for (const axis of ["horizontal", "vertical"] as const) {
       const horizontal = axis === "horizontal";
-      const minAlong = horizontal ? familyMinX : familyMinY;
-      const maxAlong = horizontal ? familyMaxX : familyMaxY;
-      const minAcross = horizontal ? familyMinY : familyMinX;
-      const maxAcross = horizontal ? familyMaxY : familyMaxX;
-      const candidates = familyBounds.filter(({ entity }) => {
-        if (!("start" in entity.geometry)) return false;
-        const dx = entity.geometry.end.x - entity.geometry.start.x;
-        const dy = entity.geometry.end.y - entity.geometry.start.y;
-        return horizontal ? Math.abs(dy) > Math.abs(dx) : Math.abs(dx) > Math.abs(dy);
-      });
-      let axisHasChain = false;
-      for (const side of [-1, 1]) {
-        const edge = side < 0 ? minAcross : maxAcross;
-        const intervals = candidates.flatMap(({ entity, bounds }) => {
-          const acrossStart = horizontal ? bounds.y : bounds.x;
-          const acrossEnd = horizontal ? bounds.y + bounds.height : bounds.x + bounds.width;
-          if (edge < acrossStart - 1 || edge > acrossEnd + 1) return [];
-          const start = horizontal ? bounds.x : bounds.y;
-          const end = horizontal ? bounds.x + bounds.width : bounds.y + bounds.height;
-          return [{ start, end, entity }];
-        }).sort((a, b) => a.start - b.start);
-        const merged: { start: number; end: number; entities: CadEntity[] }[] = [];
-        for (const interval of intervals) {
-          const previous = merged.at(-1);
-          if (previous && (interval.start < previous.end - 1
-            || Math.abs(interval.start - previous.start) <= 1 && Math.abs(interval.end - previous.end) <= 1)) {
-            previous.end = Math.max(previous.end, interval.end);
-            previous.entities.push(interval.entity);
-          } else merged.push({ start: interval.start, end: interval.end, entities: [interval.entity] });
+      const acrossCenter = horizontal ? (familyMinY + familyMaxY) / 2 : (familyMinX + familyMaxX) / 2;
+      const axisAcrossValues = exteriorFamilyEntities.flatMap((entity) => "start" in entity.geometry
+        ? horizontal
+          ? [entity.geometry.start.y, entity.geometry.end.y]
+          : [entity.geometry.start.x, entity.geometry.end.x]
+        : []);
+      const minAxisAcross = Math.min(...axisAcrossValues);
+      const maxAxisAcross = Math.max(...axisAcrossValues);
+      const profiles = ([-1, 1] as const).map((side) => {
+        const targetAcross = side < 0 ? minAxisAcross : maxAxisAcross;
+        const parallelEntities = familyBounds.filter(({ entity }) => {
+          if (!("start" in entity.geometry)) return false;
+          const dx = Math.abs(entity.geometry.end.x - entity.geometry.start.x);
+          const dy = Math.abs(entity.geometry.end.y - entity.geometry.start.y);
+          const perpendicular = horizontal ? dy > dx : dx >= dy;
+          if (perpendicular) return false;
+          const startAcross = horizontal ? entity.geometry.start.y : entity.geometry.start.x;
+          const endAcross = horizontal ? entity.geometry.end.y : entity.geometry.end.x;
+          const midpoint = (startAcross + endAcross) / 2;
+          return side < 0 ? midpoint <= acrossCenter + 1 : midpoint >= acrossCenter - 1;
+        });
+        const perpendicularIntervals = familyBounds.flatMap(({ entity }) => {
+          if (!("start" in entity.geometry)) return [];
+          const startAcross = horizontal ? entity.geometry.start.y : entity.geometry.start.x;
+          const endAcross = horizontal ? entity.geometry.end.y : entity.geometry.end.x;
+          const startAlong = horizontal ? entity.geometry.start.x : entity.geometry.start.y;
+          const endAlong = horizontal ? entity.geometry.end.x : entity.geometry.end.y;
+          const dx = Math.abs(entity.geometry.end.x - entity.geometry.start.x);
+          const dy = Math.abs(entity.geometry.end.y - entity.geometry.start.y);
+          const perpendicular = horizontal ? dy > dx : dx >= dy;
+          if (!perpendicular) return [];
+          const acrossDelta = endAcross - startAcross;
+          const parameter = Math.abs(acrossDelta) < 1 ? .5 : Math.max(0, Math.min(1,
+            (targetAcross - startAcross) / acrossDelta));
+          const center = startAlong + (endAlong - startAlong) * parameter;
+          const halfWidth = cadStripWidth(entity) / 2;
+          return [{ start: center - halfWidth, end: center + halfWidth, entity }];
+        });
+        const parallelStations = parallelEntities.flatMap(({ entity }) => "start" in entity.geometry
+          ? horizontal
+            ? [entity.geometry.start.x, entity.geometry.end.x]
+            : [entity.geometry.start.y, entity.geometry.end.y]
+          : []);
+        const extents = [
+          ...parallelStations,
+          ...perpendicularIntervals.flatMap(({ start, end }) => [start, end]),
+        ];
+        if (extents.length < 2) {
+          return { side, bounds: parallelEntities, intervals: perpendicularIntervals,
+            minAlong: 0, maxAlong: 0, stations: [] };
         }
-        if (merged.length < 2) continue;
-        const chainStart = horizontal ? { x: minAlong, y: edge } : { x: edge, y: minAlong };
-        const chainEnd = horizontal ? { x: maxAlong, y: edge } : { x: edge, y: maxAlong };
-        if (Math.hypot(chainEnd.x - chainStart.x, chainEnd.y - chainStart.y) < 1) continue;
-        const chainId = `strips:${family}:${axis}:${side < 0 ? "start" : "end"}`;
-        axisHasChain = true;
-        const chainSide = horizontal ? side : -side;
+        const minAlong = Math.min(...extents);
+        const maxAlong = Math.max(...extents);
+        const stations: { value: number; entity?: CadEntity }[] = [
+          { value: minAlong },
+          ...perpendicularIntervals.flatMap(({ start, end, entity }) =>
+            [{ value: start, entity }, { value: end, entity }]),
+          { value: maxAlong },
+        ];
+        const uniqueStations: typeof stations = [];
+        for (const station of stations.sort((left, right) => left.value - right.value)) {
+          const previous = uniqueStations.at(-1);
+          if (!previous || Math.abs(previous.value - station.value) > 1) uniqueStations.push(station);
+          else if (!previous.entity && station.entity) previous.entity = station.entity;
+        }
+        return { side, bounds: parallelEntities, intervals: perpendicularIntervals,
+          minAlong, maxAlong, stations: uniqueStations };
+      });
+      const sameStations = profiles[0]!.stations.length === profiles[1]!.stations.length
+        && profiles[0]!.stations.every((station, index) =>
+          Math.abs(station.value - profiles[1]!.stations[index]!.value) <= 1);
+      const renderedProfiles = sameStations ? [profiles[1]!] : profiles;
+      for (const profile of renderedProfiles) {
+        if (profile.maxAlong - profile.minAlong < 1 || profile.stations.length < 2) continue;
+        const sideName = profile.side < 0 ? "start" : "end";
+        const edge = horizontal
+          ? profile.side < 0 ? familyMinY : familyMaxY
+          : profile.side < 0 ? familyMinX : familyMaxX;
+        const chainSide = horizontal ? profile.side : -profile.side;
+        const chainStart = horizontal
+          ? { x: profile.minAlong, y: edge } : { x: edge, y: profile.minAlong };
+        const chainEnd = horizontal
+          ? { x: profile.maxAlong, y: edge } : { x: edge, y: profile.maxAlong };
+        const chainId = `strips:${family}:${axis}:${sideName}`;
         const envelopeEdge = horizontal
-          ? side < 0 ? stripEnvelope?.minY ?? edge : stripEnvelope?.maxY ?? edge
-          : side < 0 ? stripEnvelope?.minX ?? edge : stripEnvelope?.maxX ?? edge;
-        const distanceToEnvelope = Math.abs(edge - envelopeEdge);
-        const chainLane = 4 + distanceToEnvelope / fontMm + familyPriority * 8;
-        const stations = [...new Set([minAlong, maxAlong, ...merged.flatMap(({ start, end }) => [start, end])])]
-          .filter((station) => station >= minAlong - 1 && station <= maxAlong + 1).sort((a, b) => a - b);
-        for (const interval of merged) for (const entity of interval.entities) stripChainEntities.add(entity.id);
-        for (let index = 1; index < stations.length; index++) {
-          const start = stations[index - 1]!, end = stations[index]!;
+          ? profile.side < 0 ? stripEnvelope?.minY ?? edge : stripEnvelope?.maxY ?? edge
+          : profile.side < 0 ? stripEnvelope?.minX ?? edge : stripEnvelope?.maxX ?? edge;
+        const chainLane = 4 + Math.abs(edge - envelopeEdge) / fontMm + familyPriority * 8;
+        for (let index = 1; index < profile.stations.length; index++) {
+          const start = profile.stations[index - 1]!.value;
+          const end = profile.stations[index]!.value;
           if (end - start < 1) continue;
-          const midpoint = (start + end) / 2;
-          const interval = intervals.find((item) => midpoint > item.start && midpoint < item.end);
-          const width = interval && Math.abs((end - start) - cadStripWidth(interval.entity)) <= 1;
+          const widthOwner = profile.intervals.find((interval) =>
+            Math.abs(interval.start - start) <= 1 && Math.abs(interval.end - end) <= 1)?.entity;
           const from = horizontal ? { x: start, y: edge } : { x: edge, y: start };
           const to = horizontal ? { x: end, y: edge } : { x: edge, y: end };
           add(from, to, `${chainId}:segments`, chainSide, formatCadDimensionMm(end - start),
-            width ? interval.entity : undefined, {
+            widthOwner, {
               anchor: to, chainId, chainSide, chainStart, chainEnd, chainColor: familyColor, chainLane,
-              color: familyColor, measurementKind: width ? "strip-width" : undefined,
+              color: familyColor, measurementKind: widthOwner ? "strip-width" : undefined,
               layoutPriority: segmentPriority,
-              description: width ? `Grubość ${interval.entity.mark ?? "elementu"}: ${formatCadDimensionMm(end - start)}.` : undefined,
+              description: widthOwner
+                ? `Grubość ${widthOwner.mark ?? "elementu"}: ${formatCadDimensionMm(end - start)}.` : undefined,
             });
         }
+        hasStripChainOverall = true;
       }
-      if (axisHasChain) axesWithChains.add(axis);
-    }
-    for (const axis of axesWithChains) {
-      const horizontal = axis === "horizontal";
-      const start = horizontal ? { x: familyMinX, y: familyMaxY } : { x: familyMaxX, y: familyMinY };
-      const end = horizontal ? { x: familyMaxX, y: familyMaxY } : { x: familyMaxX, y: familyMaxY };
-      const side = horizontal ? 1 : -1;
-      if (Math.hypot(end.x - start.x, end.y - start.y) >= 1) {
-        const familyEdge = horizontal ? familyMaxY : familyMaxX;
-        const envelopeEdge = horizontal ? stripEnvelope?.maxY ?? familyEdge : stripEnvelope?.maxX ?? familyEdge;
-        add(start, end, "overall", side, formatCadDimensionMm(Math.hypot(end.x - start.x, end.y - start.y)),
-            undefined, { color: familyColor,
-              offsetMm: envelopeEdge - familyEdge + fontMm * (8 + familyPriority * 8),
-              lockOffset: true, layoutPriority: overallPriority });
-      }
-      hasStripChainOverall = true;
+      for (const entity of exteriorFamilyEntities) stripChainEntities.add(entity.id);
     }
   }
   const supportFaces = wallFaces.length ? wallFaces : footingFaces;
-  const supportLaneStart = (orderedStripFamilies.reduce((maximum, [family]) =>
-    Math.max(maximum, stripFamilyDimensionPriority(family)), -1) + 1) * 8 + 4;
   const supportRoles = [
-    { role: "column" as const, stationKind: "axis" as const, laneOffset: 0 },
-    { role: "pad" as const, stationKind: "edges" as const, laneOffset: 4 },
+    { role: "column" as const, chainLane: 2 },
+    { role: "pad" as const, chainLane: 5 },
   ];
   for (const [faceIndex, face] of supportFaces.entries()) {
     const roomPoints = face.inner.length ? face.inner : face.vertices;
@@ -606,7 +766,7 @@ export function getCadPlanDimensions(document: CadDocument, fontMm: number, hidd
     const roomMaxX = Math.max(...roomPoints.map((point) => point.x));
     const roomMinY = Math.min(...roomPoints.map((point) => point.y));
     const roomMaxY = Math.max(...roomPoints.map((point) => point.y));
-    for (const { role, stationKind, laneOffset } of supportRoles) {
+    for (const { role, chainLane } of supportRoles) {
       const supports = visible.flatMap((entity) => entity.kind === "construction-area"
         && entity.attributes.role === role && pointInCadPolygon(polygonCenter(entity.geometry.vertices), roomPoints)
         ? [entity] : []);
@@ -617,18 +777,12 @@ export function getCadPlanDimensions(document: CadDocument, fontMm: number, hidd
         const minAlong = horizontal ? roomMinX : roomMinY;
         const maxAlong = horizontal ? roomMaxX : roomMaxY;
         const sourceEdge = horizontal ? roomMaxY : roomMaxX;
-        const envelopeEdge = horizontal
-          ? stripEnvelope?.maxY ?? sourceEdge
-          : stripEnvelope?.maxX ?? sourceEdge;
-        const chainLane = Math.max(0, envelopeEdge - sourceEdge) / fontMm + supportLaneStart + laneOffset;
-        const chainSide = horizontal ? 1 : -1;
+        const roomDepth = horizontal ? roomMaxY - roomMinY : roomMaxX - roomMinX;
+        const inwardChainLane = Math.min(chainLane, roomDepth / (2 * fontMm));
+        const chainSide = horizontal ? -1 : 1;
         const chainStart = horizontal ? { x: minAlong, y: sourceEdge } : { x: sourceEdge, y: minAlong };
         const chainEnd = horizontal ? { x: maxAlong, y: sourceEdge } : { x: sourceEdge, y: maxAlong };
         const rawStations = supports.flatMap((entity) => {
-          if (stationKind === "axis") {
-            const center = polygonCenter(entity.geometry.vertices);
-            return [{ value: horizontal ? center.x : center.y, entity }];
-          }
           const bounds = cadElementBounds(entity);
           return horizontal
             ? [{ value: bounds.x, entity }, { value: bounds.x + bounds.width, entity }]
@@ -644,20 +798,23 @@ export function getCadPlanDimensions(document: CadDocument, fontMm: number, hidd
         let previous = chainStart;
         for (const station of stations) {
           const point = horizontal ? { x: station.value, y: sourceEdge } : { x: sourceEdge, y: station.value };
-          add(previous, point, `${chainId}:segments`, chainSide, undefined, undefined, {
-            anchor: point, fontMm: locationFontMm, chainId, chainSide, chainStart, chainEnd,
-            chainColor: cadEntityColor(station.entity), chainLane, chainExtensions: false, chainFixedLabels: true,
+          const label = formatCadDimensionMm(Math.hypot(point.x - previous.x, point.y - previous.y));
+          const labelWidthAtUnitFont = cadDimensionLabelSize(label, 1).width;
+          const segmentLength = Math.hypot(point.x - previous.x, point.y - previous.y);
+          const stationFontMm = Math.max(25, Math.min(locationFontMm, segmentLength * .85 / labelWidthAtUnitFont));
+          add(previous, point, `${chainId}:segments`, chainSide, label, undefined, {
+            anchor: point, fontMm: stationFontMm, chainId, chainSide, chainStart, chainEnd,
+            chainColor: cadEntityColor(station.entity), chainLane: inwardChainLane,
+            chainExtensions: false, chainFixedLabels: true,
             color: cadEntityColor(station.entity), layoutPriority: 6 + (role === "pad" ? 1 : 0),
-            description: stationKind === "axis"
-              ? `Położenie osi słupa ${station.entity.mark ?? ""} w pomieszczeniu.`
-              : `Położenie krawędzi stopy ${station.entity.mark ?? ""} w pomieszczeniu.`,
+            description: `Położenie krawędzi ${role === "column" ? "słupa" : "stopy"} ${station.entity.mark ?? ""} w pomieszczeniu.`,
           });
           previous = point;
         }
       }
     }
   }
-  for (const e of visible) {
+  for (const e of dimensionEntities) {
     if (!detailed && e.kind !== "footing" && e.supportFor?.some((id) => visibleIds.has(id))) continue;
     if ("start" in e.geometry) {
       const width = cadStripWidth(e);

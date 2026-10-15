@@ -6,7 +6,7 @@ export async function cadRequest(path: string, body: unknown, method = "POST"): 
   if (!data.session) throw new Error("Sesja wygasła. Zaloguj się ponownie.");
   const response = await fetch(path, {
     method, headers: { "Content-Type": "application/json", Authorization: `Bearer ${data.session.access_token}` },
-    body: method === "DELETE" ? undefined : JSON.stringify(body), cache: "no-store",
+    body: method === "DELETE" || method === "GET" ? undefined : JSON.stringify(body), cache: "no-store",
   });
   const result: unknown = await response.json();
   if (!response.ok) {

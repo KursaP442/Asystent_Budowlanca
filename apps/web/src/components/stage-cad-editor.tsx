@@ -6,8 +6,9 @@ import { CadDocumentSchema, CadEntitySchema, cadDrawingTools, cadEntityTool, fou
   type ConstructionTechnologySelections, type CadDrawingTool, type ProjectDocumentationKind, type CadDocument, type CadEntity, type CadPoint } from "@asystent/schemas";
 import { calibrateCadSource, classifyCadTrace, connectCadWallJunctions, copyCadGeometry, createCadElement, entityPoints, hasCadJunctions, moveCadJunction, projectCadWallElevations,
   projectPointOnSegment, snapCadConnection, translateCadEntity, translateConnectedCadEntity, updateConnectedCadEntity } from "@asystent/domain";
-import { configureFoundationWall, foundationPlanExtents, resizeCadRectangle, resizeCadStrip, synchronizeFoundationSupports, synchronizeReinforcementPlacement } from "@asystent/domain";
-import { synchronizeFoundationSections } from "@asystent/domain";
+import { configureFoundationWall, foundationPlanExtents, resizeCadRectangle, resizeCadStrip, synchronizeFoundationSupports,
+  synchronizeReinforcementHostChains, synchronizeReinforcementPlacement } from "@asystent/domain";
+import { addDetectedFoundationSections, synchronizeFoundationSections } from "@asystent/domain";
 import { assignCadMarks, attachCadElement, cadElementBounds, cadEntityColor as entityColor, cadLayerOutline, cadLayerSides, foundationSetupFromSettings,
   getCadPlanDimensions, getCadPlanFaces, pointInCadPolygon, polygonCenter, synchronizeCadAttachments, synchronizeCadInfill } from "@asystent/domain";
 import { setCadWallHeightForRoom } from "@asystent/domain";
@@ -155,18 +156,22 @@ function toolHelp(item: ToolDefinition) {
   return `Przeciągnij po płótnie, aby narysować: ${item.label.toLocaleLowerCase("pl-PL")}.`;
 }
 
-export function StageCadEditor({ jobId, requirementId, title, kind, sources, technology, basement, disabled, technologyHints, onPendingChange, onSavedDrawing, viewMode = "plan", demoMode = false }: {
+export function StageCadEditor({ jobId, requirementId, completionId, title, kind, sources, technology, basement, disabled,
+  technologyHints, onPendingChange, onSavedDrawing, onOpenFoundationSections, viewMode = "plan", demoMode = false }: {
   jobId: string; requirementId: string; title: string; kind: ProjectDocumentationKind;
+  completionId?: string;
   sources: { id: string; label: string }[];
   technologyHints: { label: string; material: string; thermal: boolean }[];
   technology: ConstructionTechnologySelections;
   basement: boolean;
   disabled: boolean;
   viewMode?: "plan" | "foundation-sections";
+  onOpenFoundationSections?: () => void;
   onPendingChange: (pending: boolean) => void; onSavedDrawing: (id: string, count: number) => void;
   demoMode?: boolean;
 }) {
   const allowedTools = getCadDrawingTools(kind, title, technology, basement);
+  const foundationPlanSourceId = sources.find((source) => /rzut fundamentów/i.test(source.label))?.id ?? "";
   const [storedDrawing, setDrawing] = useState<CadDocument | null>(null);
   const [previewDrawing, setPreviewDrawing] = useState<CadDocument | null>(null);
   const drawing = previewDrawing ?? storedDrawing;
@@ -320,6 +325,7 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
     async function load() {
       let next: CadDocument;
       let revision = 0;
+      const reinforcementDrawing = /zbrojen|prętów/i.test(title);
       if (demoMode) {
         const storageKey = demoCadDrawingStorageKey(jobId, requirementId);
         const stored = readDemoValue(storageKey);
@@ -347,6 +353,12 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
             .find((item) => item.requirementId.startsWith("foundation") && item.foundationSettings);
           if (previous?.foundationSettings) next = { ...next, foundationSettings: previous.foundationSettings };
         }
+        if (reinforcementDrawing && !next.entities.length && foundationPlanSourceId) {
+          const sourcePayload = readDemoValue(demoCadDrawingStorageKey(jobId, foundationPlanSourceId));
+          if (sourcePayload) {
+            next = copyCadGeometry(CadDocumentSchema.parse(sourcePayload), next, () => crypto.randomUUID());
+          }
+        }
       } else {
         const { data, error: loadError } = await getSupabaseClient().from("cad_drawings").select("*")
           .eq("job_id", jobId).eq("requirement_id", requirementId).maybeSingle();
@@ -363,19 +375,28 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
           if (settingsError) throw settingsError;
           if (previous) next = { ...next, foundationSettings: CadDocumentSchema.parse(previous.payload).foundationSettings };
         }
+        if (reinforcementDrawing && !next.entities.length && foundationPlanSourceId) {
+          const { data: sourceData, error: sourceError } = await getSupabaseClient().from("cad_drawings").select("payload")
+            .eq("job_id", jobId).eq("requirement_id", foundationPlanSourceId).maybeSingle();
+          if (sourceError) throw sourceError;
+          if (sourceData) next = copyCadGeometry(CadDocumentSchema.parse(sourceData.payload), next, () => crypto.randomUUID());
+        }
       }
-      const marked = assignCadMarks(next), missingMarks = marked.entities.some((e, i) => e.mark !== next.entities[i]?.mark);
-      next = marked;
+      const marked = assignCadMarks(next);
+      const withSections = viewMode === "foundation-sections" && kind === "foundation"
+        ? addDetectedFoundationSections(marked) : marked;
+      const generatedChanges = JSON.stringify(withSections) !== JSON.stringify(next);
+      next = withSections;
       if (active) {
         latest.current = next; savedRevision.current = revision; setDrawing(next);
-        if (missingMarks) { sequence.current += 1; setDirty(true); setStatus("Zapisywanie oznaczeń istniejących elementów…"); }
-        setError(""); fit(next); onPendingChange(missingMarks); onSavedDrawing(requirementId, next.entities.length);
+        if (generatedChanges) { sequence.current += 1; setDirty(true); setStatus("Zapisywanie oznaczeń i przekrojów automatycznych…"); }
+        setError(""); fit(next); onPendingChange(generatedChanges); onSavedDrawing(completionId ?? requirementId, next.entities.length);
       }
     }
     void load().catch((cause) => { if (active) { setError(cadError(cause)); onPendingChange(true); } });
     return () => { active = false; alive.current = false; };
-  }, [jobId, requirementId, loadAttempt, fit, onPendingChange, onSavedDrawing, demoMode,
-    kind, basement, technology, technologyHints]);
+  }, [jobId, requirementId, completionId, loadAttempt, fit, onPendingChange, onSavedDrawing, demoMode,
+    kind, basement, technology, technologyHints, viewMode, title, foundationPlanSourceId]);
 
   const sourcePath = drawing?.sourceImage?.storagePath;
   useEffect(() => {
@@ -412,7 +433,7 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
         const pending = sequence.current !== currentSequence;
         setDirty(pending); onPendingChange(pending || !!gesture.current); setError("");
         setStatus(pending ? "Niezapisane zmiany…" : demoMode ? "Rysunek zapisany lokalnie." : "Rysunek zapisany automatycznie.");
-        onSavedDrawing(requirementId, snapshot.entities.length);
+        onSavedDrawing(completionId ?? requirementId, snapshot.entities.length);
       }
       return true;
     } catch (cause) {
@@ -422,7 +443,7 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
       savingRef.current = false;
       if (alive.current) setSaving(false);
     }
-  }, [onPendingChange, onSavedDrawing, requirementId, jobId, demoMode]);
+  }, [onPendingChange, onSavedDrawing, requirementId, completionId, jobId, demoMode]);
 
   async function saveAndExitCanvas() {
     if ((dirty || sequence.current !== savedSequence.current) && !await persist()) return;
@@ -444,9 +465,9 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
 
   function commit(next: CadDocument, remember = true) {
     try {
-      const parsed = CadDocumentSchema.parse(assignCadMarks(synchronizeCadInfill(synchronizeReinforcementPlacement(
+      const parsed = CadDocumentSchema.parse(assignCadMarks(synchronizeCadInfill(synchronizeReinforcementHostChains(synchronizeReinforcementPlacement(
         synchronizeFoundationSections(synchronizeFoundationSupports(connectCadWallJunctions(synchronizeCadAttachments({
-          ...next, status: "draft", revision: savedRevision.current }), () => crypto.randomUUID()), () => crypto.randomUUID()))))));
+          ...next, status: "draft", revision: savedRevision.current }), () => crypto.randomUUID()), () => crypto.randomUUID())))))));
       getCadPlanFaces(parsed);
       if (parsed.entities.some((entity) => "vertices" in entity.geometry && !isSimplePolygon(entity.geometry.vertices))) {
         throw new Error("Obrys jest zdegenerowany lub przecina sam siebie. Popraw współrzędne.");
@@ -655,8 +676,8 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
     } else if (tool === "select" && gesture.current?.entityId) {
       if (distanceBetweenPoints(gesture.current.start, point) > view.width * 2 / event.currentTarget.getBoundingClientRect().width)
         event.currentTarget.setPointerCapture(event.pointerId);
-      try { setPreviewDrawing(synchronizeCadInfill(synchronizeReinforcementPlacement(
-        synchronizeFoundationSupports(synchronizeCadAttachments(dragSelection(gesture.current, point)), () => crypto.randomUUID())))); setError(""); }
+      try { setPreviewDrawing(synchronizeCadInfill(synchronizeReinforcementHostChains(synchronizeReinforcementPlacement(
+        synchronizeFoundationSupports(synchronizeCadAttachments(dragSelection(gesture.current, point)), () => crypto.randomUUID()))))); setError(""); }
       catch (cause) { setError(cadError(cause)); }
     } else {
       setGhost(point);
@@ -980,9 +1001,13 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
         : tools.find((item) => item.id === tool)?.label ?? entityLabels[entity.kind] ?? entity.kind,
     }] as const];
   })).entries()];
+  const mobileDimensionFonts = canvasWidth <= 700;
+  const dimensionFontPx = mobileDimensionFonts ? 6 : 7;
+  const locationDimensionFontPx = mobileDimensionFonts ? 5 : 6;
   const dimensionFont = exporting ? 2.5 * (drawing?.paperScale ?? 100)
-    : view.width * 8 / Math.max(1, canvasWidth);
-  const locationDimensionFont = exporting ? dimensionFont : view.width * 7 / Math.max(1, canvasWidth);
+    : view.width * dimensionFontPx / Math.max(1, canvasWidth);
+  const locationDimensionFont = exporting ? dimensionFont
+    : view.width * locationDimensionFontPx / Math.max(1, canvasWidth);
   const planLayout = useMemo(() => {
     let faces: ReturnType<typeof getCadPlanFaces> = [];
     let dimensions: ReturnType<typeof getCadPlanDimensions> = [];
@@ -1130,9 +1155,30 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
   if (viewMode === "foundation-sections" && kind === "foundation") return <div className="cad-editor cad-foundation-sections-view" inert={disabled} aria-busy={disabled}>
     {error && <div role="alert" className="alert alert-error">{error}<button type="button" className="quiet-button" onClick={() => setLoadAttempt((value) => value + 1)}>Ponów wczytywanie rysunku</button></div>}
     {!drawing ? <p role="status">Wczytywanie rzutu fundamentów…</p> : <CadFoundationSections drawing={drawing}
+      technologyHints={technologyHints}
+      canUndo={history.length > 0} canRedo={future.length > 0} onUndo={() => undo()} onRedo={() => undo(true)}
       selectedEntityId={selectedId} sourceUrl={sourceUrl}
       onSelectEntity={(id) => { setSelectedId(id); setTool("select"); }}
       onChange={(next) => commit(next)} />}
+  </div>;
+
+  if (/zbrojen|prętów/i.test(title)) return <div className="cad-editor cad-reinforcement-view" inert={disabled} aria-busy={disabled}>
+    <div className="cad-heading"><div><h3>{title}</h3>
+      <p>Rzut konstrukcji jest podkładem tylko do odczytu. Wybierz etap, kliknij element i zaprojektuj jego zbrojenie.</p></div>
+      <div className="cad-heading-actions">
+        <button type="button" className="quiet-button" disabled={!history.length} onClick={() => undo()}>Cofnij</button>
+        <button type="button" className="quiet-button" disabled={!future.length} onClick={() => undo(true)}>Ponów</button>
+      </div></div>
+    {error && <div role="alert" className="alert alert-error">{error}
+      {drawing ? <button type="button" className="quiet-button" disabled={saving} onClick={() => { setError(""); void persist(); }}>Ponów zapis rysunku</button>
+        : <button type="button" className="quiet-button" onClick={() => setLoadAttempt((value) => value + 1)}>Ponów wczytywanie rysunku</button>}</div>}
+    {!drawing ? <p role="status">Wczytywanie rzutu konstrukcji…</p> : <>
+      <CadReinforcementPanel document={drawing} hosts={drawing.entities} entities={drawing.entities}
+        foundationRingBeam={technology.foundationRingBeam} demoMode={demoMode}
+        onUpdate={(entities) => commit({ ...drawing, entities })} onDocumentUpdate={(next) => commit(next)}
+        onCreate={(entities) => commit({ ...drawing, entities: [...drawing.entities, ...entities] })} />
+      <p className="cad-save-status" role="status">{saving ? "Zapisywanie rysunku…" : status || "Szkic projektu · jednostki mm"}</p>
+    </>}
   </div>;
 
   return <div className={`cad-editor${fullScreen ? " cad-editor-fullscreen" : ""}${mobileSettingsOpen ? " cad-editor-settings-open" : ""}`} inert={disabled} aria-busy={disabled}>
@@ -1234,9 +1280,14 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
             </label>)}
           </details>}
           {allowedTools.includes("foundation-wall") &&
-            <CadFoundationPanel technology={technology} hints={technologyHints}
+            <CadFoundationPanel technology={technology} hints={technologyHints} drawing={drawing} title={title}
               values={drawing.foundationSettings ?? initialFoundationSettings(technology)}
               onChange={(foundationSettings) => commit({ ...drawing, foundationSettings })}
+              onDrawingChange={(next) => commit(next)}
+              onSaveDraft={persist}
+              onContinue={persist}
+              onOpenSections={() => onOpenFoundationSections?.()}
+              onSelectEntity={(id) => { setSelectedId(id); chooseTool("select"); }}
               onUpdate={selected?.kind === "construction-line" && selected.attributes.role === "foundation-wall"
               ? (setup) => updateSelected(configureFoundationWall(selected, setup)) : undefined} />}
           {kind === "foundation" && allowedTools.includes("slab") && <fieldset>
@@ -1247,9 +1298,13 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
             <label>Beton płyty dennej<input value={drawing.foundationSettings?.slabMaterial ?? ""} onChange={(e) => commit({ ...drawing,
               foundationSettings: { ...(drawing.foundationSettings ?? initialFoundationSettings(technology)), slabMaterial: e.target.value } })} /></label>
           </fieldset>}
-          {(allowedTools.includes("rebar-line") || /strop/i.test(title)) && <CadReinforcementPanel hosts={drawing.entities} selectedHostId={selectedId} onCreate={(entities) => {
-            const next = { ...drawing, entities: [...drawing.entities, ...entities] }; commit(next); fit(next);
-          }} />}
+          {(allowedTools.includes("rebar-line") || /strop/i.test(title)) && <CadReinforcementPanel document={drawing}
+            hosts={drawing.entities} entities={drawing.entities} foundationRingBeam={technology.foundationRingBeam}
+            demoMode={demoMode}
+            onUpdate={(entities) => commit({ ...drawing, entities })} onDocumentUpdate={(next) => commit(next)}
+            onCreate={(entities) => {
+              const next = { ...drawing, entities: [...drawing.entities, ...entities] }; commit(next); fit(next);
+            }} />}
           <details className="cad-generator"><summary>Wykorzystaj wcześniejszy rysunek</summary>
             <label htmlFor="cad-source-drawing">Rysunek źródłowy</label><select id="cad-source-drawing" value={sourceDrawing} onChange={(event) => setSourceDrawing(event.target.value)}>
               <option value="">Wybierz zapisany rysunek</option>
@@ -1293,7 +1348,7 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
                 attributes: { ...selected.attributes, fontSizeMm: Number(e.target.value) } }) : setAnnotationFont(e.target.value)} /></label>
           </div>
           <div className="cad-canvas-frame">
-          <svg ref={svgRef} className="cad-canvas" role="img" aria-label={`Płótno projektu: ${title}`} tabIndex={fullScreen ? 0 : -1}
+          <svg id="cad-canvas" ref={svgRef} className="cad-canvas" role="img" aria-label={`Płótno projektu: ${title}`} tabIndex={fullScreen ? 0 : -1}
             viewBox={`${view.x} ${view.y} ${view.width} ${view.height}`} preserveAspectRatio="none"
             onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp}
             onPointerCancel={pointerCancel}
@@ -1503,8 +1558,10 @@ export function StageCadEditor({ jobId, requirementId, title, kind, sources, tec
             {selected.supportFor && <p>Podparcie generowane z obwodu ścian. Zmieniaj parametry i geometrię ścian, nie tej kopii.</p>}
             {selected.placement && <p>Układ przypisany do podparcia. {selected.placement.needsReview
               ? "Długość podparcia zmieniona — usuń układ i utwórz ponownie według projektu." : "Położenie podąża za przesunięciem i obrotem podparcia."}</p>}
-            {selected.mark && <label>Identyfikator elementu<input value={selected.mark} maxLength={40}
-              onChange={(e) => updateSelected({ ...selected, mark: e.target.value })} /></label>}
+            {(selected.mark || selected.kind === "construction-line" && selected.attributes.role === "axis") &&
+              <label>{selected.kind === "construction-line" && selected.attributes.role === "axis" ? "Oznaczenie osi" : "Identyfikator elementu"}
+                <input value={selected.mark ?? ""} maxLength={40}
+                  onChange={(e) => updateSelected({ ...selected, mark: e.target.value.trim() ? e.target.value : undefined })} /></label>}
             {selected.attachment && <p>Przyczepiony do {drawing.entities.find((e) => e.id === selected.attachment?.hostId)?.mark ?? "ściany"}.
               Przesunięcie i obrót ściany przenoszą element.</p>}
             {(selected.kind === "wall" || selected.kind === "construction-line" && selected.attributes.role === "foundation-wall")

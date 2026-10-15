@@ -660,6 +660,7 @@ async function fillTechnology(page, workType) {
     await selectTechnology(page, "foundationWalls", "concrete-block-24", "Bloczki betonowe murowane");
     await expect(foundationFormwork).toHaveCount(0);
     await selectTechnology(page, "foundationWalls", "monolithic-foundation-wall", "Ściana monolityczna");
+    await selectTechnology(page, "foundationRingBeam", "project", "Zgodnie z projektem");
     await selectTechnology(page, "floorStructure", "monolithic", "Strop monolityczny");
     await selectTechnology(page, "roofStructure", "rafter-roof", "Więźba krokwiowa");
     await selectTechnology(page, "roofSlopePlate", "sloped-plate-yes", "Tak — żelbetowa płyta skośna");
@@ -1345,7 +1346,7 @@ test("stage canvas draws, edits, undoes, autosaves and imports AI proposal with 
   await expect(editor.getByRole("status")).toContainText("Rysunek zapisany automatycznie");
   await returnToPanelFromDocumentation(page);
 });
-test("scoped CAD workspace zooms, joins corners, shows layers, reuses plans and creates reinforcement", async ({ page, request }) => {
+test("scoped CAD workspace zooms, joins corners, shows layers, reuses plans and keeps reinforcement stage-based", async ({ page, request }) => {
   test.setTimeout(90000);
   const owner = await createAccount();
   await page.setViewportSize({width:1440,height:1100});
@@ -1430,28 +1431,21 @@ test("scoped CAD workspace zooms, joins corners, shows layers, reuses plans and 
   await expect(editor.getByRole("status")).toContainText("Rysunek zapisany automatycznie");
   await page.getByRole("tab", {name:"Rzut stropu, detale konstrukcyjne i zbrojenie",exact:true}).click();
   await expect(canvas).toBeVisible();
-  await editor.getByText("Kreator zbrojenia belki / płyty", {exact:true}).click();
-  for (const [label,value] of [
-    ["Początek X (mm)","0"],["Początek Y (mm)","0"],["Długość układu (mm)","4000"],["Szerokość układu (mm)","400"],
-    ["Otulina układu (mm)","40"],["Średnica prętów podłużnych (mm)","12"],
-    ["Średnica prętów poprzecznych / strzemion (mm)","8"],["Rozstaw poprzeczny (mm)","200"],
-    ["Liczba prętów podłużnych","4"],["Stal według projektu","B500"],["Numer rysunku konstrukcyjnego","K-03"],
-    ["Wysokość przekroju belki (mm)","600"],["Liczba prętów górnych","2"],
-  ]) await editor.getByLabel(label,{exact:true}).fill(value);
-  await editor.getByRole("button", {name:"Narysuj układ zbrojenia",exact:true}).click();
-  await expect(canvas.locator("[data-entity-id].cad-entity")).toHaveCount(28);
-  await expect(editor.getByRole("status")).toContainText("Rysunek zapisany automatycznie");
+  await expect(editor.getByRole("heading", {name:"Detale zbrojenia i zestawienie prętów",exact:true})).toBeVisible();
+  await expect(editor.getByRole("button", {name:"Kreator zbrojenia belki / płyty",exact:true})).toHaveCount(0);
+  await expect(editor.getByText("Brak rozpoznanych elementów konstrukcyjnych.", {exact:false})).toBeVisible();
+  await expect(canvas.locator("[data-entity-id].cad-entity")).toHaveCount(3);
   const steps = page.getByRole("navigation", {name:"Kroki budowy"});
   await steps.getByRole("button", {name:"Materiały i technologia",exact:false}).click();
   await expect(page.getByRole("tab", {name:"Materiały i technologia",exact:true})).toHaveAttribute("aria-selected","true");
   await page.getByRole("button", {name:"Przejdź dalej",exact:true}).click();
   await page.getByRole("tab", {name:"Rzut stropu, detale konstrukcyjne i zbrojenie",exact:true}).click();
-  await expect(canvas.locator("[data-entity-id].cad-entity")).toHaveCount(28);
+  await expect(canvas.locator("[data-entity-id].cad-entity")).toHaveCount(3);
   await page.reload();
   await page.getByRole("button", {name:"Edytuj",exact:true}).click();
   await page.getByRole("button", {name:"Przejdź dalej",exact:true}).click();
   await page.getByRole("tab", {name:"Rzut stropu, detale konstrukcyjne i zbrojenie",exact:true}).click();
-  await expect(canvas.locator("[data-entity-id].cad-entity")).toHaveCount(28);
+  await expect(canvas.locator("[data-entity-id].cad-entity")).toHaveCount(3);
   await expect(progress.locator('button[data-completion="saved"]')).toHaveCount(1);
   await page.screenshot({path:test.info().outputPath("specialized-cad-desktop.png"),fullPage:true});
   await page.setViewportSize({width:390,height:844});
@@ -1546,7 +1540,7 @@ test("CAD smooth live drag, exterior dimensions and editable foundation rectangl
   await page.getByRole("button", {name:"Przejdź dalej",exact:true}).click();
   await expect(canvas.locator(".cad-entity").last()).toContainText("1800 × 1200");
 });
-test("foundation wall generates linked footing or closed slab, isolation and graphic host-bound beam persist", async ({ page, request }) => {
+test("foundation wall generates linked footing or closed slab and the host-bound reinforcement editor persists", async ({ page, request }) => {
   test.setTimeout(90000);
   await page.setViewportSize({width:1440,height:1200});
   const owner = await createAccount(), title = `Fundament powiązany ${randomUUID()}`;
@@ -1557,6 +1551,7 @@ test("foundation wall generates linked footing or closed slab, isolation and gra
   await page.getByRole("tab", {name:"Materiały i technologia",exact:true}).click();
   await selectTechnology(page,"foundationInsulation","foundation-xps","Płyty XPS");
   await selectTechnology(page,"foundationWaterproofing","kmb-coating","Grubowarstwowa masa");
+  await selectTechnology(page,"foundationRingBeam","foundation-ring-beam-yes","Tak — wieniec górny");
   await page.getByRole("button", {name:"Przejdź dalej",exact:true}).click();
   const editor = page.locator(".cad-editor"), canvas = editor.getByRole("img", {name:/Płótno projektu/});
   await editor.getByRole("button", {name:"Ściana fundamentowa",exact:true}).click();
@@ -1611,67 +1606,66 @@ test("foundation wall generates linked footing or closed slab, isolation and gra
   await expect(canvas.locator(".cad-entity")).toHaveCount(7);
   await expect(editor.getByRole("status")).toContainText("Rysunek zapisany automatycznie");
   await page.getByRole("tab", {name:"Detale zbrojenia i zestawienie prętów",exact:true}).click();
-  await editor.locator("summary").filter({hasText:"Wykorzystaj wcześniejszy rysunek"}).click();
-  await editor.getByLabel("Rysunek źródłowy",{exact:true}).selectOption("foundation-drawing-0");
-  await editor.getByRole("button", {name:"Dodaj kopię geometrii",exact:true}).click();
-  await expect(canvas.locator(".cad-entity")).toHaveCount(7);
-  await editor.locator(".cad-element-list button").filter({hasText:"Ściana fundamentowa"}).first().click();
-  await editor.getByRole("button",{name:"Kreator zbrojenia belki / płyty",exact:true}).click();
-  for (const [label,value] of [
-    ["Długość układu (mm)","4000"],["Szerokość układu (mm)","300"],["Wysokość przekroju belki (mm)","500"],
-  ]) await editor.getByLabel(label,{exact:true}).fill(value);
-  const graphic = editor.getByRole("img",{name:"Graficzny przekrój belki",exact:true});
-  await expect(graphic).toBeVisible();
-  await graphic.scrollIntoViewIfNeeded();
-  const grip = await graphic.locator("[data-resize]").boundingBox();
-  const graphicBounds = await graphic.boundingBox();
-  const graphicView = (await graphic.getAttribute("viewBox")).split(" ").map(Number);
-  const mmPerPixel = Math.max(graphicView[2] / graphicBounds.width, graphicView[3] / graphicBounds.height);
-  await page.mouse.move(grip.x+grip.width/2,grip.y+grip.height/2); await page.mouse.down();
-  await page.mouse.move(grip.x+grip.width/2+5,grip.y+grip.height/2+5); await page.mouse.up();
-  expect(Number(await editor.getByLabel("Szerokość układu (mm)",{exact:true}).inputValue())).toBe(Math.round(300 + 5 * mmPerPixel));
-  expect(Number(await editor.getByLabel("Wysokość przekroju belki (mm)",{exact:true}).inputValue())).toBe(Math.round(500 + 5 * mmPerPixel));
-  await editor.getByLabel("Szerokość układu (mm)",{exact:true}).fill("300");
-  await editor.getByLabel("Wysokość przekroju belki (mm)",{exact:true}).fill("500");
-  for (const [label,value] of [
-    ["Otulina układu (mm)","40"],["Średnica prętów podłużnych (mm)","12"],
-    ["Średnica prętów poprzecznych / strzemion (mm)","8"],["Rozstaw poprzeczny (mm)","200"],
-    ["Liczba prętów podłużnych","4"],["Liczba prętów górnych","2"],["Stal według projektu","B500"],["Numer rysunku konstrukcyjnego","K-03"],
-  ]) await editor.getByLabel(label,{exact:true}).fill(value);
-  await expect(graphic.locator(".cad-beam-section circle")).toHaveCount(4);
-  await expect(editor.getByRole("img",{name:"Graficzny rzut zbrojenia",exact:true})).toBeVisible();
-  await editor.getByRole("button",{name:"Użyj elementu zaznaczonego na canvas",exact:true}).click();
-  await editor.getByLabel("Odległość od początku podparcia (mm)",{exact:true}).fill("100");
-  await page.screenshot({path:test.info().outputPath("graphic-reinforcement-wizard.png"),fullPage:true});
-  await page.setViewportSize({width:390,height:844});
-  expect(await page.getByRole("dialog",{name:"Graficzny kreator zbrojenia",exact:true})
-    .evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(false);
-  await page.screenshot({path:test.info().outputPath("graphic-reinforcement-wizard-mobile.png"),fullPage:true});
-  await page.setViewportSize({width:1440,height:1200});
-  await editor.getByRole("button", {name:"Narysuj układ zbrojenia",exact:true}).click();
-  await expect(canvas.locator(".cad-entity")).toHaveCount(35);
-  await expect(canvas.locator(".cad-beam-section circle")).toHaveCount(4);
+  await expect(editor.getByRole("heading", {name:"Detale zbrojenia i zestawienie prętów",exact:true})).toBeVisible();
+  await expect(editor.getByRole("button",{name:"Kreator zbrojenia belki / płyty",exact:true})).toHaveCount(0);
+  await expect(editor.locator(".cad-toolbar, .cad-tool-button")).toHaveCount(0);
+  await expect(editor.locator(".cad-reinforcement-stage-canvas")).toBeVisible();
+  const reinforcementStages = editor.getByRole("navigation",{name:"Etapy zbrojenia",exact:true});
+  await expect(reinforcementStages.getByRole("button",{name:/Ławy fundamentowe/})).toHaveCount(1);
+  await expect(reinforcementStages.getByRole("button",{name:/Ściany fundamentowe/})).toHaveCount(1);
+  await expect(reinforcementStages.getByRole("button",{name:/Wieńce fundamentowe/})).toHaveCount(1);
+  await reinforcementStages.getByRole("button",{name:/Ściany fundamentowe/}).click();
+  const foundationWallElementCount = await editor.locator(".cad-reinforcement-stage-shape").count();
+  await reinforcementStages.getByRole("button",{name:/Wieńce fundamentowe/}).click();
+  await expect(editor.locator(".cad-reinforcement-stage-shape")).toHaveCount(foundationWallElementCount);
+  await editor.locator(".cad-reinforcement-stage-picker button").first().click();
+  const reinforcementDialog = editor.getByRole("dialog",{name:"Detale zbrojenia elementu",exact:true});
+  await expect(reinforcementDialog).toBeVisible();
+  await expect(reinforcementDialog.getByRole("tab",{name:"Rysunek 2D",exact:true})).toBeVisible();
+  await expect(reinforcementDialog.getByRole("tab",{name:"Widok 3D",exact:true})).toBeVisible();
+  const ringBeam = reinforcementDialog.getByRole("region",{name:"Wieniec górny ściany fundamentowej",exact:true});
+  await expect(ringBeam.getByLabel("Szerokość wieńca (mm)",{exact:true})).toHaveValue("240");
+  await ringBeam.getByLabel("Wysokość wieńca (mm)",{exact:true}).fill("250");
+  await ringBeam.getByLabel("Materiał / beton wieńca",{exact:true}).fill("C25/30");
+  await ringBeam.getByLabel("Numer rysunku konstrukcyjnego",{exact:true}).fill("K-04");
+  await ringBeam.getByRole("button",{name:"Dodaj wieniec górny",exact:true}).click();
+  await ringBeam.getByRole("button",{name:"Otwórz zbrojenie wieńca",exact:true}).click();
+  await expect(reinforcementDialog.getByRole("button",{name:"Wróć do ściany fundamentowej",exact:true})).toBeVisible();
+  await reinforcementDialog.getByRole("button",{name:"Edytuj pręty",exact:true}).click();
+  const customBar = reinforcementDialog.locator(".cad-custom-bar-editor");
+  await customBar.getByLabel("Gatunek stali",{exact:true}).fill("B500");
+  await customBar.getByLabel("Numer rysunku konstrukcyjnego",{exact:true}).fill("K-04");
+  await reinforcementDialog.getByRole("button",{name:"Dodaj pręt do elementu",exact:true}).click();
+  await expect(reinforcementDialog.locator(".cad-reinforcement-3d svg")).toBeVisible();
   await expect(editor.getByRole("status")).toContainText("Rysunek zapisany automatycznie");
+  await page.screenshot({path:test.info().outputPath("reinforcement-element-editor.png"),fullPage:true});
+  await page.setViewportSize({width:390,height:844});
+  expect(await reinforcementDialog
+    .evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(false);
+  await page.screenshot({path:test.info().outputPath("reinforcement-element-editor-mobile.png"),fullPage:true});
+  await page.setViewportSize({width:1440,height:1200});
   const {data:result,error:resultError} = await admin.from("cad_drawings").select("payload")
     .eq("job_id",job.id).eq("requirement_id","foundation-drawing-2").single();
   if (resultError) throw resultError;
   expect(result.payload.documentReferences.geotechnics).toBe("Opinia geotechniczna G-01");
-  const beam = result.payload.entities.find((e) => e.kind === "rebar-annotation");
-  expect(beam.placement.hostId).toBeTruthy();
-  expect(result.payload.entities.some((e) => e.id === beam.placement.hostId)).toBe(true);
-  expect(beam.attributes.section).toMatchObject({widthMm:300,heightMm:500,topCount:2,bottomCount:2});
-  await page.screenshot({path:test.info().outputPath("foundation-graphic-beam.png"),fullPage:true});
+  const topRingBeam = result.payload.entities.find((entity) => entity.kind === "construction-line"
+    && entity.attributes.role === "ring-beam" && entity.relatedTo?.length);
+  expect(topRingBeam.attributes).toMatchObject({widthMm:240,heightMm:250,material:"C25/30",designReference:"K-04"});
+  const bar = result.payload.entities.find((entity) => entity.kind === "rebar-line");
+  expect(bar.placement.hostId).toBe(topRingBeam.id);
+  expect(bar.attributes).toMatchObject({diameterMm:12,steelGrade:"B500",designReference:"K-04"});
+  expect(bar.shape.bends).toHaveLength(1);
+  await reinforcementDialog.getByRole("button",{name:"Zamknij detale",exact:true}).click();
   await page.reload();
   await page.getByRole("button", {name:"Edytuj",exact:true}).click();
   await page.getByRole("button", {name:"Przejdź dalej",exact:true}).click();
   await page.getByRole("tab", {name:"Detale zbrojenia i zestawienie prętów",exact:true}).click();
-  await expect(canvas.locator(".cad-beam-section circle")).toHaveCount(4);
-  await editor.locator(".cad-element-list button").filter({hasText:"Ściana fundamentowa"}).first().click();
-  await editor.getByLabel("Punkt 1 X (mm)",{exact:true}).fill("1100");
-  await editor.getByLabel("Punkt 1 X (mm)",{exact:true}).press("Tab");
-  await expect(editor.getByRole("status")).toContainText("Rysunek zapisany automatycznie");
-  await editor.locator(".cad-element-list button").filter({hasText:"Przekrój belki"}).click();
-  await expect(editor.locator(".cad-inspector")).toContainText("Długość podparcia zmieniona");
+  await reinforcementStages.getByRole("button",{name:/Wieńce fundamentowe/}).click();
+  await editor.locator(".cad-reinforcement-stage-picker button").first().click();
+  await ringBeam.getByRole("button",{name:"Otwórz zbrojenie wieńca",exact:true}).click();
+  await reinforcementDialog.getByRole("tab",{name:"Pręty i edycja",exact:true}).click();
+  await expect(reinforcementDialog.locator(".cad-reinforcement-bar")).toHaveCount(1);
+  await expect(editor.getByLabel("Punkt 1 X (mm)",{exact:true})).toHaveCount(0);
 });
 test("CAD connects nearby wall corners and T joints, preserves shared movement and expands workspace", async ({ page }) => {
   test.setTimeout(90000);

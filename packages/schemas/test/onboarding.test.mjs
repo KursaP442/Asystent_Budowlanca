@@ -7,6 +7,7 @@ const houseTechnology = {
   completionStandard: "turnkey",
   foundationType: ["strip-footings"],
   foundationWalls: "project",
+  foundationRingBeam: "project",
   foundationWaterproofing: "project",
   foundationDimpleMembrane: "project",
   foundationInsulation: "project",
@@ -141,6 +142,17 @@ test("construction validates required technology choices, date and measurements 
 test("foundation selection allows multiple values and only requires shuttering for monolithic foundation walls", () => {
   const base = {...construction, technology_selections:houseTechnology};
   assert.equal(ConstructionInputSchema.safeParse(base).success, true);
+  assert.equal(getConstructionTechnologyStages("house",houseTechnology).includes("foundationRingBeam"),true);
+  for (const foundationRingBeam of [
+    "foundation-ring-beam-yes", "foundation-ring-beam-no", "project", "foundation-ring-beam-not-applicable",
+  ]) {
+    assert.equal(ConstructionInputSchema.safeParse({...base,technology_selections:{
+      ...houseTechnology, foundationRingBeam,
+    }}).success,true);
+  }
+  assert.equal(ConstructionInputSchema.safeParse({...base,technology_selections:{
+    ...houseTechnology, foundationRingBeam:null,
+  }}).success,false);
   assert.equal(ConstructionInputSchema.safeParse({...base, technology_selections:{...houseTechnology,foundationType:["strip-footings","foundation-slab"]}}).success,true);
   assert.equal(ConstructionInputSchema.safeParse({...base, technology_selections:{...houseTechnology,foundationType:["strip-footings","strip-footings"]}}).success,false);
 

@@ -1,5 +1,13 @@
 import { z } from "zod";
 import { CadPointSchema } from "./cad-import.js";
+export { ReinforcementBendSchema, ReinforcementShapeSchema, type ReinforcementBend, type ReinforcementShape } from "./reinforcement-geometry.js";
+
+export const ReinforcementZoneSchema = z.object({
+  startMm: z.number().finite().min(0).max(100_000),
+  endMm: z.number().finite().positive().max(100_000),
+  spacingMm: z.number().finite().positive().max(10_000),
+}).strict().refine((zone) => zone.endMm > zone.startMm, "Koniec strefy musi leżeć za jej początkiem.");
+export type ReinforcementZone = z.infer<typeof ReinforcementZoneSchema>;
 
 export const ReinforcementLayoutSchema = z.object({
   mode: z.enum(["beam", "mesh"]), origin: CadPointSchema,
@@ -14,6 +22,7 @@ export const ReinforcementLayoutSchema = z.object({
   designReference: z.string().trim().min(1).max(240),
   heightMm: z.number().finite().positive().max(100000).optional(),
   topBarCount: z.number().int().min(1).max(99).optional(),
+  stirrupZones: z.array(ReinforcementZoneSchema).max(100).optional(),
 }).strict().superRefine((value, ctx) => {
   if (2 * value.coverMm + Math.max(value.diameterMm, value.transverseDiameterMm) >= Math.min(value.widthMm, value.lengthMm)) {
     ctx.addIssue({ code: "custom", message: "Otulina i średnica nie mieszczą się w podanym elemencie." });
@@ -31,6 +40,26 @@ export const ReinforcementLayoutSchema = z.object({
     const usable = value.widthMm - 2 * (value.coverMm + value.transverseDiameterMm + value.diameterMm / 2);
     if ((Math.max(value.topBarCount, value.longitudinalCount - value.topBarCount) - 1) * value.diameterMm > usable) {
       ctx.addIssue({ code: "custom", message: "Pręty w jednym rzędzie nachodzą na siebie. Sprawdź przekrój i ich liczbę." });
+    }
+  }
+  if (value.stirrupZones?.length) {
+    if (value.mode !== "beam") {
+      ctx.addIssue({ code: "custom", path: ["stirrupZones"], message: "Strefy strzemion dotyczą wyłącznie belek." });
+    }
+    let previousEnd = 0;
+    for (const [index, zone] of value.stirrupZones.entries()) {
+      if (zone.endMm > value.lengthMm) {
+        ctx.addIssue({ code: "custom", path: ["stirrupZones", index, "endMm"], message: "Strefa wykracza poza długość elementu." });
+      }
+      if (zone.startMm < previousEnd) {
+        ctx.addIssue({ code: "custom", path: ["stirrupZones", index], message: "Strefy strzemion nie mogą się nakładać i muszą być uporządkowane." });
+      }
+      previousEnd = zone.endMm;
+    }
+    const stirrupCount = value.stirrupZones.reduce((total, zone) =>
+      total + Math.floor((zone.endMm - zone.startMm) / zone.spacingMm) + 1, 0);
+    if (stirrupCount > 1000) {
+      ctx.addIssue({ code: "custom", path: ["stirrupZones"], message: "Układ przekracza limit 1000 strzemion." });
     }
   }
 });

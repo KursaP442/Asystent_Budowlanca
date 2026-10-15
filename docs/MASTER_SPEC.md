@@ -159,6 +159,9 @@ Numerowane kroki oznaczają etapy, np. „1 Fundamenty”; rysunki są ich podpu
 Zielony etap wymaga zapisanej niepustej geometrii wszystkich podpunktów, czerwony oznacza brakujące rysunki;
 nie jest to zatwierdzenie konstrukcyjne ani potwierdzenie kompletności przedmiaru.
 Płótno ma zoom kółkiem wokół kursora, osie, linijki, odczyt X/Y w mm i regulowane przyciąganie.
+Pełnoekranowy canvas na telefonie zachowuje ten sam układ roboczy co desktop, ale używa zwartego nagłówka,
+węższego pionowego paska narzędzi, mniejszych ikon, legendy i kontrolek. Interfejs nie może pomniejszać
+obszaru rysowania przez mobilne powiększanie elementów UI.
 Narzędzia zależą od rodzaju i funkcji rysunku: fundamenty rozróżniają ławy, stopy, ściany i słupy;
 strop, dach, zbrojenie, elewacje, nawierzchnie, wykończenia oraz ogrodzenia mają odrębne profile.
 Narożniki mają ciągły podgląd ruchu bez kwantyzacji siatki; jeden gest to jedna operacja cofania.
@@ -197,13 +200,15 @@ geotechnikę, opis materiałów i przejścia branżowe; numer referencji nie ozn
 
 Wymiary mają układ łańcuchowy zgodny z rysunkiem technicznym: równoległe linie po zewnętrznych stronach
 rzutu, cienkie linie pomocnicze, ukośne kreski końcowe i osobny wymiar całkowity. Etykiety nie mogą
-wchodzić w geometrię. Zwykłe wymiary mają stałe 8 px na ekranie, a zwarte opisy położenia podpór 7 px;
+wchodzić w geometrię. Na desktopie zwykłe wymiary mają stałe 7 px na ekranie, a zwarte opisy położenia
+podpór 6 px; na mobilnym canvasie odpowiednio 6 px i 5 px;
 zoom nie zmienia ich rozmiaru ekranowego. Eksport zachowuje tekst 2,5 mm na arkuszu. Kolor linii, kresek i etykiet wymiarowych
 odpowiada kolorowi wymiarowanego elementu. Współliniowe ściany, wykopy i ławy tworzą łańcuchy na
 zewnątrz rzutu: kreski obejmują krawędzie pasów, a kolejne opisy pokazują naprzemiennie ich grubości
 i odległości między nimi (np. `240 | odległość | 240 | odległość | 240`). Osobna, dalsza linia pokazuje
-wymiar całkowity tego samego układu. Wspólny łańcuch podpór biegnie między końcami ściany, ma kreski
-poprzeczne na narożnikach i osiach podpór oraz opisuje odległości między kolejnymi kreskami.
+wymiar całkowity tego samego układu. Łańcuchy podpór biegną wewnątrz zamkniętego pomieszczenia między
+jego wewnętrznymi licami, mają kreski poprzeczne na osiach albo krawędziach podpór i opisują odległości
+między kolejnymi kreskami.
 Wartości wymiarów na canvasie są wyświetlane i edytowane w centymetrach z dokładnością 1 mm;
 geometria, pomiary i zapis pozostają w milimetrach. Etykiety są zapisywane wzdłuż własnej linii
 wymiarowej — tekst jest obracany zgodnie z jej kierunkiem i pozostaje czytelny od dołu lub od prawej
@@ -212,10 +217,11 @@ pionowe łańcuchy zajmują wąski pas zamiast rozpychać sąsiednie rodziny. T�
 edycji etykiety są obracane razem z tekstem, a kolizje liczy się na obrysie obróconej ramki.
 Rozmieszczenie etykiet wszystkich rodzin wymiarów
 usuwa kolizje wewnątrz danego łańcucha, ale nie przesuwa etykiet innej rodziny. Pasy liczone od wspólnego
-zewnętrznego obrysu mają stałą kolejność: ściany, ławy fundamentowe, wykopy, podpory i pozostałe opisy,
+zewnętrznego obrysu mają stałą kolejność: ściany, ławy fundamentowe, wykopy i pozostałe opisy,
 a gabaryt każdej rodziny znajduje się bezpośrednio po jej wymiarach cząstkowych. Pełna kolejność to:
-podziały ścian → gabaryt ścian → podziały ław → gabaryt ław → podziały wykopów → gabaryt wykopów,
-a dopiero potem podpory i pozostałe opisy. Kolejność encji w dokumencie nie może zmieniać tej hierarchii.
+podziały ścian → gabaryt ścian → podziały ław → gabaryt ław → podziały wykopów → gabaryt wykopów.
+Łańcuchy słupów i stóp zajmują osobne pasy wewnątrz pomieszczeń i nie uczestniczą w tej zewnętrznej
+hierarchii. Kolejność encji w dokumencie nie może zmieniać układu.
 Elementy ukośne i nieujęte w łańcuchu zachowują indywidualne wymiary lic. Generowane ławy nie dublują
 wymiarów ścian hosta, ale mają własne łańcuchy wymiarowe — również w widoku uproszczonym. Płyty nie
 dublują wymiarów widocznego hosta. Samodzielna ława/wykop albo ława z ukrytą ścianą zachowuje swój wymiar.
@@ -229,7 +235,8 @@ zachowując rzeczywiste wymiary przekroju. Rozmiar X × X i oznaczenie (np. S1, 
 Każde zamknięte pomieszczenie ze słupami ma dokładnie dwa łańcuchy ich położenia: jeden poziomy i jeden
 pionowy. Końce łańcucha odnoszą się do wewnętrznych lic pomieszczenia, a kolejne znaczniki przecinające
 linię wskazują wyłącznie osie słupów. Wartości są zapisane pomiędzy sąsiednimi znacznikami na tej samej
-linii; nie rysujemy osobnych linii pomocniczych od każdego słupa.
+linii; nie rysujemy osobnych linii pomocniczych od każdego słupa. Linie bazowe i znaczniki są odsunięte
+od dolnego oraz prawego lica do wnętrza pomieszczenia, nigdy na zewnątrz obrysu projektu.
 Stopy fundamentowe mają własne, niezależne dwa łańcuchy na pomieszczenie. Zamiast osi znaczone są obie
 krawędzie każdej stopy, dlatego ciąg pokazuje kolejno odległość do stopy, jej rzeczywistą szerokość i dalszy
 odstęp (np. `425 | 50 | 300`). Słup i stopa w tym samym miejscu nie są łączone w jeden znacznik.
@@ -266,13 +273,120 @@ Skala arkusza (np. 1:50, 1:100) zapisuje się osobno od zoomu i kalibracji. Eksp
 w mm według tej skali i tekst wymiarowy 2,5 mm na arkuszu. Eksport przelicza również ramki/rozmieszczenie
 etykiet dla tego fontu, bez zmiany zoomu i ekranowych opisów. Płótno pozostaje modelem w mm.
 
-Graficzny kreator zbrojenia w osobnym oknie rozróżnia geometrię, parametry prętów/strzemion i położenie.
-Przekrój można zmieniać uchwytem lub liczbowo; podgląd pokazuje otulinę, strzemiona i pręty górne/dolne.
-Zapisuje również detal przekroju na canvas. Układ można przypisać do ściany, ławy lub belki bieżącego rysunku
-albo wersjonowanego podkładu. Podąża za przesunięciem/obrotem podparcia; zmiana długości wymaga ponownego
-sprawdzenia, bez automatycznego rozciągania prętów. Kreator wymaga danych z projektu.
-Rzut strzemion nie jest długością prętów do przedmiaru. Pełne odwzorowanie dowolnej dokumentacji 1:1,
-przekroje konstrukcyjne i rozwinięcia gięcia są wymaganiami docelowymi, nie ukończoną funkcją.
+Moduł zbrojenia nie korzysta już z osobnego kreatora belki/płyty ani z edytora geometrii rzutu. Pracę organizują
+zakładki etapów, m.in. „Ławy fundamentowe”, „Ściany fundamentowe” i „Wieńce fundamentowe”. Canvas etapu pokazuje
+wyłącznie elementy i wymiary należące do wybranej zakładki oraz pozwala tylko na pan, zoom i wybór elementu.
+Kliknięcie elementu otwiera sub-okno ze wspólnymi danymi: rysunkiem 2D, przekrojem, interaktywnym widokiem 3D,
+edytorem prętów i zestawieniem stali.
+Etapy stóp i słupów pokazują ławy oraz ściany fundamentowe jako nieklikalny obrys odniesienia. Ich łańcuchy
+lokalizacyjne prowadzą od wewnętrznego lica ściany do pierwszej krawędzi podpory, przez jej pełną szerokość,
+a następnie do kolejnego lica ściany. Obie krawędzie wymiaruje się zarówno dla stopy, jak i słupa; obrys
+pomocniczy nie otrzymuje osobnych wymiarów. Współliniowe odcinki rozdzielone technicznie węzłem T/X mają jedną
+prostą linię wymiarową bez kreski na połączeniu. Rzeczywista zmiana kierunku pozostaje oddzielnym wymiarem.
+Współliniowe odcinki rozdzielone węzłem T lub X są na rysunku etapu jednym logicznym elementem belkowym. Narożnik,
+zmiana kierunku i łamana nie są scalane automatycznie. Oryginalne segmenty rzutu pozostają bez zmian, a ręczne
+narzędzie ciągów nadal służy trasom L, odgałęzieniom i innym przypadkom wymagającym świadomego wyboru.
+Ta sama reguła obowiązuje wieńce fundamentowe: jeden prosty ciąg ściany daje jeden logiczny wieniec, mimo że
+źródłowa ściana została technicznie podzielona węzłami. Konfiguracja zapisuje osobny host wieńca dla każdego
+segmentu źródłowego, ale edytor, status i zestawienie przedstawiają je jako jeden ciąg.
+Obecność etapu wieńców wynika z odpowiedzi „Tak”, „Nie”, „Zgodnie z projektem” albo „Nie dotyczy” w ankiecie
+„Materiały i technologia”, a nie z automatycznego wnioskowania na podstawie nazwy materiału ściany. Istniejące
+dane sprzeczne z odpowiedzią nie są usuwane, tylko pokazywane z ostrzeżeniem. Szerokość wieńca pochodzi ze znanej
+szerokości ściany, natomiast jego wysokość, materiał i odniesienie do rysunku konstrukcyjnego muszą zostać podane
+z projektu.
+Geometria i przekrój betonu pochodzą z wcześniejszego rzutu; moduł zbrojenia ich nie zmienia.
+Ręczne pręty pozostają przypisane do hosta, a zmiana jego geometrii wymaga ponownego sprawdzenia bez
+automatycznego rozciągania prętów. Rzut strzemion nie jest długością prętów do przedmiaru. Pełne odwzorowanie
+dowolnej dokumentacji 1:1 i zweryfikowane reguły normowe pozostają wymaganiami docelowymi.
+Kreator podgięć i strzemion pozwala wstawić pominięty odcinek przed pierwszą albo między dowolnymi istniejącymi
+częściami bez kasowania dalszej geometrii. Cały kształt ma niezależną, zapisywaną orientację: szybkie obroty
+o ±90° i 180° oraz dokładny kąt liczbowy. Obrót nie zmienia długości części, kątów gięcia ani długości rozwiniętej.
+Drugi krok edytora prętów jest „Konstruktorem belek” działającym na aktualnie wybranym logicznym elemencie rzutu.
+Nazwa, długość i przekrój pochodzą z hostów CAD, a interfejs pokazuje rzut od frontu, rzut od boku i interaktywny
+podgląd 3D. Pierwsze i ostatnie dopuszczalne strzemię są roboczo odsunięte od końców o połowę szerokości elementu;
+jest to jawna reguła geometryczna, nie deklaracja zgodności konstrukcyjnej. Użytkownik buduje kolejne, przylegające
+strefy przez wybór strzemienia z własnej biblioteki, długość strefy, rozstaw podstawowy, pakiet 1–4 strzemion oraz
+dowolne lokalne podstrefy zagęszczenia. Strefa nie może wyjść poza długość belki, następna zaczyna się na końcu
+poprzedniej, a wspólna stacja dwóch stref tworzy jedno fizyczne strzemię. Konfiguracja i wygenerowane encje są
+zapisywane w tym samym dokumencie CAD i przypisywane do właściwych segmentów logicznej belki; ponowny zapis
+zastępuje wyłącznie encje tej konfiguracji. Biblioteka wyboru strzemienia otwiera się jako duże, wyśrodkowane
+sub-okno z wyszukiwaniem po nazwie i średnicy oraz pięciokolumnową siatką mieszczącą około 10 kafelków w dwóch
+rzędach na desktopie. Na urządzeniu mobilnym przechodzi w pełny ekran. Pręty podłużne i indywidualne pozostają
+dostępne poniżej konstruktora.
+Pakiet „strzemiona obok siebie” nie zmienia rozstawu wzdłuż belki: wszystkie egzemplarze mają tę samą stację,
+a kolejne są przesuwane w przekroju w wybranym kierunku lewo/prawo/góra/dół o zadany odstęp osiowy. Formularz
+konstruktora pokazuje długości i rozstawy w centymetrach, zachowując milimetry w modelu CAD. Przycisk „Cała belka”
+wypełnia bieżącą strefą cały pozostały dopuszczalny zakres. Rzut frontowy wymiaruje pełną długość, wysokość i każdą
+strefę, a rzut boczny szerokość i wysokość przekroju; wszystkie etykiety tych rzutów są podawane w centymetrach.
+Rzut boczny rysuje strzemię z jego rzeczywistej geometrii kształtu, w tej samej skali co beton, i wymiaruje jego
+własną szerokość oraz wysokość. Nie jest to umowny prostokąt wyliczony z przekroju betonu. Rzut frontowy wymiaruje
+także sam rozstaw: kolejne odcinki o jednakowym rozstawie są łączone w jeden łańcuch opisany jako „liczba × rozstaw”.
+Rzut boczny ma własne przybliżanie, oddalanie i przesuwanie przeciąganiem oraz przycisk „Dopasuj widok”.
+Jeżeli wybrane z biblioteki strzemię jest wyższe od wysokości zalewanego etapu, strefa nie jest dodawana od razu.
+Konstruktor pokazuje ostrzeżenie z obiema wysokościami i wielkością wystawania oraz wymaga decyzji: „Wybierz inne”
+wraca do biblioteki, a „Potwierdź” dodaje strefę ze świadomie zaakceptowanym strzemieniem wystającym ponad beton.
+Taka strefa jest oznaczana w interfejsie, a cała belka zapisywana ze statusem „do weryfikacji”. Akceptacja opisuje
+wyłącznie geometrię i nie zastępuje sprawdzenia otulenia ani zgodności konstrukcyjnej przez uprawnionego projektanta.
+Potwierdzenie strzemienia wyższego od betonu odbywa się w osobnym, wyśrodkowanym sub-oknie z podglądem kształtu,
+zestawieniem wysokości i wielkością wystawania; ostrzeżenie nie zajmuje miejsca pomiędzy formularzem a kafelkami.
+Każde strzemię pakietu widoczne w przekroju ma odrębny, stały kolor oraz własny kolorowy wymiar szerokości
+i wysokości opisany numerem egzemplarza. Gdy strefa ustawia więcej niż jedno strzemię obok siebie, przekrój
+dodaje wymiar łączny całego pakietu — od lica pierwszego strzemienia do lica ostatniego, czyli razem
+z przesunięciem. Dwa strzemiona 50 cm przesunięte o 25 cm dają wymiar łączny 75 cm. Wymiar pojawia się wyłącznie
+w osi, w której pakiet faktycznie się rozciąga: przy kierunku lewo/prawo jako szerokość, przy kierunku góra/dół
+jako wysokość, więc nie dubluje wymiaru pojedynczego strzemienia. Obszar betonu jest podpisany etykietą „BETON” z linią prowadzącą
+umieszczoną poza geometrią zbrojenia. Rzut frontowy i boczny obsługują zoom, przesuwanie oraz dopasowanie kadru.
+Model 3D ma jawne przyciski zoomu i osobne tryby przeciągania „Obrót” oraz „Przesuwanie”; reset przywraca obrót,
+zoom i przesunięcie.
+Sekcja „2. Druty główne” konstruktora zastępuje dawny formularz „Pręty podłużne i indywidualne”. Zawiera obok
+siebie kafelek „Dodaj standardowe druty” oraz aktywny kafelek `+` „Druty niestandardowe”. Kafelek standardowy
+wymaga co najmniej jednego strzemienia. Po kliknięciu znika i zostaje zastąpiony jednym kafelkiem całego układu,
+w którym użytkownik ustawia średnicę drutu albo usuwa układ. Usunięcie przywraca kafelek dodawania. Standardowy
+układ wybiera strzemię o najmniejszym rzeczywistym polu obrysu i prowadzi cztery druty podłużne wewnątrz jego
+czterech narożników. Gdy to najmniejsze strzemię jest ustawione obok siebie w pakiecie, komplet czterech drutów
+powstaje w **każdym** strzemieniu pakietu — dla pakietu dwóch strzemion układ ma osiem drutów. Przesunięcia
+pakietu są odczytywane z rzeczywistych rozmieszczeń strzemion, więc obejmują także lokalne zagęszczenia z własnym
+pakietem. Środek każdego drutu jest odsunięty od narożnika osi strzemienia do wnętrza o sumę promienia
+strzemienia i promienia drutu, dzięki czemu drut jest styczny do obu wewnętrznych ramion strzemienia. Przekrój,
+3D i zapis encji CAD zachowują wszystkie fizyczne druty, a każdy z nich jest kotwiony w obrysie tego strzemienia,
+do którego należy. Front 2D pokazuje jedną linię na każdy rzeczywisty poziom drutu: dla pakietu przesuwanego
+w poziomie są to dwie projekcje, górna i dolna, a dla pakietu przesuwanego w pionie — po jednej na każdy poziom.
+Wszystkie widoki rysują
+strzemiona **na** drutach: pręt podłużny leży pod strzemieniem, które go opasuje, zgodnie z kolejnością montażu.
+Rzut frontowy realizuje to jawnymi warstwami rysunkowymi: najpierw warstwa prętów podłużnych, nad nią warstwa
+strzemion. Każda linia strzemienia ma dodatkowo poświatę w kolorze betonu, która przerywa drut w punkcie
+przecięcia — sam porządek warstw nie wystarczał, bo drut i strzemię mają zbliżoną grubość ekranową. Kolor
+i grubość poświaty są zapisane wprost w atrybutach rysunku, a jej szerokość wynika z grubości linii strzemienia
+i najgrubszego drutu, więc przerwa obejmuje cały drut przy dowolnej średnicy. Znacznik
+drutu na froncie ma `Ø / 6`, czyli jest na tyle cienki, by nie zasłaniać łańcuchów
+wymiarowych stref i rozstawu, i by było widać, że drut biegnie wewnątrz strzemienia.
+Strzemiona w przekroju i w miniaturze mają rzeczywistą grubość swojego drutu w milimetrach, a nie stałą grubość
+ekranową, więc styczność pręta do wewnętrznego lica jest widoczna w skali. Miniatura kafelka rysuje osobny obrys
+strzemienia dla każdego pakietu i rozszerza pole widzenia, gdy pakiet wychodzi poza obrys betonu; strzemię
+ponadwymiarowe, wyrównane do dołu przekroju, nie rozjeżdża się z prętami. Konfiguracja jest częścią definicji
+belki, a zapis generuje komplet prętów narożnych dla każdego segmentu hosta. Kafelek `+` „Druty niestandardowe”
+otwiera wyśrodkowane sub-okno slotów: u góry model 3D belki zablokowany w widoku od frontu (bez obrotu, przesuwania
+i zoomu), pod nim kafelki stref strzemion — wybrana strefa podświetla w 3D swoje strzemiona. Przekrój strefy
+pokazuje każde strzemię pakietu i sloty wzdłuż wewnętrznego lica jego drutu: w każdym narożniku, na środku
+każdego boku i co ok. 2 cm pomiędzy. Sloty zajęte przez istniejące druty są czerwone i niewybieralne. Wybór
+wolnego slotu tworzy kafelek drutu z długością w cm (przycisk „Cała belka”), grubością Ø i stroną dodawania.
+Drut biegnie przez ciągły ciąg stref, w których strzemię ma slot w tym samym miejscu, i zajmuje ten slot w każdym
+z tych strzemion; przy strzemionach o innej wysokości (np. 30 / 50 / 30 cm) staje się docinką, dodawaną od
+wybranej strony zakresu. Drut „Cała belka” wymaga wolnego slotu w tym samym miejscu w każdym strzemieniu belki;
+jeśli go brak, przycisk jest zablokowany z podaniem powodu, a drut zepsuty późniejszą zmianą stref blokuje zapis
+(nie jest po cichu skracany). Sloty: zielony = cała belka, bursztynowy = tylko docinka, czerwony = zajęty. Docinka może mieć wypust poza
+strzemiona z jednej (lewej lub prawej) albo z obu stron, w cm, przycinany do długości belki. Kafelek drutu pokazuje
+kształt strzemion swojej strefy. Każdy typ strzemienia (kształt + pozycja w pakiecie) ma własny kolor na rzucie
+frontowym, bocznym i w kafelkach; rzut frontowy rysuje strzemiona na rzeczywistą wysokość i wymiaruje ją.
+Druty niestandardowe są widoczne na froncie, rzucie bocznym, w 3D i w zapisie CAD.
+Wymiary strzemion większych od najmniejszego obrysu można wyrównać niezależnie w obu osiach: szerokość do
+lewej/prawej krawędzi lub środka, wysokość do górnej/dolnej krawędzi lub środka. Wyrównanie odnosi się
+do najmniejszego obrysu w danym wymiarze, a przesunięcia pakietów pozostają dodatkowe. Przekroje, sloty,
+druty i zapis korzystają z tych samych offsetów. Walidacja zgłasza i blokuje zapis przy wykrytym braku
+otworu w strzemieniu albo braku wspólnego pola przekroju dla ciągłego pręta pomiędzy strefami; są to wyłącznie
+diagnostyki geometrii, nie obliczenia nośności ani sprawdzenie normowe.
+Wybranie kształtu z biblioteki („Użyj w edytorze pręta”) otwiera osobne sub-okno edytora pręta z parametrami
+kształtu, średnicy, otuliny, orientacji, stali, odniesienia projektowego i segmentów gięcia.
 
 **Firma wykonawcza:** rejestracja organizacji (NIP, specjalizacje, obszar działania), feed zleceń z filtrami, oferty
 (cena netto/brutto, VAT, zakres, harmonogram, ważność), licytacja z audytem, realizacja zleceń.

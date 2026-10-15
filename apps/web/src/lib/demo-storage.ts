@@ -12,6 +12,10 @@ export function demoCadDrawingStorageKey(jobId: string, requirementId: string) {
   return `${demoPrefix}:${jobId}:cad:${requirementId}`;
 }
 
+export function demoReinforcementShapeLibraryStorageKey() {
+  return `${demoPrefix}:reinforcement-shape-library`;
+}
+
 export function readDemoValue(key: string): unknown {
   if (typeof window === "undefined") return null;
   const value = window.localStorage.getItem(key);

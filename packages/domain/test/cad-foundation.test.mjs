@@ -3,11 +3,12 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { CadDocumentSchema, emptyConstructionTechnologySelections, getFoundationSupportOptions } from "@asystent/schemas";
 import { configureFoundationWall, connectCadWallJunctions, copyCadGeometry, createCadElement, createReinforcementLayout, moveCadJunction,
-  placeReinforcementOnHost, synchronizeFoundationSupports, synchronizeReinforcementPlacement } from "../dist/index.js";
+placeReinforcementOnHost, synchronizeFoundationSupports, synchronizeReinforcementPlacement,
+checkFoundationPlanCompleteness } from "../dist/index.js";
 
 const projectId = randomUUID();
-const document = (entities = []) => CadDocumentSchema.parse({ schemaVersion: 1, id: randomUUID(), projectId,
-  requirementId: "foundation-drawing-0", revision: 0, status: "draft", calibration: null, entities });
+const document = (entities = [], changes = {}) => CadDocumentSchema.parse({ schemaVersion: 1, id: randomUUID(), projectId,
+  requirementId: "foundation-drawing-0", revision: 0, status: "draft", calibration: null, entities, ...changes });
 const wall = (a, b, base) => configureFoundationWall(createCadElement("foundation-wall", [a,b], { id: randomUUID() }),
   { widthMm: 240, heightMm: 1000, material: "Bloczek betonowy", base,
     buildUp: [{ purpose: "thermal", material: "XPS", thicknessMm: 100, side: "left" }] });
@@ -78,6 +79,57 @@ test("T joints split foundation walls without losing generated supports or close
   const moved = synchronizeFoundationSupports(moveCadJunction(supported,{x:3000,y:0},{x:3200,y:200}),randomUUID);
   assert.equal(moved.entities.filter((e) => e.kind === "construction-line"
     && [e.geometry.start,e.geometry.end].some((p) => p.x === 3200 && p.y === 200)).length,3);
+});
+
+test("foundation completeness distinguishes missing geometry, designer review and complete documentation", () => {
+  const empty = checkFoundationPlanCompleteness(document());
+  assert.equal(empty.status, "requires-completion");
+  assert.ok(empty.issues.some(({ code }) => code === "geometry"));
+  assert.ok(empty.issues.some(({ code }) => code === "sections"));
+
+  const foundationWall = { ...wall({x:0,y:0},{x:6000,y:0},strip), reviewStatus: "verified" };
+  const axis = { ...createCadElement("axis", [{x:0,y:-1000},{x:0,y:1000}], {id:randomUUID()}), mark:"A", reviewStatus: "verified" };
+  const cut = { ...createCadElement("section-cut", [{x:0,y:0},{x:6000,y:0}], {id:randomUUID()}), reviewStatus: "verified" };
+  const section = { id:randomUUID(), label:"A-A", cutEntityId:cut.id, viewDirection:"left",
+    visibilityRangeMm:8000, kind:"wall-footing", state:"complete", overrides:{
+      foundation_bottom_elevation_m:{value:-1.2,unit:"m",validated:true},
+      ground_elevation_m:{value:0,unit:"m",validated:true},
+      wall_height_cm:{value:100,unit:"cm",validated:true},
+      wall_thickness_cm:{value:24,unit:"cm",validated:true},
+      footing_width_cm:{value:80,unit:"cm",validated:true},
+      footing_height_cm:{value:40,unit:"cm",validated:true},
+    } };
+  const references = { geotechnics:"G-01", concrete:"K-01", reinforcement:"K-02", isolation:"A-01" };
+  const ready = document([foundationWall, axis, cut], { sections:[section], documentReferences:references });
+  assert.deepEqual(checkFoundationPlanCompleteness(ready), { status:"complete", issues:[] });
+
+  const draft = document([{...foundationWall, reviewStatus:"draft"}, axis, cut],
+    { sections:[section], documentReferences:references });
+  assert.equal(checkFoundationPlanCompleteness(draft).status, "requires-review");
+});
+
+test("foundation completeness blocks impossible support dimensions and invalid outlines", () => {
+  const narrowBase = { ...wall({x:0,y:0},{x:6000,y:0},strip),
+    foundationBase:{...strip,widthMm:100} };
+  assert.equal(checkFoundationPlanCompleteness(document([narrowBase])).status, "error");
+
+  const bowTie = createCadElement("slab", [
+    {x:0,y:0},{x:1000,y:1000},{x:0,y:1000},{x:1000,y:0},
+  ], {id:randomUUID()});
+  const result = checkFoundationPlanCompleteness(document([bowTie]));
+  assert.equal(result.status, "error");
+  assert.ok(result.issues.some(({ code }) => code === "invalid-outline"));
+});
+
+test("foundation completeness rejects placeholder materials and reports both axis issues", () => {
+  const foundationWall = wall({x:0,y:0},{x:6000,y:0},strip);
+  const placeholderWall = { ...foundationWall,
+    attributes: { ...foundationWall.attributes, material:"Zgodnie z projektem" } };
+  const axis = { ...createCadElement("axis", [{x:0,y:-1000},{x:0,y:1000}], {id:randomUUID()}) };
+  const result = checkFoundationPlanCompleteness(document([placeholderWall, axis]));
+  assert.ok(result.issues.some(({ code, status }) => code === `material-${placeholderWall.id}` && status === "missing"));
+  assert.ok(result.issues.some(({ code }) => code === "axis-labels"));
+  assert.ok(result.issues.some(({ code }) => code === "axis-review"));
 });
 test("graphic beam section retains bar groups; placement rotates, follows host and flags length changes", () => {
   const host = wall({x:1000,y:2000},{x:1000,y:7000},strip);

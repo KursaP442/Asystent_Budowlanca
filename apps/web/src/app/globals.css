@@ -1990,17 +1990,7 @@ select:focus-visible {
 .cad-stage-tabs button[data-completion="empty"] { box-shadow: inset 0 3px #dc3545; }
 .cad-coordinates { display: flex; flex-wrap: wrap; gap: 8px 20px; padding: 8px; background: #f0f4f8; font: 11px monospace; }
 .cad-junction { cursor: move; }
-.cad-beam-preview svg, .cad-section-designer { width: 100%; min-height: 110px; max-height: 260px; background: white; border: 1px solid #cbd5e1; touch-action: none; }
-.cad-section-designer [data-resize] { cursor: nwse-resize; }
-.cad-generator-dialog { width: min(1000px, 94vw); max-height: 90vh; margin: auto; padding: 24px; border: 1px solid #cbd5e1; border-radius: 12px; }
-.cad-generator-dialog::backdrop { background: #0f172a80; }
 .cad-dialog-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.cad-generator-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
-.cad-generator-fields label { display: flex; flex-direction: column; gap: 5px; margin: 8px 0; }
-.cad-generator-fields input, .cad-generator-fields select { width: 100%; min-width: 0; }
-@media (max-width: 700px) {
-  .cad-generator-fields { grid-template-columns: 1fr; }
-}
 .cad-drawing-progress small { color: #64748b; }
 .cad-generator { padding: 10px 0; border-top: 1px solid #e5eaf0; font-size: 12px; }
 .cad-generator summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
@@ -2045,11 +2035,47 @@ select:focus-visible {
 .cad-related-elements .quiet-button { min-height: 38px; text-align: left; }
 .cad-foundation-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; }
 .cad-foundation-fields fieldset { min-width: 0; }
-.cad-foundation-sections { grid-column: 1 / -1; min-width: 0; padding: 16px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; }
-.cad-foundation-sections > h3 { margin: 0 0 10px; color: #0f172a; font-size: 19px; }
+.cad-foundation-sections { grid-column: 1 / -1; min-width: 0; }
+.cad-foundation-sections-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.cad-foundation-sections-heading p { margin: 0; color: #475569; font-size: 11px; line-height: 1.4; }
+.cad-foundation-sections-heading h3 { margin: 0 0 6px; color: #0f172a; font-size: 15px; line-height: 1.3; }
 .cad-foundation-sections-view { min-width: 0; }
-.cad-section-plan { display: block; width: 100%; height: clamp(220px, 32vw, 420px); margin: 12px 0; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; touch-action: none; cursor: grab; }
+.cad-drawing-panel .cad-disclaimer, .cad-foundation-sections .cad-disclaimer { font-size: 11px; line-height: 1.4; color: #7c2d12; }
+.cad-section-canvas-frame { height: clamp(320px, 58dvh, 680px); }
+.cad-section-plan { width: 100%; height: 100%; min-height: 0; cursor: grab; }
 .cad-section-plan:active { cursor: grabbing; }
+.cad-foundation-sections:not(.cad-foundation-sections-workspace) .cad-section-plan { cursor: pointer; box-shadow: 0 4px 14px rgb(15 23 42 / 8%); pointer-events: auto; }
+.cad-foundation-sections:not(.cad-foundation-sections-workspace) .cad-section-plan:hover { border-color: #ea580c; box-shadow: 0 6px 18px rgb(234 88 12 / 16%); }
+.cad-foundation-sections:not(.cad-foundation-sections-workspace) .cad-canvas-open {
+  position: absolute; inset: 0; z-index: 4; display: block; width: 100%; height: 100%; padding: 0; border: 0; border-radius: 12px;
+  background: linear-gradient(135deg, rgb(234 88 12 / 8%), rgb(59 130 246 / 3%)); cursor: pointer;
+  outline: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent;
+}
+.cad-foundation-sections:not(.cad-foundation-sections-workspace) .cad-canvas-open:focus-visible {
+  outline: 3px solid #ea580c; outline-offset: -3px;
+}
+.cad-foundation-sections:not(.cad-foundation-sections-workspace) .cad-canvas-open:hover {
+  background: linear-gradient(135deg, rgb(234 88 12 / 12%), rgb(59 130 246 / 6%));
+}
+.cad-foundation-sections:not(.cad-foundation-sections-workspace) .cad-section-plan-actions,
+.cad-foundation-sections:not(.cad-foundation-sections-workspace) .cad-section-tabs,
+.cad-foundation-sections:not(.cad-foundation-sections-workspace) .cad-section-settings,
+.cad-foundation-sections:not(.cad-foundation-sections-workspace) .cad-section-data,
+.cad-foundation-sections:not(.cad-foundation-sections-workspace) .cad-section-property-sheet,
+.cad-foundation-sections:not(.cad-foundation-sections-workspace) .cad-section-modal,
+.cad-foundation-sections:not(.cad-foundation-sections-workspace) .cad-section-wizard,
+.cad-foundation-sections:not(.cad-foundation-sections-workspace) .cad-section-field,
+.cad-foundation-sections:not(.cad-foundation-sections-workspace) .cad-section-drawing,
+.cad-foundation-sections:not(.cad-foundation-sections-workspace) .cad-section-objects,
+.cad-foundation-sections:not(.cad-foundation-sections-workspace) .cad-section-quantities,
+.cad-foundation-sections:not(.cad-foundation-sections-workspace) .cad-section-export { display: none; }
+.cad-foundation-sections-workspace { position: fixed; inset: 0; z-index: 80; display: flex; overflow: hidden; flex-direction: column; min-height: 100dvh; padding: 12px; border: 0; border-radius: 0; background: #f8fafc; }
+.cad-foundation-sections-workspace .cad-foundation-sections-heading { order: 1; }
+.cad-foundation-sections-workspace > .cad-disclaimer { display: none; }
+.cad-foundation-sections-workspace .cad-section-plan-actions { order: 2; flex: 0 0 auto; margin: 6px 0; }
+.cad-foundation-sections-workspace .cad-section-canvas-frame { order: 3; flex: 1 1 auto; height: auto; min-height: 0; }
+.cad-foundation-sections-workspace .cad-section-plan { width: 100%; height: 100%; min-height: 0; }
+.cad-foundation-sections-workspace .cad-foundation-sections-heading { position: sticky; top: -20px; z-index: 2; margin: -20px calc(clamp(12px, 3vw, 48px) * -1) 12px; padding: 20px clamp(12px, 3vw, 48px) 12px; background: rgb(248 250 252 / 96%); backdrop-filter: blur(8px); }
 .cad-section-plan [role="button"]:focus-visible, .cad-section-svg [role="button"]:focus-visible { outline: 3px solid #ea580c; outline-offset: 3px; }
 .cad-section-plan-actions, .cad-section-settings, .cad-section-export { display: flex; align-items: end; flex-wrap: wrap; gap: 10px; margin: 10px 0; }
 .cad-section-plan-actions label, .cad-section-settings label { display: grid; gap: 5px; font-size: 12px; }
@@ -2064,6 +2090,35 @@ select:focus-visible {
 .cad-section-objects li { display: grid; gap: 4px; padding: 8px; border: 1px solid #e5eaf0; border-radius: 5px; font-size: 11px; overflow-wrap: anywhere; }
 .cad-section-objects .quiet-button { min-height: 40px; text-align: left; }
 .cad-section-export { align-items: center; justify-content: space-between; font-size: 12px; color: #475569; }
+.cad-section-add-mode { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 7px; border: 1px solid #fdba74; border-radius: 6px; background: #fff7ed; }
+.cad-section-add-mode span { flex-basis: 100%; color: #7c2d12; font-size: 11px; }
+.cad-section-tabs button[data-section-state="complete"] { box-shadow: inset 0 3px #15803d; }
+.cad-section-tabs button[data-section-state="needs-review"] { box-shadow: inset 0 3px #c2410c; }
+.cad-section-tabs button[data-section-state="incomplete"] { box-shadow: inset 0 3px #ca8a04; }
+.cad-section-tabs button[data-section-state="outdated"] { box-shadow: inset 0 3px #b91c1c; }
+.cad-section-status { align-self: center; padding: 7px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+.cad-section-status.is-complete { background: #dcfce7; color: #166534; }
+.cad-section-status.is-needs-review { background: #ffedd5; color: #9a3412; }
+.cad-section-status.is-incomplete { background: #fef9c3; color: #854d0e; }
+.cad-section-status.is-outdated { background: #fee2e2; color: #991b1b; }
+.cad-section-quantities { margin-top: 12px; padding: 10px; border-top: 1px solid #e5eaf0; }
+.cad-section-quantities h4 { margin: 0 0 8px; }
+.cad-section-quantities article { display: grid; grid-template-columns: minmax(160px, 1fr) minmax(120px, 1fr) minmax(240px, 2fr); gap: 6px 12px; padding: 7px 0; border-bottom: 1px solid #edf0f4; font-size: 12px; }
+.cad-section-quantities small { grid-column: 1 / -1; color: #9a3412; }
+.cad-section-modal { position: fixed; z-index: 1100; inset: 0; display: grid; place-items: center; padding: 20px; background: #0f172ab8; }
+.cad-section-modal-card { display: flex; flex-direction: column; width: min(1500px, 98vw); max-height: 96dvh; overflow: auto; padding: 16px; border-radius: 10px; background: #fff; box-shadow: 0 18px 55px #02061780; }
+.cad-section-modal-card > header { position: sticky; z-index: 2; top: -16px; display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: -16px -16px 12px; padding: 12px 16px; border-bottom: 1px solid #cbd5e1; background: #fff; }
+.cad-section-modal-card > header div { display: grid; gap: 3px; }
+.cad-section-modal-card > header span { color: #64748b; font-size: 12px; }
+.cad-section-modal-card > header button { min-width: 42px; font-size: 24px; }
+.cad-section-editor-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 360px); gap: 14px; min-height: 0; }
+.cad-section-property-sheet { display: flex; flex-direction: column; gap: 9px; padding: 12px; border: 1px solid #cbd5e1; border-radius: 7px; overflow: auto; }
+.cad-section-property-sheet h4, .cad-section-property-sheet p { margin: 0; }
+.cad-section-property-sheet label, .cad-section-wizard-fields label { display: grid; gap: 4px; font-size: 12px; font-weight: 600; }
+.cad-section-property-sheet small { color: #64748b; font-weight: 400; }
+.cad-section-wizard .cad-section-modal-card { width: min(760px, 96vw); }
+.cad-section-wizard-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.cad-section-wizard footer { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
 .cad-section-data { border-top: 1px solid #e5eaf0; padding-top: 12px; }
 .cad-section-data > summary { cursor: pointer; font-weight: 700; }
 .cad-section-field { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) auto; align-items: end; gap: 8px 14px; padding: 9px 0; border-bottom: 1px solid #edf0f4; }
@@ -2151,14 +2206,33 @@ select:focus-visible {
   .cad-workspace { grid-template-columns: minmax(0, 1fr); }
   .cad-inspector { grid-column: 1; grid-row: 3; }
   .cad-canvas { height: max(440px, 60dvh); }
-  .cad-foundation-sections { padding: 12px; }
+  .cad-foundation-sections { padding: 10px; }
+  .cad-foundation-sections-heading { align-items: stretch; flex-direction: column; }
+  .cad-foundation-sections-heading h3 { font-size: 14px; }
+  .cad-foundation-sections-heading p { font-size: 10.5px; }
+  .cad-foundation-sections:not(.cad-foundation-sections-workspace) { padding: 0; }
+  .cad-section-canvas-frame { height: clamp(320px, 54dvh, 520px); }
+  .cad-foundation-sections-workspace { padding: 8px; }
+  .cad-foundation-sections-workspace .cad-foundation-sections-heading { top: -8px; margin: -8px -8px 8px; padding: 10px 12px; }
+  .cad-foundation-sections-workspace .cad-foundation-sections-heading h3 { font-size: 13px; }
+  .cad-foundation-sections-workspace .cad-foundation-sections-heading p { font-size: 10px; }
+  .cad-foundation-sections-workspace .cad-section-plan-actions { display: flex; overflow-x: auto; white-space: nowrap; padding-bottom: 4px; }
+  .cad-foundation-sections-workspace .cad-section-plan-actions > * { flex: 0 0 auto; }
+  .cad-foundation-sections-workspace .cad-section-canvas-frame { height: min(58dvh, 520px); min-height: 320px; }
   .cad-section-field { grid-template-columns: 1fr; }
   .cad-section-plan-actions, .cad-section-settings { align-items: stretch; flex-direction: column; }
   .cad-section-plan-actions > *, .cad-section-settings > * { width: 100%; }
   .cad-section-svg { height: 380px; }
+  .cad-section-modal { align-items: stretch; padding: 0; }
+  .cad-section-modal-card { width: 100vw; max-height: 100dvh; min-height: 100dvh; padding: 10px; border-radius: 0; }
+  .cad-section-editor-layout, .cad-section-wizard-fields, .cad-section-quantities article { grid-template-columns: 1fr; }
+  .cad-section-property-sheet { max-height: 38dvh; padding: 10px; }
+  .cad-section-wizard footer { position: sticky; bottom: -16px; margin: 16px -16px -16px; padding: 10px 16px; background: white; }
   .workspace:has(.cad-editor) { padding-inline: 12px; }
   .cad-toolbar button { padding: 8px; }
   .cad-modal-backdrop { padding: 10px; }
+  .cad-section-modal-card > header { margin: -10px -10px 10px; padding: 10px 12px; }
+  .cad-section-modal-card > header span { font-size: 11px; }
 }
 
 .cad-editor:not(.cad-editor-fullscreen) .cad-heading-actions,
@@ -2228,13 +2302,556 @@ select:focus-visible {
 .cad-editor-fullscreen .cad-inspector.cad-property-dialog { display: block !important; max-height: min(84dvh, 900px); margin: 0; }
 @media (max-width: 700px) {
   .cad-editor:not(.cad-editor-fullscreen) .cad-canvas-frame { height: clamp(320px, 54dvh, 520px); }
-  .cad-editor-fullscreen { padding-inline: 8px; }
-  .cad-editor-fullscreen .cad-heading-actions { flex: 1 1 auto; justify-content: flex-end; gap: 6px; }
-  .cad-editor-fullscreen .cad-heading-actions button { padding: 8px 10px; font-size: 12px; }
+  .cad-editor-fullscreen {
+    padding: max(4px, env(safe-area-inset-top)) 4px max(4px, env(safe-area-inset-bottom));
+  }
+  .cad-editor-fullscreen .cad-heading {
+    min-height: 32px; margin-bottom: 4px; padding: 0; gap: 4px;
+  }
+  .cad-editor-fullscreen .cad-heading > div:first-child {
+    max-width: 42vw;
+  }
+  .cad-editor-fullscreen .cad-heading h3 {
+    overflow: hidden; margin: 0; font-size: 12px; line-height: 1.15; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .cad-editor-fullscreen .cad-heading-actions {
+    flex: 1 1 auto; justify-content: flex-end; gap: 3px;
+  }
+  .cad-editor-fullscreen .cad-heading-actions button {
+    min-height: 30px; padding: 3px 6px; font-size: 10px; line-height: 1.15; white-space: nowrap;
+  }
   .cad-editor-fullscreen .cad-import-toggle { display: none; }
-  .cad-editor-fullscreen .cad-toolbar { left: 5px; width: 44px; }
-  .cad-editor-fullscreen .cad-tool-button-wrap,
-  .cad-editor-fullscreen .cad-toolbar button { width: 36px; }
-  .cad-editor-fullscreen .cad-drawing-panel { margin-left: 50px; }
-  .cad-editor-fullscreen.cad-editor-settings-open .cad-workspace { inset-inline: 54px 8px; grid-template-columns: minmax(0, 1fr); }
+  .cad-editor-fullscreen > .alert {
+    max-height: 42px; overflow: auto; margin: 0 0 4px; padding: 5px 7px; font-size: 10px; line-height: 1.25;
+  }
+  .cad-editor-fullscreen .cad-toolbar {
+    top: 40px; bottom: max(4px, env(safe-area-inset-bottom)); left: 3px; width: 32px; padding: 2px;
+  }
+  .cad-editor-fullscreen .cad-tool-button-wrap {
+    flex-basis: 34px; width: 28px;
+  }
+  .cad-editor-fullscreen .cad-toolbar button {
+    width: 28px; min-height: 34px; padding: 2px;
+  }
+  .cad-editor-fullscreen .cad-toolbar button span { font-size: 15px; }
+  .cad-editor-fullscreen .cad-tool-help {
+    left: 40px; right: 6px; bottom: max(8px, env(safe-area-inset-bottom));
+    padding: 8px 10px; font-size: 10px;
+  }
+  .cad-editor-fullscreen .cad-drawing-panel { margin-left: 36px; }
+  .cad-editor-fullscreen .cad-marker-legend {
+    max-height: 42px; grid-template-columns: auto minmax(0, 1fr); gap: 2px 6px; padding: 2px 0;
+  }
+  .cad-editor-fullscreen .cad-marker-legend h4 { font-size: 9px; }
+  .cad-editor-fullscreen .cad-marker-legend ul { gap: 2px 7px; }
+  .cad-editor-fullscreen .cad-marker-legend li { gap: 3px; font-size: 8px; }
+  .cad-editor-fullscreen .cad-marker-symbol {
+    width: 8px; height: 8px; min-width: 8px; flex-basis: 8px;
+  }
+  .cad-editor-fullscreen .cad-canvas-controls { top: 4px; right: 4px; }
+  .cad-editor-fullscreen .cad-canvas-controls .quiet-button {
+    min-height: 28px; padding: 3px 6px; font-size: 9px;
+  }
+  .cad-editor-fullscreen.cad-editor-settings-open .cad-workspace {
+    inset: 40px 4px max(4px, env(safe-area-inset-bottom)) 38px;
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+  .cad-foundation-completeness {
+    width: 100%; margin: 6px 0; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px;
+    color: #334155; background: #f8fafc; text-align: left; font-size: 12px; font-weight: 650; cursor: pointer;
+  }
+  .cad-foundation-completeness.is-requires-completion { border-color: #fbbf24; color: #854d0e; background: #fffbeb; }
+  .cad-foundation-completeness.is-requires-review { border-color: #93c5fd; color: #1e40af; background: #eff6ff; }
+  .cad-foundation-completeness.is-error { border-color: #fca5a5; color: #991b1b; background: #fef2f2; }
+  .cad-foundation-checklist { margin: 4px 0 12px; padding-left: 18px; }
+  .cad-foundation-checklist li { margin: 5px 0; color: #92400e; font-size: 12px; }
+  .cad-foundation-checklist li[data-status="review"] { color: #1e40af; }
+  .cad-foundation-checklist li[data-status="error"] { color: #991b1b; }
+  .cad-foundation-checklist button { padding: 0; border: 0; color: inherit; background: transparent; text-align: left; cursor: pointer; }
+  .cad-foundation-setup-backdrop { position: fixed; z-index: 1200; inset: 0; display: flex; align-items: center;
+    justify-content: center; padding: 20px; background: #0f172a80; }
+  .cad-foundation-setup-dialog { width: min(760px, 100%); max-height: min(90dvh, 900px); overflow-y: auto;
+    padding: 20px; border-radius: 12px; background: white; box-shadow: 0 20px 70px #0f172a50; }
+  .cad-foundation-setup-dialog .cad-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+  .cad-foundation-setup-dialog .cad-heading h2 { margin: 0; font-size: 21px; }
+  .cad-foundation-setup-dialog .cad-heading p { margin: 6px 0; color: #475569; font-size: 13px; }
+  .cad-foundation-setup-dialog fieldset { min-width: 0; margin: 0; padding: 12px; border: 1px solid #dbe2ea; border-radius: 7px; }
+  .cad-foundation-setup-dialog legend { padding: 0 5px; font-weight: 700; }
+  .cad-foundation-setup-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .cad-foundation-setup-dialog .form-actions { position: sticky; bottom: -20px; margin: 0 -20px -20px; padding: 12px 20px;
+    background: white; border-top: 1px solid #e2e8f0; }
+  @media (max-width: 700px) {
+    .cad-foundation-setup-backdrop { align-items: stretch; padding: 0; }
+    .cad-foundation-setup-dialog { width: 100%; max-height: 100dvh; min-height: 100dvh; padding: 14px; border-radius: 0; }
+    .cad-foundation-setup-dialog .form-actions { bottom: -14px; margin: 0 -14px -14px; padding: 10px 14px; }
+  }
+
+.cad-reinforcement-workspace { display: grid; gap: 12px; }
+.cad-reinforcement-heading, .cad-reinforcement-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.cad-reinforcement-heading h3 { margin: 0; color: #0f172a; font-size: 17px; }
+.cad-reinforcement-heading p, .cad-reinforcement-toolbar span { margin: 4px 0 0; color: #64748b; font-size: 12px; }
+.cad-reinforcement-stages { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 8px; }
+.cad-reinforcement-stages button { display: grid; min-width: 150px; gap: 4px; padding: 10px; border: 1px solid #cbd5e1; border-radius: 7px; background: #fff; color: #334155; text-align: left; cursor: pointer; }
+.cad-reinforcement-stages button[aria-pressed="true"] { border-color: #f97316; background: #fff7ed; box-shadow: inset 0 0 0 1px #f97316; }
+.cad-reinforcement-stages small { color: #64748b; }
+.cad-reinforcement-chain-tools, .cad-reinforcement-template-tools {
+  display: flex; align-items: end; flex-wrap: wrap; gap: 8px; padding: 10px;
+  border: 1px solid #cbd5e1; border-radius: 7px; background: #f8fafc;
+}
+.cad-reinforcement-chain-tools > div { flex: 1 1 260px; }
+.cad-reinforcement-chain-tools p { margin: 4px 0 0; color: #64748b; font-size: 11px; }
+.cad-reinforcement-chain-tools label, .cad-reinforcement-template-tools label { display: grid; gap: 4px; min-width: 170px; }
+.cad-reinforcement-chain-tools input, .cad-reinforcement-template-tools input,
+.cad-reinforcement-template-tools select { min-height: 38px; }
+.cad-reinforcement-content { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.cad-reinforcement-stage-plan { display: grid; gap: 8px; padding: 10px; border: 1px solid #dbe2ea; border-radius: 8px; background: #f8fafc; }
+.cad-reinforcement-stage-plan-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.cad-reinforcement-stage-plan-controls span { flex: 1 1 220px; color: #64748b; font-size: 12px; }
+.cad-reinforcement-stage-canvas { width: 100%; height: min(58vh, 520px); border: 1px solid #cbd5e1; border-radius: 6px; background: white; touch-action: none; cursor: grab; }
+.cad-reinforcement-stage-canvas:active { cursor: grabbing; }
+.cad-reinforcement-stage-background polygon { fill: #e2e8f0; fill-opacity: .45; stroke: #64748b;
+  stroke-width: 2; stroke-dasharray: 8 6; vector-effect: non-scaling-stroke; }
+.cad-reinforcement-stage-shape polygon { fill: #dbeafe; stroke: #1d4ed8; stroke-width: 2; vector-effect: non-scaling-stroke; cursor: pointer; }
+.cad-reinforcement-stage-shape polygon:hover { fill: #bfdbfe; }
+.cad-reinforcement-stage-shape polygon[data-selected="true"] { fill: #fed7aa; stroke: #ea580c; }
+.cad-reinforcement-stage-shape[data-status="review"] polygon { stroke: #b45309; stroke-dasharray: 10 6; }
+.cad-reinforcement-stage-shape[data-status="complete"] polygon { fill: #bbf7d0; stroke: #15803d; }
+.cad-reinforcement-stage-shape text { fill: #0f172a; font-weight: 700; }
+.cad-reinforcement-stage-picker { display: flex; flex-wrap: wrap; gap: 6px; }
+.cad-reinforcement-stage-picker button { min-height: 40px; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; background: white; color: #334155; cursor: pointer; }
+.cad-reinforcement-stage-picker button[aria-pressed="true"] { border-color: #ea580c; background: #fff7ed; }
+.cad-reinforcement-stage-picker button[data-status="complete"] { border-left: 4px solid #15803d; }
+.cad-reinforcement-stage-picker button[data-status="review"] { border-left: 4px solid #b45309; }
+.cad-reinforcement-stage-picker button[data-status="partial"] { border-left: 4px solid #2563eb; }
+.cad-reinforcement-detail-dialog { width: min(1180px, 96vw); max-height: 92vh; margin: auto; padding: 20px; border: 1px solid #cbd5e1; border-radius: 12px; }
+.cad-reinforcement-detail-dialog::backdrop { background: #0f172acc; }
+.cad-reinforcement-canvas h5 { width: 100%; margin: 6px 0 2px; color: #334155; }
+.cad-reinforcement-elements { display: grid; align-content: start; gap: 6px; max-height: 500px; overflow: auto; padding: 10px; border: 1px solid #dbe2ea; border-radius: 8px; background: #f8fafc; }
+.cad-reinforcement-elements h4 { margin: 0 0 4px; }
+.cad-reinforcement-elements button { display: grid; gap: 3px; padding: 9px; border: 1px solid transparent; border-radius: 6px; background: white; text-align: left; cursor: pointer; }
+.cad-reinforcement-elements button[aria-pressed="true"] { border-color: #fb923c; background: #fff7ed; }
+.cad-reinforcement-elements small { overflow-wrap: anywhere; color: #64748b; }
+.cad-reinforcement-editor { min-width: 0; padding: 12px; border: 1px solid #dbe2ea; border-radius: 8px; background: white; }
+.cad-reinforcement-toolbar { flex-wrap: wrap; }
+.cad-reinforcement-chain-status { display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  margin-top: 8px; padding: 8px; border: 1px solid #93c5fd; border-radius: 6px; background: #eff6ff; }
+.cad-foundation-ring-beam { display: grid; gap: 10px; margin: 10px 0; padding: 12px; border: 1px solid #f59e0b; border-radius: 8px; background: #fffbeb; }
+.cad-foundation-ring-beam p { margin: 4px 0 0; color: #475569; font-size: 12px; line-height: 1.45; }
+.cad-foundation-ring-beam-fields { display: grid; grid-template-columns: repeat(2, minmax(140px, 1fr)); gap: 8px; }
+.cad-foundation-ring-beam-fields label { display: grid; gap: 4px; font-size: 12px; }
+.cad-foundation-ring-beam-fields input { width: 100%; min-width: 0; min-height: 38px; padding: 6px; }
+.cad-foundation-ring-beam-fields input[readonly] { background: #f1f5f9; color: #475569; }
+.cad-reinforcement-template-tools { margin-top: 8px; }
+.cad-reinforcement-validation { margin-top: 8px; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; }
+.cad-reinforcement-validation p { margin: 5px 0 0; color: #475569; font-size: 12px; }
+.cad-reinforcement-validation ul { margin: 6px 0 0; padding-left: 20px; }
+.cad-reinforcement-validation li[data-severity="error"] { color: #991b1b; }
+.cad-reinforcement-validation li[data-severity="warning"] { color: #92400e; }
+.cad-reinforcement-view-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 10px 0; border-bottom: 1px solid #e2e8f0; }
+.cad-reinforcement-view-tabs button { min-height: 40px; padding: 8px 12px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: #475569; cursor: pointer; }
+.cad-reinforcement-view-tabs button[aria-selected="true"] { border-bottom-color: #f97316; color: #c2410c; font-weight: 700; }
+.cad-reinforcement-canvas { min-height: 180px; display: grid; place-items: center; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px; background: #f8fafc; }
+.cad-reinforcement-canvas svg { width: 100%; height: min(48vh, 420px); }
+.cad-reinforcement-3d { min-height: 220px; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px; background: #f8fafc; }
+.cad-reinforcement-3d svg { width: 100%; height: min(52vh, 460px); border: 1px solid #cbd5e1; background: linear-gradient(135deg, #fff, #eef2ff); touch-action: none; cursor: grab; }
+.cad-reinforcement-3d svg:active { cursor: grabbing; }
+.cad-reinforcement-3d-controls { display: flex; align-items: end; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.cad-reinforcement-3d-controls label { display: grid; gap: 4px; }
+.cad-reinforcement-3d-controls select { min-height: 38px; }
+.cad-reinforcement-3d-controls span { color: #64748b; font-size: 11px; }
+.cad-reinforcement-3d-controls button[aria-pressed="true"] { border-color: #2563eb; background: #dbeafe; color: #1e3a8a; }
+.cad-reinforcement-3d-zoom { min-width: 42px; color: #334155; font-size: 11px; text-align: center; }
+.cad-reinforcement-3d-material-label line { stroke: #475569; stroke-width: 1.5; }
+.cad-reinforcement-3d-material-label text { fill: #334155; font-size: 14px; font-weight: 900; letter-spacing: .08em;
+  paint-order: stroke; stroke: #fff; stroke-width: 5px; stroke-linejoin: round; }
+.cad-custom-bar-editor { display: grid; gap: 8px; margin: 0 0 10px; padding: 10px; border: 1px solid #cbd5e1; border-radius: 7px; }
+.cad-custom-bar-editor legend { padding: 0 5px; font-weight: 700; }
+.cad-custom-bar-editor p { margin: 0; color: #64748b; font-size: 12px; }
+.cad-custom-bar-editor label { display: grid; gap: 4px; font-size: 12px; }
+.cad-custom-bar-fields { display: grid; grid-template-columns: repeat(2, minmax(100px, 1fr)); gap: 8px; }
+.cad-custom-bend { display: grid; grid-template-columns: 80px repeat(4, minmax(80px, 1fr)) auto; gap: 8px; align-items: end; padding: 8px 0; border-top: 1px solid #e2e8f0; }
+.cad-custom-bend input, .cad-custom-bend select, .cad-custom-bar-editor input, .cad-custom-bar-editor select { min-height: 36px; min-width: 0; width: 100%; }
+.cad-reinforcement-bar-list { display: grid; gap: 8px; max-height: 450px; overflow: auto; }
+.cad-reinforcement-bar { display: grid; grid-template-columns: repeat(4, minmax(100px, 1fr)); gap: 8px; align-items: end; padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px; }
+.cad-reinforcement-bar > strong { grid-column: 1 / -1; }
+.cad-reinforcement-bar label { display: grid; gap: 4px; font-size: 12px; }
+.cad-reinforcement-bar input { width: 100%; min-width: 0; min-height: 38px; padding: 6px; }
+.cad-reinforcement-bar-actions { display: flex; flex-wrap: wrap; gap: 6px; grid-column: 1 / -1; }
+.cad-reinforcement-schedule { min-width: 0; }
+.cad-reinforcement-schedule p { color: #64748b; font-size: 12px; line-height: 1.45; }
+.cad-reinforcement-export-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.cad-reinforcement-bar-wizard { display: grid; gap: 14px; }
+.cad-beam-constructor-step { display: grid; gap: 14px; }
+.beam-constructor { display: grid; gap: 14px; padding: 14px; border: 1px solid #cbd5e1; border-radius: 12px;
+  background: linear-gradient(180deg, #f8fafc, #fff); }
+.beam-constructor-heading { display: flex; align-items: start; justify-content: space-between; gap: 16px; }
+.beam-constructor-heading span { color: #c2410c; font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.beam-constructor-heading h5 { margin: 3px 0 0; color: #0f172a; font-size: 20px; }
+.beam-constructor-heading dl { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin: 0; }
+.beam-constructor-heading dl div { min-width: 130px; padding: 8px 10px; border: 1px solid #fed7aa; border-radius: 8px; background: #fff7ed; }
+.beam-constructor-heading dt { color: #9a3412; font-size: 10px; font-weight: 700; text-transform: uppercase; }
+.beam-constructor-heading dd { margin: 3px 0 0; color: #431407; font-size: 13px; font-weight: 800; }
+.beam-constructor-note { margin: 0; padding: 9px 11px; border-left: 3px solid #0ea5e9; background: #f0f9ff;
+  color: #334155; font-size: 12px; line-height: 1.5; }
+.beam-constructor-previews { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(220px, .65fr); gap: 12px; }
+.beam-constructor-previews > section { min-width: 0; padding: 12px; overflow: hidden; border: 1px solid #dbe2ea;
+  border-radius: 12px; background: white; box-shadow: 0 5px 18px #0f172a0d; }
+.beam-constructor-previews > section:last-child { grid-column: 1 / -1; }
+.beam-constructor-previews h6, .beam-constructor-zones h6 { margin: 0 0 8px; color: #334155; font-size: 13px; }
+.beam-constructor-previews > section > svg { display: block; width: 100%; height: 210px; padding: 16px; border: 1px solid #dbeafe;
+  border-radius: 9px; background: linear-gradient(145deg, #f8fafc, #eff6ff); color: #0f172a; }
+.beam-constructor-previews .cad-reinforcement-3d { border: 0; padding: 0; }
+.beam-constructor-previews .cad-reinforcement-3d svg { height: 340px; border-radius: 9px;
+  background: radial-gradient(circle at 50% 38%, #fff 0, #eff6ff 58%, #dbeafe 100%); }
+.beam-constructor-drawing { isolation: isolate; }
+.beam-constructor-drawing-pannable { cursor: grab; touch-action: none; }
+.beam-constructor-drawing-pannable:active { cursor: grabbing; }
+.beam-constructor-view-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.beam-constructor-view-bar h6 { margin: 0 0 8px; }
+.beam-constructor-view-tools { display: flex; align-items: center; gap: 5px; margin-bottom: 8px; }
+.beam-constructor-view-tools .quiet-button { min-height: 28px; padding: 2px 9px; font-weight: 800; }
+.beam-constructor-view-tools > span { min-width: 44px; color: #475569; font-size: 11px; font-weight: 700; text-align: center; }
+.beam-constructor-view-hint { margin: 7px 0 0; color: #64748b; font-size: 11px; line-height: 1.45; }
+.beam-constructor-oversize-badge { padding: 3px 7px; border-radius: 999px; background: #fef3c7; color: #92400e;
+  font-size: 10px; font-style: normal; font-weight: 800; }
+.beam-constructor-material-label line { stroke: #475569; stroke-width: 1.2; vector-effect: non-scaling-stroke; }
+.beam-constructor-material-label text { fill: #334155; font-weight: 900; letter-spacing: .08em; paint-order: stroke;
+  stroke: #fff; stroke-width: 4px; stroke-linejoin: round; }
+.beam-constructor-concrete { fill: #e0f2fe; stroke: #475569; stroke-width: 2; vector-effect: non-scaling-stroke; }
+.beam-constructor-stirrup { stroke: #0f766e; stroke-width: 3; vector-effect: non-scaling-stroke; }
+.beam-constructor-stirrup-halo { stroke-linecap: butt; }
+.beam-constructor-stirrup-outline { fill: none; stroke: #0f766e; }
+.beam-constructor-main-bar { stroke: #b91c1c; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.beam-constructor-custom-bar { fill: none; stroke: #c2410c; stroke-linecap: round; stroke-linejoin: round;
+  stroke-dasharray: 14 7; vector-effect: non-scaling-stroke; }
+.beam-constructor-main-bar-section { fill: #b91c1c; stroke: #7f1d1d; stroke-width: 1;
+  vector-effect: non-scaling-stroke; }
+.beam-constructor-dimension line { stroke: #b45309; stroke-width: 1.2; vector-effect: non-scaling-stroke; }
+.beam-constructor-dimension text { fill: #9a3412; font-weight: 800; paint-order: stroke; stroke: #fff;
+  stroke-width: 4px; stroke-linejoin: round; }
+.beam-constructor-bundle-dimension line { stroke: currentColor; }
+.beam-constructor-bundle-dimension text { fill: currentColor; }
+.beam-constructor-zones { display: grid; gap: 10px; }
+.beam-constructor-section-heading { display: flex; align-items: end; justify-content: space-between; gap: 12px; }
+.beam-constructor-section-heading p { margin: 2px 0 0; color: #64748b; font-size: 12px; }
+.beam-constructor-section-heading > span { padding: 5px 8px; border-radius: 999px; background: #e0f2fe; color: #075985; font-size: 11px; font-weight: 700; }
+.beam-constructor-zone-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; }
+.beam-constructor-zone { display: grid; gap: 10px; min-width: 0; padding: 11px; border: 1px solid #cbd5e1; border-radius: 10px; background: #fff; }
+.beam-constructor-zone .reinforcement-shape-preview { min-height: 130px; }
+.beam-constructor-zone-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.beam-constructor-zone-title span { color: #64748b; font-size: 11px; font-weight: 700; }
+.beam-constructor-fields { display: grid; grid-template-columns: repeat(2, minmax(110px, 1fr)); gap: 7px; }
+.beam-constructor-fields label, .beam-constructor-concentrations label { display: grid; gap: 4px; color: #475569; font-size: 11px; }
+.beam-constructor-fields input, .beam-constructor-fields select,
+.beam-constructor-concentrations input, .beam-constructor-concentrations select { width: 100%; min-width: 0; min-height: 36px; padding: 6px; }
+.beam-constructor-zone-length { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 6px; }
+.beam-constructor-zone-length .quiet-button { min-height: 36px; padding-inline: 10px; border-color: #fb923c;
+  background: #fff7ed; color: #9a3412; font-weight: 800; }
+.beam-constructor-bundle-note { margin: 0; padding: 7px 9px; border-left: 3px solid #0f766e; background: #f0fdfa;
+  color: #115e59; font-size: 11px; line-height: 1.45; }
+.beam-constructor-concentrations { display: grid; gap: 8px; }
+.beam-constructor-concentrations fieldset { display: grid; grid-template-columns: repeat(2, minmax(100px, 1fr)); gap: 7px;
+  padding: 9px; border: 1px dashed #7dd3fc; border-radius: 8px; background: #f0f9ff; }
+.beam-constructor-concentrations legend { padding: 0 4px; color: #0369a1; font-size: 11px; font-weight: 800; }
+.beam-constructor-concentrations .quiet-button { align-self: end; min-height: 36px; }
+.beam-constructor-add-zone { display: grid; min-height: 280px; place-items: center; align-content: center; gap: 7px;
+  padding: 16px; border: 2px dashed #fb923c; border-radius: 10px; background: #fff7ed; color: #9a3412; cursor: pointer; }
+.beam-constructor-add-zone > span { display: grid; width: 52px; height: 52px; place-items: center; border-radius: 50%;
+  background: #f97316; color: white; font-size: 32px; line-height: 1; }
+.beam-constructor-add-zone small { color: #9a3412; }
+.beam-constructor-add-zone:disabled { border-color: #cbd5e1; background: #f8fafc; color: #94a3b8; cursor: not-allowed; }
+.beam-constructor-main-bars { display: grid; gap: 10px; }
+.beam-constructor-main-bar-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; }
+.beam-constructor-add-standard-bars { border-color: #60a5fa; background: #eff6ff; color: #1e3a8a; }
+.beam-constructor-add-standard-bars > span { background: #2563eb; font-size: 20px; font-weight: 900; }
+.beam-constructor-add-standard-bars small { color: #1d4ed8; }
+.beam-constructor-add-standard-bars:disabled { border-color: #cbd5e1; background: #f8fafc; color: #94a3b8; }
+.beam-constructor-add-standard-bars:disabled > span { background: #cbd5e1; }
+.beam-constructor-add-standard-bars:disabled small { color: #94a3b8; }
+.beam-constructor-main-bar-card { display: grid; min-width: 0; gap: 10px; padding: 11px; border: 1px solid #bfdbfe;
+  border-radius: 10px; background: #fff; box-shadow: 0 4px 15px #1e3a8a0d; }
+.beam-constructor-main-bar-card > svg { display: block; width: 100%; height: 190px; padding: 14px;
+  border: 1px solid #dbeafe; border-radius: 8px; background: linear-gradient(145deg, #f8fafc, #eff6ff); }
+.beam-constructor-main-bar-card > div { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.beam-constructor-main-bar-card > div span { color: #64748b; font-size: 11px; font-weight: 700; }
+.beam-constructor-main-bar-card label { display: grid; gap: 4px; color: #475569; font-size: 11px; }
+.beam-constructor-main-bar-card input { width: 100%; min-height: 38px; padding: 7px; }
+.beam-constructor-main-bar-card p { margin: 0; padding: 7px 9px; border-left: 3px solid #2563eb;
+  background: #eff6ff; color: #1e3a8a; font-size: 11px; line-height: 1.45; }
+.beam-constructor-main-bar-card .quiet-button { justify-self: start; }
+.beam-constructor-smallest-stirrup { fill: none; stroke: #0f766e; }
+.beam-constructor-add-custom-bars { min-height: 300px; }
+.beam-constructor-picker { position: fixed; inset: 50% auto auto 50%; width: min(1380px, 96vw);
+  height: min(900px, 92dvh); max-width: none; max-height: none; margin: 0; padding: 0; overflow: hidden;
+  transform: translate(-50%, -50%); border: 0; border-radius: 16px; background: #f1f5f9; color: #0f172a;
+  box-shadow: 0 28px 90px #0206178c; }
+.beam-constructor-picker[open] { display: grid; grid-template-rows: auto auto minmax(0, 1fr); }
+.beam-constructor-picker::backdrop { background: #0f172ad9; backdrop-filter: blur(3px); }
+.beam-constructor-picker > header { display: flex; align-items: start; justify-content: space-between; gap: 16px;
+  padding: 16px 20px; background: linear-gradient(135deg, #172554, #1e3a8a 62%, #0f766e); color: white; }
+.beam-constructor-picker header > div > span { display: inline-block; padding: 3px 9px; border-radius: 999px;
+  background: #f97316; color: white; font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.beam-constructor-picker h5 { margin: 5px 0 0; color: white; font-size: 21px; }
+.beam-constructor-picker header p { margin: 4px 0 0; color: #dbeafe; font-size: 12px; }
+.beam-constructor-picker header .quiet-button { flex: 0 0 auto; border-color: #ffffff66; background: #ffffff1f; color: white; }
+.beam-constructor-picker header .quiet-button:hover { background: #ffffff33; }
+.beam-constructor-picker-toolbar { display: flex; align-items: end; justify-content: space-between; gap: 18px;
+  padding: 14px 20px; border-bottom: 1px solid #dbe2ea; background: white; }
+.beam-constructor-picker-toolbar label { display: grid; flex: 1 1 520px; max-width: 720px; gap: 5px;
+  color: #475569; font-size: 11px; font-weight: 700; }
+.beam-constructor-picker-toolbar input { width: 100%; min-height: 44px; padding: 9px 12px 9px 40px;
+  border: 1px solid #94a3b8; border-radius: 9px; background:
+  linear-gradient(90deg, transparent 0 38px, #e2e8f0 38px 39px, transparent 39px), white;
+  color: #0f172a; font-size: 14px; }
+.beam-constructor-picker-toolbar label { position: relative; }
+.beam-constructor-picker-toolbar label::after { position: absolute; bottom: 10px; left: 13px; content: "⌕";
+  color: #475569; font-size: 21px; line-height: 1; }
+.beam-constructor-picker-toolbar strong { flex: 0 0 auto; padding: 7px 10px; border-radius: 999px;
+  background: #e0f2fe; color: #075985; font-size: 12px; }
+.beam-constructor-picker-content { min-height: 0; overflow-y: auto; padding: 16px 20px 22px; }
+.beam-constructor-picker-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); align-content: start; }
+.beam-constructor-picker-card { min-height: 238px; padding: 9px; }
+.beam-constructor-picker-card .reinforcement-shape-preview-compact { height: 158px; background: #f8fafc; }
+.beam-constructor-picker-card > div { display: grid; gap: 3px; min-width: 0; }
+.beam-constructor-picker-card > div strong { overflow: hidden; color: #0f172a; text-overflow: ellipsis; white-space: nowrap; }
+.beam-constructor-picker-card > div span { color: #0f766e; font-size: 11px; font-weight: 700; }
+.beam-constructor-picker-empty { display: grid; min-height: 420px; place-items: center; align-content: center; gap: 8px;
+  border: 2px dashed #cbd5e1; border-radius: 14px; background: white; color: #475569; text-align: center; }
+.beam-constructor-picker-empty > span { display: grid; width: 64px; height: 64px; place-items: center;
+  border-radius: 50%; background: #e0f2fe; color: #0369a1; font-size: 38px; }
+.beam-constructor-picker-empty p { margin: 0; color: #64748b; font-size: 12px; }
+.beam-constructor-custom-bars-dialog[open] { grid-template-rows: auto minmax(0, 1fr); }
+.beam-constructor-custom-bars-body { display: grid; min-height: 0; overflow-y: auto; gap: 14px; padding: 16px 20px 22px;
+  align-content: start; grid-auto-rows: max-content; }
+.beam-constructor-custom-3d .cad-reinforcement-3d svg { height: 260px; }
+.beam-constructor-custom-zones { display: flex; min-height: max-content; gap: 10px; overflow-x: auto; padding-bottom: 4px; }
+.beam-constructor-custom-zone { display: grid; flex: 0 0 190px; gap: 4px; padding: 8px; border: 2px solid #cbd5e1;
+  border-radius: 12px; background: white; color: #0f172a; text-align: left; cursor: pointer; }
+.beam-constructor-custom-zone .reinforcement-shape-preview-compact { height: 96px; background: #f8fafc; }
+.beam-constructor-custom-zone small { color: #64748b; font-size: 11px; }
+.beam-constructor-custom-zone[aria-pressed="true"] { border-color: #f59e0b; background: #fffbeb;
+  box-shadow: 0 0 0 3px #fde68a; }
+.beam-constructor-custom-workspace { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(300px, .8fr); gap: 16px; }
+.beam-constructor-slot-view { display: grid; gap: 8px; align-content: start; }
+.beam-constructor-slot-view h6 { margin: 0; color: #0f172a; font-size: 14px; }
+.beam-constructor-slot-view svg { width: 100%; height: min(56vh, 520px); border: 1px solid #cbd5e1; border-radius: 12px;
+  background: #f8fafc; }
+.beam-constructor-slot[data-slot-state="free"] { cursor: pointer; }
+.beam-constructor-slot[data-slot-state="free"]:hover,
+.beam-constructor-slot[data-slot-state="free"]:focus-visible { fill: #22c55e; outline: none; }
+.beam-constructor-slot[data-slot-state="occupied"] { cursor: not-allowed; }
+.beam-constructor-slot-legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 0; padding: 0; list-style: none;
+  color: #475569; font-size: 12px; }
+.beam-constructor-slot-legend li { display: flex; align-items: center; gap: 6px; }
+.beam-constructor-slot-legend i { width: 12px; height: 12px; border: 1.5px solid #15803d; border-radius: 50%; background: #bbf7d0; }
+.beam-constructor-slot-legend i[data-legend="edge"] { background: white; }
+.beam-constructor-slot-legend i[data-legend="occupied"] { border-color: #7f1d1d; background: #dc2626; }
+.beam-constructor-slot-legend i[data-legend="cut"] { border-color: #b45309; background: #fde68a; }
+.beam-constructor-custom-bar-error { border-left-color: #dc2626 !important; background: #fef2f2 !important;
+  color: #991b1b !important; }
+.beam-constructor-connection-error { margin: 0 0 12px; padding: 10px 12px; border-left: 4px solid #b91c1c;
+  border-radius: 6px; background: #fef2f2; color: #7f1d1d; font-size: 13px; }
+.beam-constructor-connection-error strong { display: block; margin-bottom: 3px; }
+.beam-constructor-custom-side { display: grid; gap: 10px; align-content: start; }
+.beam-constructor-custom-side > label { display: grid; gap: 4px; color: #475569; font-size: 12px; font-weight: 700; }
+.beam-constructor-custom-side > label input { min-height: 40px; padding: 7px; }
+.beam-constructor-custom-side > p { margin: 0; padding: 9px 11px; border-left: 3px solid #f59e0b; background: #fffbeb;
+  color: #78350f; font-size: 12px; }
+.beam-constructor-custom-list { display: grid; gap: 10px; }
+.beam-constructor-custom-main-bar-card { border-color: #fdba74; }
+.beam-constructor-custom-main-bar-card select { width: 100%; min-height: 38px; }
+.beam-constructor-custom-bar-extension { display: grid; gap: 8px; min-width: 0; margin: 0; padding: 8px 10px;
+  border: 1px solid #fed7aa; border-radius: 8px; background: #fff7ed; }
+.beam-constructor-custom-bar-extension legend { padding: 0 4px; color: #9a3412; font-size: 11px; font-weight: 700; }
+.beam-constructor-custom-bar-extension small { color: #64748b; font-size: 11px; }
+.beam-constructor-custom-bar-extension:disabled { opacity: .65; }
+.beam-constructor-oversize-dialog { width: min(860px, 94vw); height: auto; max-height: 92dvh; }
+.beam-constructor-oversize-dialog[open] { grid-template-rows: auto minmax(0, 1fr) auto; }
+.beam-constructor-oversize-dialog-body { display: grid; grid-template-columns: minmax(240px, .8fr) minmax(0, 1.2fr);
+  gap: 18px; min-height: 0; overflow-y: auto; padding: 20px; background: #f8fafc; }
+.beam-constructor-oversize-dialog-body .reinforcement-shape-preview { align-self: start; height: 240px; background: white; }
+.beam-constructor-oversize-summary { display: grid; align-content: start; gap: 12px; }
+.beam-constructor-oversize-summary > strong { color: #0f172a; font-size: 18px; }
+.beam-constructor-oversize-summary dl { display: grid; gap: 8px; margin: 0; }
+.beam-constructor-oversize-summary dl div { display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 9px 11px; border: 1px solid #fed7aa; border-radius: 8px; background: #fff7ed; }
+.beam-constructor-oversize-summary dt { color: #9a3412; font-size: 11px; font-weight: 700; }
+.beam-constructor-oversize-summary dd { margin: 0; color: #431407; font-weight: 900; }
+.beam-constructor-oversize-summary p { margin: 0; padding: 10px 12px; border-left: 4px solid #f59e0b;
+  background: #fffbeb; color: #78350f; font-size: 12px; line-height: 1.5; }
+.beam-constructor-oversize-dialog footer { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 20px;
+  border-top: 1px solid #dbe2ea; background: white; }
+@media (max-width: 1120px) {
+  .beam-constructor-picker-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (max-width: 850px) {
+  .beam-constructor-picker-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .beam-constructor-oversize-dialog-body { grid-template-columns: 1fr; }
+  .beam-constructor-custom-workspace { grid-template-columns: 1fr; }
+}
+.cad-reinforcement-wizard-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.cad-reinforcement-wizard-steps button { display: flex; align-items: center; gap: 7px; min-height: 48px; padding: 8px;
+  border: 1px solid #cbd5e1; border-radius: 7px; background: white; color: #475569; text-align: left; cursor: pointer; }
+.cad-reinforcement-wizard-steps button span { display: grid; flex: 0 0 28px; height: 28px; place-items: center;
+  border-radius: 50%; background: #e2e8f0; font-weight: 700; }
+.cad-reinforcement-wizard-steps button[aria-current="step"] { border-color: #f97316; background: #fff7ed; color: #9a3412; font-weight: 700; }
+.cad-reinforcement-wizard-steps button[aria-current="step"] span { background: #f97316; color: white; }
+.cad-reinforcement-shape-library { display: grid; gap: 12px; }
+.cad-reinforcement-shape-library h5, .cad-reinforcement-shape-library p { margin: 0 0 4px; }
+.cad-reinforcement-shape-library p { color: #64748b; font-size: 12px; line-height: 1.45; }
+.cad-reinforcement-shape-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.cad-reinforcement-shape-card { display: grid; min-width: 0; min-height: 250px; align-content: start; gap: 4px; padding: 10px;
+  overflow: hidden; border: 1px solid #cbd5e1; border-radius: 12px; background: white; color: #0f172a; text-align: left;
+  box-shadow: 0 1px 2px #0f172a0f; cursor: pointer; transition: border-color .15s, box-shadow .15s, transform .15s; }
+.cad-reinforcement-shape-card:hover, .cad-reinforcement-shape-card:focus-visible { border-color: #f97316;
+  box-shadow: 0 8px 20px #0f172a1f; transform: translateY(-2px); }
+.cad-reinforcement-shape-card > strong { margin-top: 4px; overflow-wrap: anywhere; }
+.cad-reinforcement-shape-card > span { justify-self: start; padding: 2px 8px; border-radius: 999px;
+  background: #e0e7ff; color: #3730a3; font-size: 11px; font-weight: 700; }
+.cad-reinforcement-shape-card small { overflow-wrap: anywhere; color: #64748b; line-height: 1.35; }
+.cad-reinforcement-shape-add { min-height: 250px; place-content: center; justify-items: center; gap: 10px;
+  border-style: dashed; border-color: #fdba74; background: #fffbf5; text-align: center; }
+.cad-reinforcement-shape-add > span { display: grid; width: 66px; height: 66px; place-items: center; border-radius: 50%;
+  background: #ffedd5; color: #c2410c; font-size: 42px; font-weight: 300; line-height: 1; }
+.reinforcement-shape-preview { display: block; width: 100%; height: 280px; border: 1px solid #e2e8f0; border-radius: 10px;
+  background: #f8fafc; }
+.reinforcement-shape-preview-compact { height: 152px; border-radius: 8px; }
+.reinforcement-shape-bar-halo { stroke: #bfdbfe; stroke-opacity: .85; }
+.reinforcement-shape-dimension-line { stroke: #b45309; stroke-width: 1; }
+.reinforcement-shape-dimension-tick { stroke: #b45309; stroke-width: 1.6; }
+.reinforcement-shape-dimension-extension { stroke: #b45309; stroke-width: .75; stroke-dasharray: 3 3; opacity: .7; }
+.reinforcement-shape-dimension-text { fill: #9a3412; font-weight: 700; }
+.reinforcement-shape-angle-arc { stroke: #0f766e; stroke-width: 1.4; fill: none; }
+.reinforcement-shape-angle-vertex { fill: #0f766e; stroke: none; }
+.reinforcement-shape-angle-text { fill: #115e59; font-weight: 700; }
+.cad-reinforcement-shape-dialog { width: min(1080px, 96vw); max-height: 94vh; margin: auto; padding: 0;
+  overflow: auto; border: 0; border-radius: 16px; background: #f1f5f9; color: #0f172a; box-shadow: 0 24px 60px #0f172a59; }
+.cad-reinforcement-shape-dialog::backdrop { background: #0f172ad9; backdrop-filter: blur(2px); }
+.cad-reinforcement-shape-dialog header { position: sticky; top: 0; z-index: 2; display: flex; align-items: center;
+  justify-content: space-between; gap: 12px; padding: 14px 18px;
+  background: linear-gradient(135deg, #1e293b, #334155); color: white; }
+.cad-reinforcement-shape-dialog header h4 { margin: 2px 0 0; font-size: 18px; overflow-wrap: anywhere; }
+.cad-reinforcement-shape-dialog header > div > span { display: inline-block; padding: 2px 9px; border-radius: 999px;
+  background: #f97316; color: white; font-size: 11px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; }
+.cad-reinforcement-shape-dialog header .quiet-button { flex: 0 0 auto; border-color: #ffffff59; background: #ffffff1f; color: white; }
+.cad-reinforcement-shape-dialog header .quiet-button:hover { background: #ffffff33; }
+.cad-reinforcement-shape-body { display: grid; gap: 14px; padding: 16px 18px; }
+.cad-reinforcement-shape-dialog footer { position: sticky; bottom: 0; z-index: 2; display: flex; align-items: center;
+  justify-content: flex-end; gap: 8px; padding: 12px 18px; border-top: 1px solid #e2e8f0; background: white; }
+.cad-reinforcement-shape-dialog footer button[type="submit"], .cad-reinforcement-shape-dialog footer button:not(.quiet-button) {
+  min-height: 44px; padding: 10px 18px; border: 0; border-radius: 8px; background: #ea580c; color: white;
+  font-weight: 700; cursor: pointer; }
+.cad-reinforcement-shape-dialog footer button:not(.quiet-button):hover { background: #c2410c; }
+.cad-reinforcement-shape-dialog footer button:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+.cad-custom-bar-dialog { width: min(980px, 96vw); }
+.cad-custom-bar-dialog .cad-custom-bar-editor { margin: 0; background: white; }
+.cad-reinforcement-shape-previews { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 0; }
+.cad-reinforcement-shape-previews section { display: flex; flex-direction: column; gap: 7px; min-width: 0; padding: 10px;
+  border: 1px solid #e2e8f0; border-radius: 12px; background: white; box-shadow: 0 1px 2px #0f172a0f; }
+.cad-reinforcement-shape-previews h5 { margin: 0; color: #334155; font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
+.cad-reinforcement-shape-previews .reinforcement-shape-preview { flex: 1; min-height: 280px; height: auto; }
+.cad-reinforcement-shape-previews .cad-reinforcement-3d { min-height: 0; padding: 0; border: 0; background: transparent; }
+.cad-reinforcement-shape-previews .cad-reinforcement-3d svg { height: 280px; border-radius: 10px; }
+.cad-reinforcement-shape-legend { display: flex; flex-wrap: wrap; gap: 12px; margin: 0; color: #475569; font-size: 11px; }
+.cad-reinforcement-shape-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.cad-reinforcement-shape-legend i { width: 14px; height: 3px; border-radius: 2px; background: currentColor; }
+.cad-reinforcement-shape-legend span[data-legend="length"] { color: #9a3412; }
+.cad-reinforcement-shape-legend span[data-legend="angle"] { color: #115e59; }
+.cad-reinforcement-shape-legend span[data-legend="bar"] { color: #1d4ed8; }
+.cad-reinforcement-shape-data { display: grid; gap: 1px; margin: 0; overflow: hidden; border: 1px solid #e2e8f0;
+  border-radius: 12px; background: #e2e8f0; }
+.cad-reinforcement-shape-data div { display: grid; grid-template-columns: 170px 1fr; gap: 10px; padding: 10px 12px; background: white; }
+.cad-reinforcement-shape-data dt { color: #475569; font-weight: 700; }
+.cad-reinforcement-shape-data dd { margin: 0; overflow-wrap: anywhere; }
+.cad-reinforcement-shape-editor form { display: contents; }
+.cad-reinforcement-shape-hint { margin: 0; padding: 10px 12px; border: 1px solid #bfdbfe; border-left: 4px solid #2563eb;
+  border-radius: 8px; background: #eff6ff; color: #1e3a8a; font-size: 12px; line-height: 1.5; }
+.cad-reinforcement-shape-main-fields { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px; padding: 12px;
+  border: 1px solid #e2e8f0; border-radius: 12px; background: white; }
+.cad-reinforcement-shape-main-fields label, .cad-reinforcement-shape-segments label { display: grid; gap: 5px;
+  color: #334155; font-size: 12px; font-weight: 600; }
+.cad-reinforcement-shape-main-fields input, .cad-reinforcement-shape-main-fields select,
+.cad-reinforcement-shape-segments input { width: 100%; min-width: 0; min-height: 42px; padding: 8px 10px;
+  border: 1px solid #cbd5e1; border-radius: 8px; background: white; font: inherit; font-weight: 400; }
+.cad-reinforcement-shape-main-fields input:focus-visible, .cad-reinforcement-shape-main-fields select:focus-visible,
+.cad-reinforcement-shape-segments input:focus-visible { border-color: #ea580c; outline: 2px solid #fed7aa; outline-offset: 1px; }
+.cad-reinforcement-shape-rotation { display: grid; grid-template-columns: minmax(180px, .8fr) minmax(300px, 2fr) 170px;
+  align-items: end; gap: 12px; padding: 12px; border: 1px solid #bfdbfe; border-radius: 12px;
+  background: linear-gradient(135deg, #eff6ff, #f8fafc); }
+.cad-reinforcement-shape-rotation > div:first-child { display: grid; gap: 3px; align-self: center; color: #1e3a8a; }
+.cad-reinforcement-shape-rotation small { color: #475569; line-height: 1.35; }
+.cad-reinforcement-shape-rotation-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.cad-reinforcement-shape-rotation-actions .quiet-button { min-height: 38px; padding: 7px 10px; border: 1px solid #93c5fd;
+  border-radius: 8px; background: white; }
+.cad-reinforcement-shape-rotation-actions .quiet-button:hover { border-color: #2563eb; background: #dbeafe; color: #1e3a8a; }
+.cad-reinforcement-shape-rotation label { display: grid; gap: 5px; color: #334155; font-size: 12px; font-weight: 700; }
+.cad-reinforcement-shape-rotation input { width: 100%; min-height: 38px; padding: 7px 9px; border: 1px solid #93c5fd;
+  border-radius: 8px; background: white; font: inherit; font-weight: 400; }
+.cad-reinforcement-shape-rotation input:focus-visible { border-color: #2563eb; outline: 2px solid #bfdbfe; outline-offset: 1px; }
+.cad-reinforcement-shape-segments { display: grid; gap: 10px; }
+.cad-reinforcement-shape-segment-row { display: grid; gap: 6px; }
+.cad-reinforcement-shape-insert-point { display: grid; grid-template-columns: minmax(20px, 1fr) auto minmax(20px, 1fr);
+  align-items: center; gap: 8px; }
+.cad-reinforcement-shape-insert-point span { height: 1px; background: #fdba74; }
+.cad-reinforcement-shape-insert-point .quiet-button { min-height: 30px; padding: 4px 10px; border: 1px dashed #fb923c;
+  border-radius: 999px; background: #fff7ed; color: #9a3412; font-size: 11px; font-weight: 700; }
+.cad-reinforcement-shape-insert-point .quiet-button:hover { border-color: #ea580c; background: #fff7ed; color: #9a3412; }
+.cad-reinforcement-shape-segments fieldset { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+  align-items: end; gap: 10px; padding: 12px; border: 1px solid #e2e8f0; border-radius: 12px; background: white; }
+.cad-reinforcement-shape-segments legend { padding: 3px 10px; border-radius: 999px; background: #1e293b; color: white;
+  font-size: 11px; font-weight: 700; letter-spacing: .03em; }
+.cad-reinforcement-shape-segments fieldset .quiet-button { min-height: 42px; }
+.cad-reinforcement-shape-add-part { justify-self: start; min-height: 44px; border-style: dashed; font-weight: 700; }
+@media (max-width: 700px) {
+  .cad-reinforcement-detail-dialog { width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; padding: 12px; border: 0; border-radius: 0; }
+  .cad-reinforcement-stage-canvas { height: min(52vh, 420px); }
+  .cad-reinforcement-stage-picker button { flex: 1 1 130px; }
+  .cad-reinforcement-elements { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); max-height: 220px; }
+  .cad-reinforcement-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cad-foundation-ring-beam-fields { grid-template-columns: 1fr; }
+  .cad-custom-bend { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cad-custom-bend strong { grid-column: 1 / -1; }
+  .cad-reinforcement-wizard-steps { grid-template-columns: 1fr; }
+  .cad-reinforcement-wizard-steps button { min-height: 52px; }
+  .cad-reinforcement-shape-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cad-reinforcement-shape-card, .cad-reinforcement-shape-add { min-height: 230px; }
+  .cad-reinforcement-shape-dialog { width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh;
+    padding: 0; border: 0; border-radius: 0; }
+  .cad-reinforcement-shape-dialog header { padding: 12px 14px; }
+  .cad-reinforcement-shape-dialog header h4 { font-size: 16px; }
+  .cad-reinforcement-shape-body { padding: 12px 14px; }
+  .cad-reinforcement-shape-dialog footer { padding: 10px 14px; }
+  .cad-reinforcement-shape-dialog footer button { flex: 1 1 auto; }
+  .cad-reinforcement-shape-previews { grid-template-columns: 1fr; }
+  .reinforcement-shape-preview, .cad-reinforcement-shape-previews .cad-reinforcement-3d svg { height: 230px; }
+  .cad-reinforcement-shape-previews .reinforcement-shape-preview { min-height: 230px; }
+  .cad-reinforcement-shape-main-fields, .cad-reinforcement-shape-segments fieldset { grid-template-columns: 1fr; }
+  .cad-reinforcement-shape-rotation { grid-template-columns: 1fr; align-items: stretch; }
+  .cad-reinforcement-shape-rotation-actions .quiet-button { flex: 1 1 135px; }
+  .cad-reinforcement-shape-data div { grid-template-columns: 1fr; gap: 3px; }
+  .cad-reinforcement-shape-add-part { justify-self: stretch; }
+  .beam-constructor-heading, .beam-constructor-section-heading { align-items: stretch; flex-direction: column; }
+  .beam-constructor-heading dl { justify-content: flex-start; }
+  .beam-constructor-heading dl div { flex: 1 1 120px; }
+  .beam-constructor-previews { grid-template-columns: 1fr; }
+  .beam-constructor-previews > section:last-child { grid-column: auto; }
+  .beam-constructor-fields, .beam-constructor-concentrations fieldset { grid-template-columns: 1fr; }
+  .beam-constructor-zone-length { grid-template-columns: minmax(0, 1fr) auto; }
+  .beam-constructor-zone-grid { grid-template-columns: minmax(0, 1fr); }
+  .beam-constructor-add-zone { min-height: 180px; }
+  .beam-constructor-picker { inset: 0; width: 100vw; height: 100dvh; transform: none; border-radius: 0; }
+  .beam-constructor-picker > header { padding: 12px 14px; }
+  .beam-constructor-picker h5 { font-size: 17px; }
+  .beam-constructor-picker-toolbar { align-items: stretch; flex-direction: column; gap: 8px; padding: 10px 14px; }
+  .beam-constructor-picker-toolbar label { flex-basis: auto; max-width: none; }
+  .beam-constructor-picker-toolbar strong { align-self: flex-start; }
+  .beam-constructor-picker-content { padding: 12px 14px 18px; }
+  .beam-constructor-picker-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .beam-constructor-picker-card { min-height: 215px; }
+  .beam-constructor-picker-card .reinforcement-shape-preview-compact { height: 132px; }
+  .cad-reinforcement-heading { align-items: flex-start; flex-direction: column; }
+  .cad-reinforcement-chain-tools, .cad-reinforcement-template-tools { align-items: stretch; flex-direction: column; }
+  .cad-reinforcement-chain-tools label, .cad-reinforcement-template-tools label { width: 100%; }
 }

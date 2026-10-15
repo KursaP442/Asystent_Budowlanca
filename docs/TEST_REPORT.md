@@ -3,6 +3,726 @@
 Zasada: zapisujemy **dokładne komendy**, **datę**, **środowisko** i **rzeczywisty wynik** (PASS/FAIL/BLOCKED/NOT RUN).
 Nigdy nie wpisujemy ogólnego „działa” bez dowodu z uruchomienia.
 
+## Sesja 93 — 15 października 2026
+
+Środowisko: GitHub Codespaces, Linux, pnpm workspace.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/schemas build && pnpm --filter @asystent/domain build` | schemat i domena wyrównania strzemion | PASS | oba pakiety zbudowane |
+| `pnpm --filter @asystent/domain test` | wyrównanie i diagnostyka ciągłości | PASS | 88/88 |
+| `pnpm --filter web typecheck` | konstruktor belek | PASS | bez błędów |
+| `pnpm --filter web lint` | konstruktor belek | PASS | ESLint bez błędów |
+| Browser smoke `reinforcement-new-flow-smoke.mjs` | konstruktor belek | PASS | 126/126; wyrównanie lewo/prawo i góra/dół, slot ciągły między strefami |
+| `pnpm test` | cały monorepo | PASS | 13/13 zadań |
+| `pnpm build` | produkcyjny Web, Mobile i pakiety | PASS | 8/8 zadań; trasa `/api/reinforcement/shapes` zbudowana |
+| `git diff --check` | kod i dokumentacja | PASS | brak błędów białych znaków |
+| Weryfikacja konstrukcyjna zbrojenia | geometria, nośność, otulina i normy | NOT RUN | diagnostyka aplikacji jest geometryczna i nie zastępuje uprawnionego projektanta |
+
+## Sesja 92 — 15 października 2026
+
+Środowisko: GitHub Codespaces, Linux, pnpm workspace.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/domain test` | wypust drutów niestandardowych | PASS | 86/86; docinka 1300–2300 z wypustem 10/15 cm → 1200–2450; wypust przycięty do czoła belki |
+| `pnpm --filter web typecheck` + `pnpm --filter web lint` | konstruktor belek | PASS | bez błędów |
+| Browser smoke trybu demonstracyjnego | konstruktor belek | PASS | 123/123 |
+| Kafelek drutu niestandardowego | kształt strzemion strefy | PASS | obrys każdego strzemienia strefy w kolorze typu |
+| Rzut frontowy | kolory i wysokości typów strzemion | PASS | ≥ 2 kolory; wysokość linii strzemienia = wysokość obrysu na rzucie bocznym; wymiar „S{n}” zgodny z rzutem bocznym |
+| Kafelek drutu | wypust z jednej i z obu stron | PASS | z prawej 10 cm: 0–920 → 0–1020; z lewej przycięty do 0; dla „Cała belka” pole wyłączone |
+| Zrzuty ekranu | kafelek, front, bok | PASS | sprawdzone wizualnie |
+| `pnpm test` | cały monorepo | PASS | 13/13 zadań |
+| `pnpm build` | produkcyjny Web, Mobile i pakiety | PASS | 8/8 zadań |
+| `git diff --check` | kod i dokumentacja | PASS | brak błędów białych znaków |
+| Weryfikacja konstrukcyjna prętów | wypusty, zakłady, nośność | NOT RUN | wymaga uprawnionego projektanta |
+
+## Sesja 91 — 15 października 2026
+
+Środowisko: GitHub Codespaces, Linux, pnpm workspace.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/domain test` | reguła drutu przez całą belkę | PASS | 85/85; 30/50/30: lewy środek dostępny, górny środek niskiego strzemienia brak w strefie 2, duplikat zajęty w strefach 1–3 |
+| `pnpm --filter web typecheck` + `pnpm --filter web lint` | konstruktor belek | PASS | bez błędów |
+| Browser smoke trybu demonstracyjnego | konstruktor belek | PASS | 117/117 |
+| Sloty | cała belka / tylko docinka / zajęty | PASS | `data-full-beam` rozróżnia sloty; bursztynowe sloty tylko na docinkę |
+| Kafelek drutu | „Cała belka” | PASS | drut 0–9600, slot zajęty we wszystkich strefach; ręczna długość → docinka 9300–9600; ponowne kliknięcie przywraca całą belkę |
+| Kafelek drutu | slot tylko w części strzemion | PASS | przycisk wyłączony, stan `unavailable`, podany powód |
+| `pnpm test` | cały monorepo | PASS | 13/13 zadań |
+| `pnpm build` | produkcyjny Web, Mobile i pakiety | PASS | 8/8 zadań |
+| `git diff --check` | kod i dokumentacja | PASS | brak błędów białych znaków |
+| Weryfikacja konstrukcyjna prętów | liczba, rozstaw i nośność | NOT RUN | wymaga uprawnionego projektanta |
+
+## Sesja 90 — 15 października 2026
+
+Środowisko: GitHub Codespaces, Linux, pnpm workspace.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/domain test` | sloty strzemion, zajętość, docinki | PASS | 84/84; strefy 30/50/30, środek góry wysokiego strzemienia = docinka 1300–2300 |
+| `pnpm --filter web typecheck` + ESLint komponentów | konstruktor, panel, widok 3D | PASS | bez błędów |
+| Browser smoke trybu demonstracyjnego | konstruktor belek | PASS | 114/114 |
+| Sub-okno drutów niestandardowych | zablokowany front 3D, podświetlenie strefy | PASS | brak kontrolek 3D, podświetlone tylko strzemiona wybranej strefy |
+| Sub-okno drutów niestandardowych | sloty i zajętość | PASS | 8 narożników i 8 środków dla pakietu 2 strzemion; narożniki czerwone i niewybieralne |
+| Kafelek drutu | długość, Ø, strona, „Cała belka” | PASS | docinka 30 cm od końca kończy się na końcu zakresu |
+| Rzuty, 3D, zapis | drut niestandardowy | PASS | front, bok, 3D (`-9100-`) i zachowanie po zapisie |
+| Wygląd sub-okna | zrzut ekranu z bieżącym CSS | PASS | arkusz wstrzyknięty; serwer deweloperski serwował stary `globals.css` |
+| `pnpm test` | cały monorepo | PASS | 13/13 zadań |
+| `pnpm build` | produkcyjny Web, Mobile i pakiety | PASS | 8/8 zadań |
+| `git diff --check` | kod i dokumentacja | PASS | brak błędów białych znaków |
+| Weryfikacja konstrukcyjna prętów | liczba, rozstaw i nośność | NOT RUN | wymaga uprawnionego projektanta |
+
+## Sesja 89 — 15 października 2026
+
+Środowisko: GitHub Codespaces, Linux, pnpm workspace.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter web typecheck && pnpm --filter web lint` | konstruktor belek | PASS | TypeScript i ESLint bez błędów |
+| Browser smoke trybu demonstracyjnego | konstruktor belek | PASS | 100/100 |
+| Rzut frontowy | poświata faktycznie przerywa drut | PASS | kolor poświaty równy wypełnieniu betonu, grubość > strzemię + 2 × drut |
+| Rzut frontowy | hierarchia warstw | PASS | warstwa `stirrups` po warstwie `bars`, poświata dla każdego strzemienia |
+| Rzut boczny | łączny wymiar pakietu przy kierunku góra/dół | PASS | etykieta „Pakiet 2 × strzemię”, wartość zgodna z obrysem obu strzemion |
+| Rzut boczny | łączny wymiar przenosi się na szerokość przy kierunku lewo/prawo | PASS | wymiar wysokości znika, pojawia się wymiar szerokości |
+| `pnpm test` | cały monorepo | PASS | 13/13 zadań; domain 83/83 |
+| `pnpm build` | produkcyjny Web, Mobile i pakiety | PASS | 8/8 zadań |
+| `git diff --check` | kod i dokumentacja | PASS | brak błędów białych znaków |
+| Weryfikacja konstrukcyjna prętów | liczba, rozstaw i nośność | NOT RUN | wymaga uprawnionego projektanta |
+
+## Sesja 88 — 15 października 2026
+
+Środowisko: GitHub Codespaces, Linux, pnpm workspace.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/domain build && pnpm --filter @asystent/domain test` | pakiety strzemion i druty narożne | PASS | 83/83; pakiet 2 × Ø8 300 × 400 daje 8 narożników |
+| `pnpm --filter web typecheck && pnpm --filter web lint` | konstruktor belek | PASS | TypeScript i ESLint bez błędów |
+| Browser smoke trybu demonstracyjnego | konstruktor belek | PASS | 97/97 |
+| Kafelek standardowych drutów | liczba drutów w pakiecie | PASS | 8 okręgów, po 4 na `data-bundle-index` 0 i 1, opis „8 szt.” |
+| Przekrój | zawarcie drutu w licu własnego strzemienia | PASS | każdy drut dopasowany po `data-bundle-index` |
+| Model 3D | liczba prętów standardowych | PASS | 8 pozycji `-9000-` |
+| Rzut frontowy | projekcje poziomów drutu | PASS | 4 linie o czterech różnych `y1` dla pakietu przesuwanego w pionie |
+| Rzut frontowy | hierarchia strzemion nad drutami | PASS | warstwa `stirrups` po warstwie `bars`, poświata dla każdej linii strzemienia |
+| `pnpm test` | cały monorepo | PASS | 13/13 zadań; domain 83/83 |
+| `pnpm build` | produkcyjny Web, Mobile i pakiety | PASS | 8/8 zadań |
+| `git diff --check` | kod i dokumentacja | PASS | brak błędów białych znaków |
+| Weryfikacja konstrukcyjna prętów | liczba, rozstaw i nośność | NOT RUN | wymaga uprawnionego projektanta |
+
+## Sesja 87 — 15 października 2026
+
+Środowisko: GitHub Codespaces, Linux, pnpm workspace.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/domain test` | styczność drutu do lica strzemienia | PASS | 82/82; `140 + 12/2 = 300/2 − 8/2` |
+| `pnpm --filter web typecheck && pnpm --filter web lint` | konstruktor belek i renderer 3D | PASS | TypeScript i ESLint bez błędów |
+| Browser smoke trybu demonstracyjnego | konstruktor belek | PASS | 95/95 |
+| Druty w przekroju | zawarcie w licu najmniejszego strzemienia | PASS | `cx ± r` i `cy ± r` wewnątrz obrysu pomniejszonego o Ø strzemienia / 2 |
+| Kolejność rysowania | strzemię na drucie | PASS | obrysy strzemion występują w DOM po wszystkich czterech prętach |
+| Rzut frontowy 2D | grubość znacznika drutu | PASS | `stroke-width` = Ø / 6, czyli 2,67 dla pręta Ø16 |
+| Rzut frontowy 2D | hierarchia warstw | PASS | warstwa `bars` przed `stirrups`; 2 pręty, strzemiona nad nimi |
+| Model 3D | brak podwójnego przesunięcia pionowego | PASS | 4 pręty narożne; jawny `offset.z` wyłącza wysokość warstwy |
+| `pnpm test` | cały monorepo | PASS | 13/13 zadań; domain 82/82 |
+| `pnpm build` | produkcyjny Web, Mobile i pakiety | PASS | 8/8 zadań |
+| `git diff --check` | kod i dokumentacja | PASS | brak błędów białych znaków |
+| Weryfikacja konstrukcyjna prętów | otulenie, rozstaw i nośność | NOT RUN | wymaga uprawnionego projektanta |
+
+## Sesja 86 — 15 października 2026
+
+Środowisko: GitHub Codespaces, Linux, pnpm workspace.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/domain build && pnpm --filter @asystent/domain test` | geometria drutów w narożniku | PASS | 82/82; Ø8 + Ø12 daje odsunięcie środka 10 mm do wnętrza |
+| `pnpm --filter web typecheck && pnpm --filter web lint` | projekcja frontowa i miniatura | PASS | TypeScript i ESLint bez błędów i ostrzeżeń |
+| Browser smoke trybu demonstracyjnego | standardowe druty | PASS | 93/93 |
+| Rzut frontowy 2D | liczba widocznych projekcji | PASS | 2 linie: górna i dolna |
+| Przekrój, kafelek i 3D | liczba fizycznych drutów | PASS | po 4 pozycje narożne; 4 pręty w 3D |
+| Osadzenie w najmniejszym strzemieniu | styczność od strony wewnętrznej | PASS | środki ±140 mm i ±190 mm dla obrysu 300 × 400 mm |
+| `pnpm test` | cały monorepo | PASS | 13/13 zadań; schemas 44/44, domain 82/82 |
+| `pnpm build` | produkcyjny Web, Mobile i pakiety | PASS | 8/8 zadań |
+| `git diff --check` | kod i dokumentacja | PASS | brak błędów białych znaków |
+| Weryfikacja konstrukcyjna prętów | średnica, otulenie, położenie i nośność | NOT RUN | wymaga uprawnionego projektanta |
+
+## Sesja 85 — 15 października 2026
+
+Środowisko: GitHub Codespaces, Linux, pnpm workspace.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter web typecheck` | nowe właściwości konstruktora i dialog | PASS | TypeScript bez błędów |
+| `pnpm --filter web lint` | UI kafelków i sub-okna | PASS | ESLint bez błędów i ostrzeżeń |
+| Browser smoke trybu demonstracyjnego | wspólna sekcja drutów | PASS | 93/93 |
+| Stan początkowy sekcji „Druty główne” | dwa kafelki w jednej siatce | PASS | standardowy i niestandardowy aktywne oraz sąsiadujące |
+| Dodanie standardowych drutów | zamiana kafelka | PASS | kafelek dodawania znika, konfiguracja czterech prętów pozostaje obok `+` |
+| Otwarcie drutu niestandardowego | osobne sub-okno | PASS | brak starego formularza inline; modal zawiera pełny formularz |
+| Wybór kształtu z biblioteki | ponowne użycie formularza | PASS | orientacja 90° i Ø8 przeniesione do sub-okna |
+| Dodanie niestandardowego pręta | zapis i zamknięcie | PASS | modal zamknięty, utworzony pręt widoczny w 3D |
+| Widok przy 390 × 844 | responsywność nowej sekcji | PASS | brak poziomego przepełnienia |
+| `pnpm test` | cały monorepo | PASS | 13/13 zadań; schemas 44/44, domain 82/82 |
+| `pnpm build` | produkcyjny Web, Mobile i pakiety | PASS | 8/8 zadań |
+| `git diff --check` | kod i dokumentacja | PASS | brak błędów białych znaków |
+| Weryfikacja konstrukcyjna prętów | średnica, otulenie, położenie i nośność | NOT RUN | wymaga uprawnionego projektanta |
+
+## Sesja 84 — 15 października 2026
+
+Środowisko: GitHub Codespaces, Linux, pnpm workspace.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/schemas build && pnpm --filter @asystent/schemas test` | konfiguracja `standardMainBars` | PASS | 44/44; średnica trwała, konfiguracja bez strzemion odrzucona |
+| `pnpm --filter @asystent/domain build && pnpm --filter @asystent/domain test` | wybór najmniejszego strzemienia | PASS | 82/82; obrys 30 × 40 cm wygrywa z 50 × 50 cm, zwrócone 4 narożniki |
+| `cd apps/web && pnpm typecheck && pnpm lint` | kafelek i generowanie prętów | PASS | TypeScript i ESLint bez błędów i ostrzeżeń |
+| Browser smoke trybu demonstracyjnego | pełny przepływ standardowych drutów | PASS | 89/89 |
+| Stan początkowy sekcji „Druty główne” | przycisk i `+` | PASS | przycisk standardowy widoczny, kafelek niestandardowy nieaktywny |
+| Dodanie standardowych drutów | zmiana stanu UI | PASS | przycisk znika, powstaje jeden kafelek Ø12 i 4 narożniki |
+| Podglądy standardowych drutów | front, przekrój, kafelek i 3D | PASS | po 4 elementy `data-main-bar-corner`; 4 pręty 3D |
+| Edycja średnicy | pole w kafelku | PASS | Ø12 → Ø16 aktualizuje rysunek frontowy |
+| Usunięcie kafelka | powrót stanu początkowego | PASS | 0 prętów, 0 kafelków, przycisk standardowy ponownie widoczny |
+| Trwały zapis Ø14 | ponowne otwarcie konstruktora | PASS | 2 strefy i kafelek Ø14 zachowane |
+| Wygenerowane encje CAD | warstwa górna/dolna | PASS | co najmniej 2 pręty górne i 2 dolne dla jednego segmentu |
+| Widok przy 390 × 844 | sekcja drutów | PASS | brak poziomego przepełnienia |
+| `pnpm test` | cały monorepo | PASS | 13/13 zadań; schemas 44/44, domain 82/82 |
+| `pnpm build` | produkcyjny Web, Mobile i pakiety | PASS | 8/8 zadań |
+| `git diff --check` | kod i dokumentacja | PASS | brak błędów białych znaków |
+| Weryfikacja konstrukcyjna czterech prętów | średnica, otulenie i nośność | NOT RUN | wymaga uprawnionego projektanta |
+
+## Sesja 83 — 15 października 2026
+
+Środowisko: GitHub Codespaces, Linux, pnpm workspace.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `cd apps/web && pnpm typecheck && pnpm lint` | modal, wymiary pakietów i nawigacja | PASS | TypeScript i ESLint bez błędów |
+| Browser smoke trybu demonstracyjnego | pełny przepływ konstruktora | PASS | 83/83 |
+| Modal większego strzemienia | pozycja i zawartość | PASS | natywny `dialog`, środek 1440 × 1000 z tolerancją 3 px; podgląd i trzy wartości geometryczne |
+| „Wybierz inne” / potwierdzenie | obie ścieżki decyzji | PASS | powrót do biblioteki bez strefy albo strefa oznaczona do weryfikacji |
+| Pakiet dwóch strzemion | obrysy i łańcuchy wymiarowe | PASS | dwa różne kolory; każde strzemię ma własny wymiar szerokości i wysokości |
+| Opis betonu | front 2D, bok 2D i model 3D | PASS | po jednej etykiecie `BETON` z linią prowadzącą na każdym podglądzie |
+| Rzut frontowy | zoom, pan i reset | PASS | malejący `viewBox`, zmiana początku po przeciąganiu, pełny reset |
+| Rzut boczny | zoom, pan i reset | PASS | malejący `viewBox`, zmiana początku po przeciąganiu, pełny reset |
+| Model 3D | przyciski zoomu, tryb pan i reset | PASS | 125%, przesunięcie przeciąganiem także od pręta, powrót do 100% i `(0,0)` |
+| Widok przy 390 × 844 | modal i nowe kontrolki | PASS | brak poziomego przepełnienia |
+| `pnpm test` | cały monorepo | PASS | 13/13 zadań; schemas 43/43, domain 81/81 |
+| `pnpm build` | produkcyjny Web, Mobile i pakiety | PASS | 8/8 zadań |
+| `git diff --check` | kod i dokumentacja | PASS | brak błędów białych znaków |
+| Weryfikacja konstrukcyjna pakietów i strzemion wystających ponad beton | otulina i nośność | NOT RUN | wymaga uprawnionego projektanta |
+
+## Sesja 82 — 15 października 2026
+
+Środowisko: GitHub Codespaces, Linux, pnpm workspace.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/schemas build && pnpm --filter @asystent/schemas test` | flaga `oversizeAccepted` | PASS | 43/43 |
+| `pnpm --filter @asystent/domain build && pnpm --filter @asystent/domain test` | `reinforcementShapeOutline` | PASS | 81/81; kwadratowe strzemię 50 × 50 cm zwraca 500 × 500 mm |
+| `cd apps/web && pnpm typecheck && pnpm lint` | rzut boczny, ostrzeżenie i nawigacja | PASS | TypeScript i ESLint bez błędów |
+| Browser smoke trybu demonstracyjnego | pełny przepływ konstruktora | PASS | 75/75 |
+| Rzut boczny — skala strzemienia | obrys kształtu kontra 80% betonu | PASS | wymiary obrysu różnią się od 80% przekroju; obecne łańcuchy `stirrup-width` i `stirrup-height` |
+| Strzemię wyższe od etapu — ostrzeżenie | kształt 200 × 200 cm w niższym przekroju | PASS | strefa nie jest dodawana, komunikat zawiera wielkość wystawania, oba przyciski obecne |
+| Strzemię wyższe od etapu — „Wybierz inne” | powrót do biblioteki | PASS | biblioteka widoczna, 0 stref, ostrzeżenie usunięte |
+| Strzemię wyższe od etapu — „Potwierdź” | akceptacja wystawania | PASS | strefa dodana z oznaczeniem, obrys wychodzi ponad górną krawędź betonu |
+| Rzut frontowy — wymiary rozstawu | łańcuch `spacing` | PASS | etykiety w centymetrach, łańcuch opisany jako „liczba × rozstaw” |
+| Rzut boczny — przybliżanie | przycisk „Przybliż rzut boczny” | PASS | szerokość `viewBox` maleje |
+| Rzut boczny — przesuwanie | przeciąganie myszą | PASS | początek `viewBox` zmienia się zgodnie z kierunkiem |
+| Rzut boczny — „Dopasuj widok” | reset kadru | PASS | `viewBox` wraca do wartości początkowej |
+| Widok przy 390 × 844 | nowe elementy konstruktora | PASS | brak poziomego przepełnienia |
+| `pnpm test` | cały monorepo | PASS | 13/13 zadań; schemas 43/43, domain 81/81 |
+| `pnpm build` | produkcyjny Web, Mobile i pakiety | PASS | 8/8 zadań |
+| `git diff --check` | kod i dokumentacja | PASS | brak błędów białych znaków |
+| Weryfikacja konstrukcyjna strzemion wystających ponad beton | otulina i nośność | NOT RUN | wymaga uprawnionego projektanta |
+
+## Sesja 81 — 15 października 2026
+
+Środowisko: GitHub Codespaces, Linux, pnpm workspace.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/schemas build && pnpm --filter @asystent/schemas test` | kierunek pakietu | PASS | 42/42 |
+| `pnpm --filter @asystent/domain build && pnpm --filter @asystent/domain test` | wspólne stacje i offset przekroju | PASS | 80/80; dwa strzemiona na stacji 400 mm mają offset pionowy 0 i 40 mm |
+| `pnpm --filter web typecheck && pnpm --filter web lint` | centymetry, przycisk i wymiary SVG | PASS | TypeScript i ESLint bez błędów |
+| Browser smoke trybu demonstracyjnego | pełny przepływ konstruktora | PASS | 65/65 |
+| Pakiet dwóch strzemion „do góry” | rozstaw i przesunięcie | PASS | powtarzające się współrzędne stacji na froncie, różne współrzędne pionowe w przekroju |
+| Przycisk „Cała belka” | druga strefa | PASS | pozostały zakres zmienia się na 0 cm |
+| Rzut frontowy | wymiary długości, wysokości i stref | PASS | osobny łańcuch każdej strefy; wszystkie teksty zawierają `cm` |
+| Rzut boczny | wymiary szerokości i wysokości | PASS | dwa łańcuchy; wszystkie teksty zawierają `cm` |
+| Widok przy 390 × 844 | nowe pola i wymiary | PASS | brak poziomego przepełnienia |
+| `pnpm test` | cały monorepo | PASS | 13/13 zadań; schemas 42/42, domain 80/80 |
+| `pnpm build` | produkcyjny Web, Mobile i pakiety | PASS | 8/8 zadań |
+| `git diff --check` | kod i dokumentacja | PASS | brak błędów białych znaków |
+| Weryfikacja konstrukcyjna pakietów | liczba, kierunek i odstęp osiowy | NOT RUN | wymaga uprawnionego projektanta |
+
+## Sesja 80 — 15 października 2026
+
+Środowisko: GitHub Codespaces, Linux, pnpm workspace.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter web typecheck && pnpm --filter web lint` | podglądy i biblioteka strzemion | PASS | TypeScript i ESLint bez błędów |
+| Browser smoke trybu demonstracyjnego | poprawiony konstruktor belek | PASS | 61/61 |
+| Rzuty frontowy i boczny | kolory podglądu | PASS | beton `#e0f2fe`, strzemiona `#0f766e`; brak czarnej planszy |
+| Wszystkie podglądy 3D na stronie | gradient stali | PASS | każdy `linearGradient` ma unikalny identyfikator |
+| Sub-okno biblioteki przy 1440 × 1000 | pozycja i rozmiar | PASS | środek okna zgodny ze środkiem viewportu; szerokość ≥1200 px |
+| Siatka biblioteki | pojemność desktop | PASS | 5 kolumn, około 10 kafelków w dwóch rzędach |
+| Wyszukiwarka biblioteki | nazwa, `fi8`, pusty wynik | PASS | poprawne filtrowanie i komunikat braku wyników |
+| Widok przy 390 × 844 | pełnoekranowa biblioteka i konstruktor | PASS | brak poziomego przepełnienia |
+| `pnpm --filter web build` | produkcyjny build Web | PASS | kompilacja, TypeScript i 10 stron wygenerowane poprawnie |
+| `git diff --check` | kod i dokumentacja | PASS | brak błędów białych znaków |
+
+## Sesja 79 — 15 października 2026
+
+Środowisko: GitHub Codespaces, Linux, pnpm workspace.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/schemas build && pnpm --filter @asystent/schemas test` | model konfiguracji belki | PASS | 42/42; strefy kolejne, zagęszczenia i granice hosta |
+| Pierwszy `pnpm --filter @asystent/domain test` | oczekiwanie testu pakietu na początku strefy | FAIL | test oczekiwał 380 mm poza strefą zaczynającą się na 400 mm; poprawiono oczekiwanie na prawidłowe 420 mm |
+| `pnpm --filter @asystent/domain build && pnpm --filter @asystent/domain test` | pozycje i mapowanie strzemion | PASS | 80/80; regularne stacje, zagęszczenia, pakiety, styk stref, wiele hostów i płaszczyzny XZ/YZ |
+| Pierwszy `pnpm --filter web lint` | inicjalizacja konstruktora | FAIL | reguła React odrzuciła synchroniczny `setState` w efekcie; inicjalizację przeniesiono na montowanie komponentu przez stabilny `key` |
+| `pnpm --filter web typecheck && pnpm --filter web lint` | konstruktor, zapis i style | PASS | TypeScript i ESLint bez błędów |
+| Browser smoke trybu demonstracyjnego | pełny przepływ konstruktora belki | PASS | 55/55; biblioteka strzemion, front/bok/3D, pakiet 2 szt., zagęszczenie, dwie strefy, zapis |
+| Styk dwóch stref | deduplikacja fizycznego strzemienia | PASS | jedna encja na wspólnej stacji; przypisana do następnej strefy |
+| Widok przy 390 × 844 | responsywność konstruktora | PASS | poziome przepełnienie 0 px |
+| `pnpm test` | cały monorepo | PASS | 13/13 zadań; schemas 42/42, domain 80/80 |
+| `pnpm build` | produkcyjny Web, Mobile i pakiety | PASS | 8/8 zadań |
+| `git diff --check` | kod i dokumentacja | PASS | brak błędów białych znaków |
+| Dobór konstrukcyjny i zgodność normowa | średnice, rozstawy i zagęszczenia | NOT RUN | wymaga weryfikacji uprawnionego projektanta |
+| Trwały zapis biblioteki w Supabase | konto użytkownika | BLOCKED | brak `apps/web/.env.local` |
+
+## Sesja 78 — 15 października 2026
+
+Środowisko: GitHub Codespaces, Linux, pnpm workspace.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/schemas test` | opcjonalna średnica drutu | PASS | 40/40; Ø8 zapisane, brak pola dozwolony, Ø0 odrzucone |
+| `pnpm --filter web typecheck` | średnica i odsuwanie etykiet | PASS | TypeScript bez błędów |
+| `pnpm --filter web lint` | podgląd kształtu i kreator | PASS | ESLint bez błędów i ostrzeżeń |
+| Browser smoke trybu demonstracyjnego | pełna ścieżka średnicy | PASS | 50/50 |
+| Zmiana średnicy na Ø8 | grubość rysowanego pręta | PASS | `stroke-width` zmalał względem Ø12 |
+| Podgląd 2D i miniatura | kropki na drucie | PASS | 0 elementów `.reinforcement-shape-node` |
+| Szczegóły kształtu | zapisana średnica | PASS | widoczne „Ø8 mm” |
+| Edytor pręta po „Użyj w edytorze pręta” | przeniesienie średnicy | PASS | pole Ø (mm) ma wartość 8 |
+| Kontrola wizualna strzemienia Ø8 30×50 z hakami | ciągłość drutu i czytelność opisów | PASS | drut rysowany w całości; opis haka odsunięty od opisu boku |
+| `pnpm test` | cały monorepo | PASS | 13/13 zadań |
+| `pnpm build` | produkcyjny Web, Mobile i pakiety | PASS | 8/8 zadań |
+| `git diff --check` | higiena zmian | PASS | brak błędów białych znaków |
+| Trwały zapis biblioteki w Supabase | konto użytkownika | BLOCKED | brak `apps/web/.env.local` |
+
+## Sesja 77 — 15 października 2026
+
+Środowisko: GitHub Codespaces, Linux, pnpm workspace.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter web typecheck` | wymiary na miniaturach kafelków | PASS | TypeScript bez błędów |
+| `pnpm --filter web lint` | podgląd kształtu | PASS | ESLint bez błędów; usunięto zbędną zależność `compact` w `useMemo` |
+| Browser smoke trybu demonstracyjnego | miniatura kafelka biblioteki | PASS | 44/44 |
+| Miniatura kafelka ma znaczniki wymiarowe | kształt z trzech części | PASS | 3 linie wymiarowe i 3 etykiety długości |
+| Miniatura kafelka opisuje kąty gięcia | kształt z trzech części | PASS | obecny łuk kąta i jego etykieta |
+| Kontrola wizualna siatki kafelków | prosty, L, strzemię U, wieloczęściowy | PASS | etykiety mieszczą się w ramce; po przeniesieniu wymiarów nad pręt nie są zasłaniane |
+| `pnpm test` | cały monorepo | PASS | 13/13 zadań |
+| `pnpm build` | produkcyjny Web, Mobile i pakiety | PASS | 8/8 zadań |
+| `git diff --check` | higiena zmian | PASS | brak błędów białych znaków |
+| Trwały zapis biblioteki w Supabase | konto użytkownika | BLOCKED | brak `apps/web/.env.local` |
+
+## Sesja 76 — 15 października 2026
+
+Środowisko: GitHub Codespaces, Linux, pnpm workspace.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/schemas test` | opcjonalna orientacja kształtu | PASS | 39/39; 90° zaakceptowane, 361° odrzucone |
+| `pnpm --filter @asystent/domain test` | obrót ścieżki pręta | PASS | 79/79; poprawne współrzędne po 90°, długość rozwinięta bez zmian |
+| `pnpm --filter web typecheck` | kontrolki wstawiania i orientacji | PASS | TypeScript bez błędów |
+| `pnpm --filter web lint` | formularz kreatora | PASS | ESLint bez błędów i ostrzeżeń |
+| Browser smoke trybu demonstracyjnego | wstawianie części i obrót kształtu | PASS | 41/41 |
+| Wstawienie pominiętej części na początku | kształt 50 cm + 30 cm | PASS | wynik 20 cm + 50 cm + 30 cm; wcześniejsze dane zachowane |
+| Obrót całego kształtu | przycisk „Obróć w prawo o 90°” | PASS | ścieżka SVG zmieniona, orientacja 90° zapisana i przekazana do edytora pręta |
+| Widok przy 390 × 844 | nowe kontrolki kreatora | PASS | poziome przepełnienie 0 px |
+| `pnpm test` | cały monorepo | PASS | 13/13 zadań |
+| `pnpm build` | produkcyjny Web, Mobile i pakiety | PASS | 8/8 zadań |
+| Pierwsze równoległe uruchomienie testu domeny ze schematami | kolejność budowy pakietów | FAIL | domena odczytała stary `dist` schematów; po ukończeniu builda schematów ponowiono test: PASS 79/79 |
+| Migracja i RLS biblioteki na lokalnym Supabase | trwały zapis per konto | BLOCKED | brak `apps/web/.env.local` |
+
+## Sesja 75 — 15 października 2026
+
+Środowisko: GitHub Codespaces, Linux, pnpm workspace.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter web typecheck` | wymiarowany podgląd 2D i szata kreatora | PASS | TypeScript bez błędów |
+| `pnpm --filter web lint` | podgląd, panel i style | PASS | ESLint bez błędów i ostrzeżeń |
+| Browser smoke trybu demonstracyjnego | etapy, sub-okna, kreator kształtu | PASS | 36/36, w tym 2 nowe kontrole wymiarowania podglądu 2D |
+| Kontrola znaczników wymiarowych podglądu 2D | kreator kształtu, 2 części | PASS | 2 linie bazowe, 4 kreski stacji, 2 etykiety długości |
+| Kontrola opisu kąta gięcia | kreator kształtu, gięcie 90° | PASS | 1 łuk `reinforcement-shape-angle-arc`, etykieta zawiera „90” |
+| Zapis kształtu przy `display: contents` na formularzu | sub-okno kreatora | PASS | zapis otwiera szczegóły i tworzy wpis w magazynie demo |
+| Widok przy 390 × 844 | sub-okna kreatora | PASS | poziome przepełnienie 0 px |
+| `node --check .../reinforcement-new-flow-smoke.mjs` | składnia scenariusza przeglądarkowego | PASS | bez błędów składni |
+| `node --check apps/web/e2e/role-onboarding.spec.mjs` | składnia istniejącego scenariusza | PASS | bez błędów składni |
+| `pnpm test` | cały monorepo | PASS | 13/13 zadań |
+| `pnpm build` | produkcyjny Web, Mobile i pakiety | PASS | 8/8 zadań |
+| `git diff --check` | kod i dokumentacja | PASS | brak błędów whitespace |
+| Migracja i RLS biblioteki na lokalnym Supabase | trwały zapis per konto | BLOCKED | brak `apps/web/.env.local` |
+
+## Sesja 74 — 15 października 2026
+
+Środowisko: GitHub Codespaces, Linux, pnpm workspace.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/schemas test` | schemat biblioteki kształtów | PASS | 39/39; minimum 50 mm, kąt 0° albo ≥1°, zgodność kategorii strzemienia |
+| `pnpm --filter web typecheck` | kreator, podglądy i API klienta | PASS | TypeScript bez błędów |
+| `pnpm --filter web lint` | interfejs kreatora | PASS | ESLint bez błędów i ostrzeżeń |
+| Browser smoke trybu demonstracyjnego | biblioteka, formularz i zapis | PASS | 34/34; podgląd 2D/3D, aktualizacja na żywo, zapis `localStorage`, użycie kształtu i brak mobile overflow |
+| `node --check .../reinforcement-new-flow-smoke.mjs` | składnia scenariusza przeglądarkowego | PASS | bez błędów składni |
+| `pnpm test` | cały monorepo | PASS | 13/13 zadań; domena 79/79, schematy 39/39 |
+| `pnpm build` | produkcyjny Web, Mobile i pakiety | PASS | 8/8 zadań |
+| `git diff --check` | kod i dokumentacja | PASS | brak błędów whitespace |
+| Migracja i RLS biblioteki na lokalnym Supabase | trwały zapis per konto | BLOCKED | brak `apps/web/.env.local` |
+
+## Sesja 73 — 15 października 2026
+
+Środowisko: GitHub Codespaces, Linux, pnpm workspace.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/domain test` | osobne wymiary ścian wewnętrznych | PASS | 79/79; ściana poprzeczna nie dzieli obwodowego łańcucha, ma własną długość i grubość wewnątrz rzutu |
+| `pnpm --filter web typecheck` | wewnętrzne łańcuchy wymiarowe | PASS | TypeScript bez błędów |
+| `pnpm --filter web lint` | renderer wymiarów wewnętrznych | PASS | ESLint bez błędów i ostrzeżeń |
+| Browser smoke trybu demonstracyjnego | wspólne wymiary etapowe | PASS | 28/28; brak błędów JS i mobile overflow |
+| `pnpm test` | cały monorepo | PASS | 13/13 zadań |
+| `pnpm build` | produkcyjny Web, Mobile i pakiety | PASS | 8/8 zadań |
+| `node --check apps/web/e2e/role-onboarding.spec.mjs` | składnia stałego scenariusza | PASS | bez błędów składni |
+| `git diff --check` | kod i dokumentacja | PASS | brak błędów whitespace |
+| Pełny E2E Supabase | trwały zapis projektu | BLOCKED | brak `apps/web/.env.local` |
+
+## Sesja 72 — 15 października 2026
+
+Środowisko: GitHub Codespaces, Linux, pnpm workspace.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/domain test` | kompletność przesuniętej ściany i deduplikacja | PASS | 78/78; obie grubości zachowane, jeden wspólny łańcuch dla stron identycznych, bez osobnego wymiaru całkowitego |
+| `pnpm --filter web typecheck` | renderer pełnych łańcuchów | PASS | TypeScript bez błędów |
+| `pnpm --filter web lint` | renderer bez duplikatów | PASS | ESLint bez błędów i ostrzeżeń |
+| Browser smoke trybu demonstracyjnego | wspólne wymiary etapowe | PASS | 28/28; brak błędów JS i mobile overflow |
+| `pnpm test` | cały monorepo | PASS | 13/13 zadań |
+| `pnpm build` | produkcyjny Web, Mobile i pakiety | PASS | 8/8 zadań |
+| `node --check apps/web/e2e/role-onboarding.spec.mjs` | składnia stałego scenariusza | PASS | bez błędów składni |
+| `git diff --check` | kod i dokumentacja | PASS | brak błędów whitespace |
+| Pełny E2E Supabase | trwały zapis projektu | BLOCKED | brak `apps/web/.env.local` |
+
+## Sesja 71 — 15 października 2026
+
+Środowisko: GitHub Codespaces, Linux, pnpm workspace.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/domain test` | nominalne grubości i przecięcia stron | PASS | 77/77; dokładne łańcuchy `1–5–1` oraz `1–3–1`, bez wymiarów punktów podziału |
+| `pnpm --filter web typecheck` | etykiety nominalnych szerokości | PASS | TypeScript bez błędów |
+| `pnpm --filter web lint` | renderer łańcuchów | PASS | ESLint bez błędów i ostrzeżeń |
+| Browser smoke trybu demonstracyjnego | wspólne wymiary etapowe | PASS | 28/28; bazy osiowe, tekst nad linią, brak błędów JS i mobile overflow |
+| `pnpm test` | cały monorepo | PASS | 13/13 zadań |
+| `pnpm build` | produkcyjny Web, Mobile i pakiety | PASS | 8/8 zadań |
+| `node --check apps/web/e2e/role-onboarding.spec.mjs` | składnia stałego scenariusza | PASS | bez błędów składni |
+| `git diff --check` | kod i dokumentacja | PASS | brak błędów whitespace |
+| Pełny E2E Supabase | trwały zapis projektu | BLOCKED | brak `apps/web/.env.local` |
+
+## Sesja 70 — 15 października 2026
+
+Środowisko: GitHub Codespaces, Linux, pnpm workspace.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/domain test` | przeciwległe profile wymiarowe | PASS | 77/77; jedna strona dla profili równych, dwie strony przy różnicy i brak przenoszenia stacji między stronami |
+| `pnpm --filter web typecheck` | wspólny renderer etykiet łańcuchów | PASS | TypeScript bez błędów |
+| `pnpm --filter web lint` | odsunięcie tekstu i kolizje między rodzinami | PASS | ESLint bez błędów i ostrzeżeń |
+| Browser smoke trybu demonstracyjnego | rzeczywisty SVG wymiarów etapowych | PASS | 28/28; tekst nad bazą, bazy osiowe, kreski prostopadłe, brak błędów JS i mobile overflow |
+| `pnpm test` | cały monorepo | PASS | 13/13 zadań |
+| `pnpm build` | produkcyjny Web, Mobile i pakiety | PASS | 8/8 zadań |
+| `node --check apps/web/e2e/role-onboarding.spec.mjs` | składnia stałego scenariusza | PASS | bez błędów składni |
+| `git diff --check` | kod i dokumentacja | PASS | brak błędów whitespace |
+| Pełny E2E Supabase | trwały zapis projektu | BLOCKED | brak `apps/web/.env.local` |
+
+## Sesja 69 — 15 października 2026
+
+Środowisko: GitHub Codespaces, Linux, pnpm workspace.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/domain test` | kompletne osiowe łańcuchy wymiarowe | PASS | 75/75; dokładna sekwencja `80–400–80–400–80`, T/X, łamane i podpory |
+| `pnpm --filter web typecheck` | wspólny renderer wymiarów | PASS | TypeScript bez błędów |
+| `pnpm --filter web lint` | osiowe bazy, kreski i linie pomocnicze | PASS | ESLint bez błędów i ostrzeżeń |
+| Browser smoke trybu demonstracyjnego | SVG rzutu zbrojenia i etapy podpór | PASS | 27/27; wszystkie bazy poziome/pionowe, kreski prostopadłe, brak błędów JS i mobile overflow |
+| `pnpm test` | cały monorepo | PASS | 13/13 zadań |
+| `pnpm build` | produkcyjny Web, Mobile i pakiety | PASS | 8/8 zadań |
+| `node --check apps/web/e2e/role-onboarding.spec.mjs` | składnia stałego scenariusza | PASS | bez błędów składni |
+| `git diff --check` | kod i dokumentacja | PASS | brak błędów whitespace |
+| Pełny E2E Supabase | trwały zapis projektu | BLOCKED | brak `apps/web/.env.local` |
+
+## Sesja 68 — 15 października 2026
+
+Środowisko: GitHub Codespaces, Linux, pnpm workspace.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/domain test` | krawędzie słupów/stóp i współliniowe wymiary | PASS | 74/74; T/X bez kreski, ukośny prosty odcinek jeden wymiar, załamanie osobno |
+| `pnpm --filter web typecheck` | etapowe wymiary lokalizacyjne | PASS | TypeScript bez błędów |
+| `pnpm --filter web lint` | filtrowanie łańcuchów na canvasie | PASS | ESLint bez błędów i ostrzeżeń |
+| Browser smoke trybu demonstracyjnego | stopy i słupy względem obrysu fundamentów | PASS | 25/25; wyłącznie `supports:pad:*`/`supports:column:*`, brak błędów JS i mobile overflow |
+| `pnpm test` | cały monorepo | PASS | 13/13 zadań |
+| `pnpm build` | produkcyjny Web, Mobile i pakiety | PASS | 8/8 zadań |
+| `node --check apps/web/e2e/role-onboarding.spec.mjs` | składnia stałego scenariusza | PASS | bez błędów składni |
+| `git diff --check` | kod i dokumentacja | PASS | brak błędów whitespace |
+
+## Sesja 67 — 14 października 2026
+
+Środowisko: GitHub Codespaces, Linux, pnpm workspace.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter web typecheck` | logiczne ciągi wieńców i zapis wielu hostów | PASS | TypeScript bez błędów |
+| `pnpm --filter web lint` | konfiguracja grupy wieńców | PASS | ESLint bez błędów i ostrzeżeń |
+| Browser smoke trybu demonstracyjnego | ściany i wieńce z tym samym grupowaniem | PASS | 23/23; osobny host wieńca i pełny dotychczasowy przepływ |
+| `node --check apps/web/e2e/role-onboarding.spec.mjs` | stała kontrola liczby logicznych ciągów | PASS | bez błędów składni |
+| `pnpm test` | cały monorepo | PASS | 13/13 zadań |
+| `pnpm build` | produkcyjny Web, Mobile i pakiety | PASS | 8/8 zadań |
+| `git diff --check` | kod i dokumentacja | PASS | brak błędów whitespace |
+| Pełny E2E Supabase | zapis z bazą | BLOCKED | brak `apps/web/.env.local` |
+
+## Sesja 66 — 14 października 2026
+
+Środowisko: GitHub Codespaces, Linux, pnpm workspace.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter web typecheck` | nieklikalny obrys budynku | PASS | TypeScript bez błędów |
+| `pnpm --filter web lint` | renderer markerów etapowych | PASS | ESLint bez błędów i ostrzeżeń |
+| Browser smoke trybu demonstracyjnego | stopy/słupy z kontekstem ław i fundamentów | PASS | 22/22; markery bez pointer events, bez przycisków i bez wymiarów |
+| `pnpm test` | cały monorepo po zmianie canvasu | PASS | 13/13 zadań |
+| `pnpm build` | produkcyjny Web, Mobile i pakiety | PASS | 8/8 zadań |
+| `git diff --check` | kod i dokumentacja | PASS | brak błędów whitespace |
+| Pełny E2E Supabase | trwały zapis danych | BLOCKED | brak `apps/web/.env.local` |
+
+## Sesja 65 — 14 października 2026
+
+Środowisko: GitHub Codespaces, Linux, pnpm workspace.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/schemas test` | pytanie ankiety o wieniec i zgodność starszych danych | PASS | 36/36 |
+| `pnpm --filter @asystent/domain test` | logiczne grupowanie współliniowych hostów | PASS | 73/73; przypadek 7 → 5 oraz łamana niescalana |
+| `pnpm --filter web typecheck` | trzy etapy, grupy hostów i wymiary etapowe | PASS | TypeScript bez błędów |
+| `pnpm --filter web lint` | renderer canvasu zbrojenia | PASS | ESLint bez błędów i ostrzeżeń |
+| `pnpm test` | cały monorepo | PASS | 13/13 zadań |
+| `pnpm build` | produkcyjny Web, Mobile i pakiety | PASS | 8/8 zadań; Next.js wygenerował 9 stron |
+| `node --check apps/web/e2e/role-onboarding.spec.mjs` | scenariusz trzech etapów i osobnego wieńca | PASS | bez błędów składni |
+| Browser smoke trybu demonstracyjnego | etapy, wymiary, sub-okno i wieniec | PASS | 18/18; wymiary ław mają wyłącznie identyfikatory hostów etapu, mobile bez overflow |
+| Pełny scenariusz Playwright z Supabase | trwały zapis wieńca i pręta | BLOCKED | brak `apps/web/.env.local` |
+| `git diff --check` | kod i dokumentacja | PASS | brak błędów whitespace |
+
+## Sesja 63 — 14 października 2026
+
+Środowisko: GitHub Codespaces, Linux, pnpm workspace.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter web typecheck` | usunięcie starego kreatora i propsa `selectedHostId` | PASS | TypeScript bez błędów |
+| `pnpm --filter web lint` | nowy, pojedynczy przepływ edycji | PASS | ESLint bez błędów i ostrzeżeń |
+| `pnpm --filter web test` | Web | PASS | runner wykonał się poprawnie; pakiet ma 0 testów jednostkowych UI |
+| `pnpm test` | cały monorepo | PASS | 13/13 zadań |
+| `pnpm build` | produkcyjny Web, Mobile i pakiety | PASS | 8/8 zadań; Next.js wygenerował 9 stron |
+| `node --check apps/web/e2e/role-onboarding.spec.mjs` | składnia zaktualizowanych scenariuszy | PASS | bez błędów składni |
+| Browser smoke trybu demonstracyjnego | etap → element → sub-okno → Edytuj pręty | PASS | 10/10; brak starego kreatora i narzędzi rzutu, dostępne 2D/3D, brak błędów JS i mobile overflow |
+| `pnpm --filter web exec playwright test e2e/role-onboarding.spec.mjs --grep "host-bound reinforcement editor persists"` | scenariusz Supabase | BLOCKED | brak `apps/web/.env.local`; konfiguracja Playwright zatrzymała test przed uruchomieniem |
+| `git diff --check` | kod i dokumentacja | PASS | brak błędów whitespace |
+
+## Sesja 64 — 14 października 2026
+
+Środowisko: GitHub Codespaces, Linux, pnpm workspace.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter web typecheck` | oddzielne etapy ław/ścian i formularz wieńca | PASS | TypeScript bez błędów |
+| `pnpm --filter web lint` | klasyfikacja i edytor wieńca | PASS | ESLint bez błędów i ostrzeżeń |
+| `pnpm --filter @asystent/schemas test` | dokument CAD i trwała relacja ściana → wieniec → pręt | PASS | 36/36 |
+| `pnpm --filter @asystent/domain test` | regresja domeny CAD i zbrojenia | PASS | 72/72 |
+| `pnpm test` | cały monorepo | PASS | 13/13 zadań |
+| `pnpm build` | produkcyjny Web, Mobile i pakiety | PASS | 8/8 zadań; Next.js wygenerował 9 stron |
+| `node --check apps/web/e2e/role-onboarding.spec.mjs` | zaktualizowany scenariusz trwałego wieńca | PASS | bez błędów składni |
+| Browser smoke trybu demonstracyjnego | ławy → ściany/wieńce → host wieńca | PASS | 15/15; dwa rysunki, szerokość ze ściany, konfiguracja i osobny host, mobile bez overflow |
+| Pełny scenariusz Playwright z Supabase | trwały zapis wieńca i jego pręta | BLOCKED | brak `apps/web/.env.local` |
+| `git diff --check` | kod i dokumentacja | PASS | brak błędów whitespace |
+
+## Sesja bieżąca — 14 października 2026 (domknięcie modułu zbrojenia)
+
+Środowisko: GitHub Codespaces, Linux, pnpm workspace.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/schemas test` | dokument CAD, ciągi hostów i szablony | PASS | 35/35 |
+| `pnpm --filter @asystent/domain test` | gięcia, ciągi, szablony, zestawienie i walidacja | PASS | 72/72 |
+| `pnpm --filter web typecheck` | kompletny workspace zbrojenia | PASS | TypeScript bez błędów |
+| `pnpm --filter web lint` | UI, eksport i automatyczne źródło rzutu | PASS | ESLint bez błędów i ostrzeżeń |
+| `pnpm test` | wszystkie pakiety monorepo | PASS | Turborepo zakończyło cały zestaw testów kodem 0 |
+| `pnpm build` | produkcyjny Web, Mobile i pakiety | PASS | 8/8 zadań; Next.js wygenerował 9 stron, Expo wyeksportowało Android |
+| `git diff --check` | kontrola zmian | PASS | brak błędów whitespace |
+| Browser smoke edytora zbrojenia | źródłowy rzut, etapy, ciąg, pręt gięty, 3D i walidacja | PASS | wykonano w trybie demonstracyjnym na aktywnym serwerze |
+| Browser smoke responsywności | desktop 1440 × 1000 i mobile 390 × 844 | PASS | brak poziomego overflow |
+| Test na fizycznym telefonie | ergonomia dotykowego edytora gięcia | NOT RUN | nie użyto urządzenia |
+
+## Sesja 61 — 14 października 2026
+
+Środowisko: GitHub Codespaces, Linux, pnpm workspace.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/domain test` | strefy strzemion i zestawienie masy prostych prętów | PASS | 68/68; sprawdzono granice stref, nakładanie, limit i grupowanie |
+| `pnpm --filter @asystent/schemas test` | zgodność i walidacja schematu konfiguracji zbrojenia | PASS | 34/34 |
+| `pnpm --filter web typecheck` | widoki etapów, inspektor prętów i synchronizacja z dokumentem CAD | PASS | TypeScript bez błędów |
+| `pnpm --filter web lint` | panel zbrojenia i formularz stref | PASS | ESLint bez błędów |
+| `pnpm --filter web build` | produkcyjny Web build | PASS | Next.js skompilował i wygenerował 9 stron |
+| Browser/E2E dla nowego workspace zbrojenia | kliknięcia etapów, edycja i zapis w przeglądarce | NOT RUN | wymagane osobne smoke testy przeglądarkowe |
+| Test na fizycznym telefonie | ergonomia gestów i edycji mobilnej | NOT RUN | nie użyto urządzenia |
+| Pełny `pnpm test` / `pnpm build` monorepo | cały workspace | NOT RUN | wykonano testy domeny/schemas i build Web |
+| `git diff --check` | końcowy worktree po dopisaniu raportu | PASS | brak błędów whitespace |
+
+## Sesja 60 — 14 października 2026
+
+Środowisko: GitHub Codespaces, Ubuntu 24.04.5, pnpm 12.11.2, Node 24.21.0, Playwright Chromium 1248.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter web typecheck` | techniczny renderer przekrojów SVG | PASS | TypeScript bez błędów |
+| `pnpm --filter web lint` | wzory materiałowe, wymiary, osie, rzędne i odnośniki | PASS | ESLint bez błędów |
+| `section-ux-smoke.mjs` | podgląd → workspace → edytor przekroju | PASS | desktop i mobile; brak błędów SVG w konsoli |
+| `section-render-smoke.mjs` | struktura technicznego SVG przekroju S1 | PASS | 5 wzorów materiałowych, 3 klikalne elementy, 7 opisów wymiarowych, tytuł i skala |
+| `section-render-smoke.mjs` | poprawność współrzędnych SVG | PASS | brak `NaN` i `Infinity` w atrybutach oraz brak błędów przeglądarki |
+| `section-render.png` | kontrola wizualna przekroju stopa–słup | PASS | czytelne kreskowanie, osie, odnośniki, stopniowane wymiary i nieobcięta geometria |
+| Zrzut przekroju ściana–ława | odrębna kontrola pozostałej gałęzi renderera | NOT RUN | scenariusz demonstracyjny zawiera wyłącznie 10 przekrojów słup–stopa |
+| `git diff --check` | bieżący worktree | PASS | brak błędów whitespace |
+
+## Sesja 59 — 14 października 2026
+
+Środowisko: GitHub Codespaces, Linux, pnpm workspace. `apps/web/.env.local` nie istnieje.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/domain test` | kompletność rzutu fundamentów i regresje domenowe | PASS | 66/66 |
+| `pnpm --filter @asystent/schemas test` | kompatybilność i walidacja dokumentu CAD | PASS | 34/34 |
+| `pnpm --filter web typecheck` | komponenty Web po zmianie formularza i checklisty | PASS | TypeScript bez błędów |
+| `pnpm --filter web lint` | UI i logika Web | PASS | ESLint bez błędów |
+| `pnpm --filter web build` | produkcyjny build aplikacji | PASS | kompilacja i generowanie 9 stron |
+| `curl http://127.0.0.1:3000/` | dostępność strony startowej | PASS | HTTP 200; nie jest to browser smoke CAD |
+| Browser smoke: puste/częściowe dane, autosave, powrót, eksport, zoom/pan | zakładka „Rzut fundamentów” | BLOCKED | brak `apps/web/.env.local`; pełny przebieg UI nie został zweryfikowany |
+| Weryfikacja aktualnego stanu prawnego i wydań PKN | wymagania dokumentacji i Eurokody | NOT RUN | odczyt ELI nie udostępnił treści wystarczającej do ustalenia aktualnego brzmienia; późniejsze zmiany i katalog PKN wymagają weryfikacji |
+| `git diff --check` | wszystkie zmiany wraz z raportem | PASS | brak błędów whitespace |
+
+## Sesja 57 — 14 października 2026
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter web typecheck` | podgląd canvasu, workspace i obsługa klawiatury | PASS | TypeScript bez błędów |
+| `pnpm --filter web lint` | nowy przepływ modalnego workspace | PASS | ESLint bez błędów |
+| `pnpm --filter web build` | produkcyjny bundle po zmianie UX | PASS | Next.js skompilował 9 stron |
+| Browser smoke: podgląd → workspace → własny przekrój | tryb demo | NOT RUN | świeży proces nie załadował zakładki bez lokalnej konfiguracji środowiska; do ponowienia z `.env.local` |
+
+## Sesja 58 — 14 października 2026
+
+| Kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `ss -ltnp` dla portów 3000/3011/3012 | kontrola liczby serwerów Web | PASS | aktywny wyłącznie port 3000 |
+| `curl http://127.0.0.1:3000/` | aktualna aplikacja | PASS | HTTP 200 |
+| Browser smoke | przejście do zakładki przekrojów | BLOCKED | tryb demo nie przełączył się bez konfiguracji Supabase; dodatkowe serwery zostały zatrzymane |
+
+## Sesja 59 — 14 października 2026
+
+Środowisko: GitHub Codespaces, Ubuntu 24.04.5, pnpm 12.11.2, Node 24.21.0, Playwright Chromium 1248.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter web typecheck` | wspólna klasa canvasu i trzy stany widoku | PASS | TypeScript bez błędów |
+| `pnpm --filter web lint` | refaktor UI przekrojów | PASS | ESLint bez błędów |
+| `pnpm --filter web build` | finalny bundle Next.js | PASS | 9 stron, kompilacja i generowanie statyczne |
+| `section-ux-smoke.mjs` | podgląd zakładki | PASS | tylko rzut; bez markerów, narzędzi i automatycznych dialogów |
+| `section-ux-smoke.mjs` | pełnoekranowy workspace | PASS | znaczniki widoczne; brak szczegółów przed wyborem |
+| `section-ux-smoke.mjs` | klik pierwszego znacznika | PASS | otwiera edytor z rysunkiem i właściwościami |
+| `section-ux-smoke.mjs` | mobile 390 × 844 | PASS | brak overflow; tekst znacznika 7 px |
+| `ss -ltnp` dla 3000/3011/3012 | pojedynczy serwer aplikacji | PASS | aktywny wyłącznie port 3000 |
+| `git diff --check` | kod i dokumentacja | PASS | brak błędów whitespace |
+
+## Sesja 56 — 14 października 2026
+
+Środowisko: GitHub Codespaces, Ubuntu 24.04.5, pnpm 12.11.2, Node 24.21.0, Playwright Chromium 1248.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/domain test` | detekcja, synchronizacja, kompletność i materiały przekrojów | PASS | 63/63 |
+| `pnpm --filter @asystent/schemas test` | zgodność trwałego JSON przekrojów | PASS | 34/34 |
+| `pnpm --filter web typecheck` | komponenty widoku, kreatora i edytora | PASS | TypeScript bez błędów |
+| `pnpm --filter web lint` | UI, SVG i eksport | PASS | ESLint bez błędów |
+| `pnpm --filter web build` | finalny bundle Next.js | PASS | 9 stron, kompilacja i generowanie statyczne |
+| `section-smoke.mjs` | demo: automatyczna detekcja, kreator i autosave | PASS | 10 znaczników; tytuł „1 z 10 — S1”; zapis 12,5% w JSON |
+| `section-smoke.mjs` | układ desktop oraz mobile 390 × 844 | PASS | edytor otwiera się; brak overflow strony i panelu |
+| `git diff --check` | kod i dokumentacja | PASS | brak błędów whitespace |
+| `pnpm --filter web test:e2e` | standardowy scenariusz z Supabase | BLOCKED | brak lokalnego `apps/web/.env.local` |
+| Pełny reload tej samej budowy | odtworzenie nadpisania przekroju | NOT RUN | tryb demo tworzy nową budowę po reloadzie; wymaga E2E z Supabase |
+| Test na fizycznym telefonie | gesty i ergonomia dotykowa | NOT RUN | wymaga urządzenia użytkownika |
+
+Eksport SVG/PNG i wydruk PDF są zaimplementowane, ale pobranie każdego formatu w przeglądarce nie zostało objęte
+automatycznym smoke testem. PDF korzysta z systemowego okna wydruku, nie z osobnego generatora pliku.
+
+## Sesja 55 — 14 października 2026
+
+Środowisko: GitHub Codespaces, Ubuntu 24.04.5, pnpm 12.11.2, Node 24.21.0, Playwright Chromium 1248.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter web lint` | responsywne rozmiary etykiet wymiarowych | PASS | ESLint bez błędów |
+| `pnpm --filter web typecheck` | przeliczenie px na jednostki viewBox | PASS | TypeScript bez błędów |
+| skrypt Playwright `cad-mobile-audit.mjs` | canvas 390 × 844 px | PASS | zwykłe wymiary dokładnie 6 px, położenie podpór dokładnie 5 px |
+| skrypt Playwright `cad-mobile-audit.mjs` | canvas 1440 × 900 px | PASS | zwykłe wymiary dokładnie 7 px, położenie podpór dokładnie 6 px |
+| eksport SVG | tekst wymiarowy 2,5 mm na arkuszu | NOT RUN | gałąź eksportowa nie została zmieniona |
+
+## Sesja 54 — 14 października 2026
+
+Środowisko: GitHub Codespaces, Ubuntu 24.04.5, pnpm 12.11.2, Node 24.21.0, Playwright Chromium 1248.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter web lint` | zwarte reguły mobilnego CAD | PASS | ESLint bez błędów |
+| `pnpm --filter web typecheck` | niezmienione API edytora | PASS | TypeScript bez błędów |
+| skrypt Playwright `cad-mobile-audit.mjs` | canvas 390 × 844 px | PASS | nagłówek 32 px, toolbar 32 px, narzędzie 28 × 34 px, canvas 346 × 769 px od Y=71 |
+| skrypt Playwright `cad-mobile-audit.mjs` | canvas 1440 × 900 px | PASS | desktop bez regresji: canvas 1354 × 793 px |
+| zrzuty `cad-mobile-before.png` / `cad-mobile-after.png` | porównanie wizualne | PASS | canvas z 324 × 588 do 346 × 769 px; UI i legenda wyraźnie mniejsze |
+| kontrola gestów rysowania na fizycznym telefonie | urządzenie użytkownika | NOT RUN | wymaga sprawdzenia przez użytkownika |
+
+## Sesja 53 — 14 października 2026
+
+Środowisko: GitHub Codespaces, Ubuntu 24.04.5, pnpm 12.11.2, Node 24.21.0.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter @asystent/domain test` | wewnętrzne łańcuchy słupów i stóp | PASS | 61/61; regresja sprawdza rzeczywiste punkty linii w granicach pomieszczenia |
+| `pnpm --filter web typecheck` | zgodność API wymiarów z rendererem | PASS | TypeScript bez błędów |
+| `curl http://127.0.0.1:3000/` | aplikacja po przeładowaniu kodu domeny | PASS | HTTP 200 |
+| `git diff --check` | kod, testy i dokumentacja | PASS | brak błędów whitespace |
+| Kontrola wizualna położenia linii na canvasie | aplikacja web | NOT RUN | automatyczna przeglądarka nadal wymaga brakującego `libatk-1.0.so.0` |
+
+## Sesja 52 — 14 października 2026
+
+Środowisko: GitHub Codespaces, Ubuntu 24.04.5, pnpm 12.11.2, Node 24.21.0.
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm dev:web` | start aplikacji na żądanie użytkownika | PASS | `next dev --hostname 0.0.0.0`, port 3000 |
+| `curl http://127.0.0.1:3000/` | uruchomiony dev server | PASS | HTTP 200 |
+| `bash scripts/dev-web.sh` | skrypt autostartu przy zajętym porcie | PASS | wykrył działający serwer i pominął ponowny start |
+| Walidacja JSON `.vscode/tasks.json` | zadanie `runOn: folderOpen` | PASS | `JSON.parse` bez błędów |
+| Autostart po ponownym otwarciu folderu w VS Code | zadanie `folderOpen` | NOT RUN | wymaga ponownego otwarcia okna przez użytkownika |
+
 ## Sesja 51 — 14 października 2026
 
 Środowisko: GitHub Codespaces, Ubuntu 24.04.5, pnpm 12.11.2.
@@ -860,3 +1580,31 @@ przepływu zaproszeń/akceptacji członkostwa oraz testów właściciel/członek
 
 Nie uruchomiono Playwright/E2E; brak runnera. Etap 2 pozostaje w toku do wdrożenia zaproszeń i automatycznych
 scenariuszy AUTH-01/AUTH-02.
+
+## Sesja 62 — 14 października 2026
+
+| Komenda / kontrola | Kontekst | Wynik | Uwagi |
+|---|---|---|---|
+| `pnpm --filter web typecheck` | Web | PASS | nowy komponent rzutu etapu i sub-okno detali |
+| `pnpm --filter web lint` | Web | PASS | bez ostrzeżeń |
+| `pnpm test` | root monorepo | PASS | 13/13 zadań, schemas 35/35, domain 72/72 |
+| `pnpm build` | root monorepo | PASS | 8/8 zadań |
+| `git diff --check` | repozytorium | PASS | brak błędów białych znaków |
+| Browser smoke: etapy → rzut → sub-okno detali | lokalny Web (Playwright, Chromium) | PASS | 10/10 asercji; ścieżka: tryb testowy → Przejdź dalej → zakładka „Detale zbrojenia i zestawienie prętów” |
+| Rzut etapu zawiera wyłącznie elementy etapu | lokalny Web (Playwright, Chromium) | PASS | 14 elementów etapu = 14 wielokątów; 0 warstw wyszarzonego tła |
+| Render SSR `ReinforcementStagePlan` | `react-dom/server`, dane syntetyczne | PASS | 6/6; ściany, słupy i wymiary spoza etapu nie trafiają do DOM |
+| Brak narzędzi edycji geometrii w zakładce | lokalny Web | PASS | 0 elementów `cad-toolbar`/`cad-tool-button` |
+| Widok przy 390 × 844 | lokalny Web | PASS | poziome przepełnienie 0 px, sub-okno pełnoekranowe |
+
+Uwagi środowiskowe:
+
+- Serwer deweloperski testujemy przez `http://localhost:3000/`. Wejście przez `http://127.0.0.1:3000/` powoduje
+  zablokowanie zasobów HMR jako cross-origin i brak hydracji Reacta, przez co kliknięcia nie działają, mimo że
+  strona renderuje się poprawnie. Diagnostyka: liczba kluczy `__react*` na elemencie wynosi wtedy 0.
+- Next.js nie pozwala uruchomić drugiej instancji `next dev` na innym porcie — istniejący proces trzeba
+  zrestartować.
+- Scenariusz smoke uruchomiono z pliku tymczasowego i usunięto po walidacji; repozytorium nie ma jeszcze
+  stałego runnera E2E.
+- W zakładce etapu ława i leżąca na niej ściana nakładają się geometrycznie. Węższa ściana jest na wierzchu
+  i to ona przejmuje kliknięcie w tym punkcie, co odpowiada wymaganiu „klikamy na daną ścianę w tej ławie”.
+  Smoke klika rzeczywistą pozycją myszy (`page.mouse.click`), a nie wymuszonym trafieniem w zasłonięty element.

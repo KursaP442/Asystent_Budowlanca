@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { ReinforcementBeamAssemblySchema, ReinforcementHostChainSchema, ReinforcementShapeSchema,
+  ReinforcementTemplateSchema } from "./reinforcement-geometry.js";
 
 export const CadPointSchema = z.object({
   x: z.number().finite().min(-100_000_000).max(100_000_000),
@@ -55,7 +57,8 @@ const common = {
   supportFor: z.array(z.uuid()).min(1).max(1000).optional(),
   relatedTo: z.array(z.uuid()).min(1).max(1000).optional(),
   placement: z.object({ hostId: z.uuid(), groupId: z.uuid(), start: CadPointSchema, end: CadPointSchema,
-    needsReview: z.boolean() }).strict().optional(),
+    needsReview: z.boolean(), transverseOffsetMm: z.number().finite().optional(),
+    verticalOffsetMm: z.number().finite().optional() }).strict().optional(),
   mark: z.string().trim().min(1).max(40).optional(),
   attachment: z.object({ hostId: z.uuid(), start: CadPointSchema, end: CadPointSchema }).strict()
     .refine(({ start, end }) => start.x !== end.x || start.y !== end.y, "Podparcie nie może mieć zerowej długości.").optional(),
@@ -85,6 +88,7 @@ export const CadEntitySchema = z.discriminatedUnion("kind", [
       diameterMm: positiveMm, count: positiveCount, steelGrade: z.string().min(1).max(160),
       coverMm: positiveMm, designReference: z.string().min(1).max(240), specialistVerified: z.boolean(),
       representation: z.enum(["physical", "projection"]).optional(),
+      shape: ReinforcementShapeSchema.optional(),
     }).strict(),
   }).strict(),
   z.object({
@@ -144,13 +148,17 @@ export type CadEntity = z.infer<typeof CadEntitySchema>;
 
 export const FoundationSectionFieldSchema = z.enum([
   "footing_width_cm", "footing_height_cm", "wall_thickness_cm", "wall_height_cm",
+  "pad_length_cm", "pad_width_cm", "pad_height_cm", "column_width_cm", "column_length_cm",
+  "beam_width_cm", "beam_height_cm",
   "foundation_bottom_elevation_m", "ground_elevation_m", "zero_level_elevation_m",
-  "footing_material", "wall_material", "concrete_class", "xps_thickness_cm",
+  "footing_material", "pad_material", "column_material", "beam_material", "wall_material", "concrete_class", "xps_thickness_cm",
   "waterproofing_type", "blinding_concrete_thickness_cm", "floor_layers", "additional_components",
 ]);
 export type FoundationSectionField = z.infer<typeof FoundationSectionFieldSchema>;
 const foundationSectionNumericFields = new Set<FoundationSectionField>([
   "footing_width_cm", "footing_height_cm", "wall_thickness_cm", "wall_height_cm",
+  "pad_length_cm", "pad_width_cm", "pad_height_cm", "column_width_cm", "column_length_cm",
+  "beam_width_cm", "beam_height_cm",
   "foundation_bottom_elevation_m", "ground_elevation_m", "zero_level_elevation_m",
   "xps_thickness_cm", "blinding_concrete_thickness_cm",
 ]);
@@ -158,15 +166,27 @@ const FoundationSectionOverrideSchema = z.object({
   value: z.union([z.number().finite(), z.string().trim().min(1).max(2000)]),
   unit: z.enum(["mm", "cm", "m", "tekst"]),
   validated: z.boolean(),
+  source: z.enum(["project_technology", "document_settings"]).optional(),
 }).strict();
 export const FoundationSectionSchema = z.object({
   id: z.uuid(),
-  label: z.string().trim().regex(/^[A-Z0-9]{1,8}-[A-Z0-9]{1,8}$/),
+  label: z.string().trim().min(1).max(40).regex(/^[A-ZĄĆĘŁŃÓŚŹŻ0-9][A-ZĄĆĘŁŃÓŚŹŻ0-9 ._/-]*$/),
   cutEntityId: z.uuid(),
   viewDirection: z.enum(["left", "right"]),
   visibilityRangeMm: z.number().finite().positive().max(100_000_000),
   paperScale: z.union([z.literal(10), z.literal(20), z.literal(25), z.literal(50)]).optional(),
   linkedElementIds: z.array(z.uuid()).max(5000).optional(),
+  sourceElementIds: z.array(z.uuid()).max(5000).optional(),
+  marker: CadPointSchema.optional(),
+  kind: z.enum(["wall-footing", "column-pad", "beam", "slab", "linear", "custom"]).optional(),
+  automaticKey: z.string().trim().min(1).max(500).optional(),
+  sourceFingerprint: z.string().trim().min(1).max(500).optional(),
+  state: z.enum(["incomplete", "needs-review", "complete", "outdated"]).optional(),
+  skipped: z.boolean().optional(),
+  createdAutomatically: z.boolean().optional(),
+  printFormat: z.enum(["A4", "A3"]).optional(),
+  wastePercent: z.number().finite().min(0).max(100).optional(),
+  layoutOffsets: z.record(z.uuid(), CadPointSchema).optional(),
   overrides: z.partialRecord(FoundationSectionFieldSchema, FoundationSectionOverrideSchema),
 }).strict();
 export type FoundationSection = z.infer<typeof FoundationSectionSchema>;
@@ -210,6 +230,9 @@ export const CadDocumentSchema = z.object({
   foundationSettings: FoundationSettingsSchema.optional(),
   paperScale: z.number().int().min(1).max(1000).optional(),
   sections: z.array(FoundationSectionSchema).max(100).optional(),
+  reinforcementChains: z.array(ReinforcementHostChainSchema).max(500).optional(),
+  reinforcementTemplates: z.array(ReinforcementTemplateSchema).max(200).optional(),
+  reinforcementBeams: z.array(ReinforcementBeamAssemblySchema).max(500).optional(),
   entities: z.array(CadEntitySchema).max(5000),
 }).strict().superRefine((document, ctx) => {
   const ids = new Set(document.entities.map(({ id }) => id));
@@ -224,6 +247,36 @@ export const CadDocumentSchema = z.object({
   if (new Set(sectionLabels).size !== sectionLabels.length) {
     ctx.addIssue({ code: "custom", path: ["sections"], message: "Oznaczenia przekrojów muszą być unikalne." });
   }
+  const chainIds = new Set((document.reinforcementChains ?? []).map(({ id }) => id));
+  if (chainIds.size !== (document.reinforcementChains ?? []).length) {
+    ctx.addIssue({ code: "custom", path: ["reinforcementChains"], message: "Identyfikatory połączonych elementów zbrojeniowych muszą być unikalne." });
+  }
+  const templateIds = new Set((document.reinforcementTemplates ?? []).map(({ id }) => id));
+  if (templateIds.size !== (document.reinforcementTemplates ?? []).length) {
+    ctx.addIssue({ code: "custom", path: ["reinforcementTemplates"], message: "Identyfikatory szablonów zbrojenia muszą być unikalne." });
+  }
+  const beamIds = new Set((document.reinforcementBeams ?? []).map(({ id }) => id));
+  if (beamIds.size !== (document.reinforcementBeams ?? []).length) {
+    ctx.addIssue({ code: "custom", path: ["reinforcementBeams"], message: "Identyfikatory konstrukcji belek muszą być unikalne." });
+  }
+  for (const [index, beam] of (document.reinforcementBeams ?? []).entries()) {
+    if (beam.hostIds.some((id) => !ids.has(id))) {
+      ctx.addIssue({ code: "custom", path: ["reinforcementBeams", index, "hostIds"],
+        message: "Konstrukcja belki musi wskazywać istniejące hosty tego rysunku." });
+    }
+  }
+  for (const [index, chain] of (document.reinforcementChains ?? []).entries()) {
+    if (chain.hostIds.some((id) => !ids.has(id))) {
+      ctx.addIssue({ code: "custom", path: ["reinforcementChains", index, "hostIds"], message: "Połączony element zbrojeniowy musi wskazywać odcinki istniejące na tym rzucie." });
+    }
+    if (chain.hostIds.some((id) => {
+      const host = document.entities.find((entity) => entity.id === id);
+      return !host || !("start" in host.geometry)
+        || !["wall", "footing", "construction-line"].includes(host.kind);
+    })) {
+      ctx.addIssue({ code: "custom", path: ["reinforcementChains", index, "hostIds"], message: "Łączyć można wyłącznie liniowe ściany, ławy i belki." });
+    }
+  }
   for (const [index, section] of (document.sections ?? []).entries()) {
     const cut = document.entities.find(({ id }) => id === section.cutEntityId);
     if (cut?.kind !== "construction-line" || cut.attributes.role !== "section-cut") {
@@ -231,6 +284,9 @@ export const CadDocumentSchema = z.object({
     }
     if (section.linkedElementIds?.some((id) => !ids.has(id))) {
       ctx.addIssue({ code: "custom", path: ["sections", index, "linkedElementIds"], message: "Powiązane elementy przekroju muszą istnieć na tym rzucie." });
+    }
+    if (section.sourceElementIds?.some((id) => !ids.has(id))) {
+      ctx.addIssue({ code: "custom", path: ["sections", index, "sourceElementIds"], message: "Elementy źródłowe przekroju muszą istnieć na tym rzucie." });
     }
     for (const [field, override] of Object.entries(section.overrides)) {
       const unit = field.endsWith("_cm") ? "cm" : field.endsWith("_m") ? "m" : "tekst";

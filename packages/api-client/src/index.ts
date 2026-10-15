@@ -54,6 +54,14 @@ export type DocumentationDraftRow = {
   revision: number;
   payload: unknown;
 };
+export type ReinforcementShapeTemplateRow = {
+  user_id: string;
+  id: string;
+  name: string;
+  category: "bend" | "stirrup";
+  shape: unknown;
+  created_at: string;
+};
 
 export interface Database {
   public: {
@@ -68,6 +76,12 @@ export interface Database {
         Row: { user_id: string; encrypted_key: string };
         Insert: { user_id: string; encrypted_key: string };
         Update: { encrypted_key?: string };
+        Relationships: [];
+      };
+      reinforcement_shape_templates: {
+        Row: ReinforcementShapeTemplateRow;
+        Insert: Omit<ReinforcementShapeTemplateRow, "created_at"> & { created_at?: string };
+        Update: Partial<Omit<ReinforcementShapeTemplateRow, "user_id" | "id">>;
         Relationships: [];
       };
       construction_documentation_drafts: {

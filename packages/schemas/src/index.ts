@@ -171,3 +171,4 @@ function isValidPolishNip(nip: string): boolean {
 }
 export * from "./cad-tools.js";
 export * from "./cad-reinforcement.js";
+export * from "./reinforcement-geometry.js";

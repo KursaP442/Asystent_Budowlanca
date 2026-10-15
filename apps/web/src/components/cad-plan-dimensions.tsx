@@ -1,15 +1,13 @@
 import { cadDimensionLabelAngle, cadDimensionLabelPlacement, cadDimensionLabelRect, formatCadDimensionMm,
   type CadDimensionLayout } from "@asystent/domain";
 
-const TICK_ANGLE = Math.PI / 4;
-
 function tickEndpoints(point: { x: number; y: number }, start: { x: number; y: number },
   end: { x: number; y: number }, length: number) {
   const dx = end.x - start.x, dy = end.y - start.y;
-  const lineLength = Math.hypot(dx, dy) || 1;
-  const angle = Math.atan2(dy / lineLength, dx / lineLength) + TICK_ANGLE;
-  const half = length / 2, tx = Math.cos(angle) * half, ty = Math.sin(angle) * half;
-  return [{ x: point.x - tx, y: point.y - ty }, { x: point.x + tx, y: point.y + ty }] as const;
+  const half = length / 2;
+  return Math.abs(dx) >= Math.abs(dy)
+    ? [{ x: point.x, y: point.y - half }, { x: point.x, y: point.y + half }] as const
+    : [{ x: point.x - half, y: point.y }, { x: point.x + half, y: point.y }] as const;
 }
 
 export function CadPlanDimensions({ dimensions, fontMm, onDimensionClick, editing, onEditingValueChange,
@@ -25,6 +23,7 @@ export function CadPlanDimensions({ dimensions, fontMm, onDimensionClick, editin
   const chains = [...new Set(dimensions.flatMap((d) => d.chainId ? [d.chainId] : []))];
   const dimensionTicks = new Map<string, { point: { x: number; y: number }; start: { x: number; y: number };
     end: { x: number; y: number }; length: number; color: string }>();
+  const occupiedChainLabelBoxes: CadDimensionLayout["box"][] = [];
   const boxesOverlap = (a: CadDimensionLayout["box"], b: CadDimensionLayout["box"]) =>
     a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
   for (const dimension of dimensions.filter((item) => !item.anchor)) {
@@ -47,22 +46,32 @@ export function CadPlanDimensions({ dimensions, fontMm, onDimensionClick, editin
       const finish = first.chainEnd ?? items.reduce((best, d) =>
         Math.hypot(d.end.x - origin.x, d.end.y - origin.y) > Math.hypot(best.x - origin.x, best.y - origin.y) ? d.end : best,
       first.end);
-      const length = Math.hypot(finish.x - origin.x, finish.y - origin.y);
+      const horizontal = Math.abs(finish.x - origin.x) >= Math.abs(finish.y - origin.y);
+      const axisOrigin = horizontal
+        ? { x: origin.x, y: (origin.y + finish.y) / 2 }
+        : { x: (origin.x + finish.x) / 2, y: origin.y };
+      const axisFinish = horizontal
+        ? { x: finish.x, y: axisOrigin.y }
+        : { x: axisOrigin.x, y: finish.y };
+      const length = Math.hypot(axisFinish.x - axisOrigin.x, axisFinish.y - axisOrigin.y);
       if (!length) return null;
-      const ux = (finish.x - origin.x) / length, uy = (finish.y - origin.y) / length;
+      const ux = (axisFinish.x - axisOrigin.x) / length, uy = (axisFinish.y - axisOrigin.y) / length;
       const nx = -uy, ny = ux;
-      const chainAngle = cadDimensionLabelAngle(origin, finish);
-      const stations: { station: number; point: { x: number; y: number }; items: CadDimensionLayout[] }[] = [
-        { station: 0, point: origin, items: [] },
-        { station: length, point: finish, items: [] },
+      const chainAngle = cadDimensionLabelAngle(axisOrigin, axisFinish);
+      const stations: { station: number; point: { x: number; y: number };
+        sourcePoint: { x: number; y: number }; items: CadDimensionLayout[] }[] = [
+        { station: 0, point: axisOrigin, sourcePoint: origin, items: [] },
+        { station: length, point: axisFinish, sourcePoint: finish, items: [] },
       ];
       for (const dimension of items) {
-        const station = (dimension.end.x - origin.x) * ux + (dimension.end.y - origin.y) * uy;
+        const station = (dimension.end.x - axisOrigin.x) * ux + (dimension.end.y - axisOrigin.y) * uy;
         if (station < -1 || station > length + 1) continue;
-        const point = { x: origin.x + ux * station, y: origin.y + uy * station };
+        const point = { x: axisOrigin.x + ux * station, y: axisOrigin.y + uy * station };
         const existing = stations.find((item) => Math.abs(item.station - station) <= 1);
-        if (existing) existing.items.push(dimension);
-        else stations.push({ station, point, items: [dimension] });
+        if (existing) {
+          existing.items.push(dimension);
+          existing.sourcePoint = dimension.end;
+        } else stations.push({ station, point, sourcePoint: dimension.end, items: [dimension] });
       }
       stations.sort((a, b) => a.station - b.station);
       const segments = stations.slice(0, -1).flatMap((station, index) => {
@@ -70,7 +79,7 @@ export function CadPlanDimensions({ dimensions, fontMm, onDimensionClick, editin
         const segmentLength = next.station - station.station;
         if (segmentLength < 1) return [];
         const owner = next.items[0];
-        const label = formatCadDimensionMm(segmentLength);
+        const label = owner?.label ?? formatCadDimensionMm(segmentLength);
         const font = owner?.fontMm ?? fontMm;
         return [{ station, next, owner, label, font }];
       });
@@ -84,8 +93,10 @@ export function CadPlanDimensions({ dimensions, fontMm, onDimensionClick, editin
         if (first.chainFixedLabels) return placementAt(lane);
         for (let labelLane = lane; ; labelLane++) {
           const placement = placementAt(labelLane);
-          if (occupiedLabelBoxes.some((other) => boxesOverlap(placement.box, other))) continue;
+          if (occupiedLabelBoxes.some((other) => boxesOverlap(placement.box, other))
+            || occupiedChainLabelBoxes.some((other) => boxesOverlap(placement.box, other))) continue;
           occupiedLabelBoxes.push(placement.box);
+          occupiedChainLabelBoxes.push(placement.box);
           return placement;
         }
       });
@@ -95,7 +106,8 @@ export function CadPlanDimensions({ dimensions, fontMm, onDimensionClick, editin
         point: { x: station.point.x + nx * offset, y: station.point.y + ny * offset },
       }));
       const chainColor = first.chainColor ?? first.color;
-      return <g key={chainId} className="cad-dimension-chain" color={chainColor} fill="none" strokeWidth={1}
+      return <g key={chainId} className="cad-dimension-chain" data-chain-id={chainId}
+        color={chainColor} fill="none" strokeWidth={1}
         vectorEffect="non-scaling-stroke">
         <title>Łańcuch wymiarowy: odległości między sąsiednimi kreskami</title>
         <line className="cad-dimension-line" stroke={chainColor} x1={baseline[0]!.point.x} y1={baseline[0]!.point.y}
@@ -106,7 +118,7 @@ export function CadPlanDimensions({ dimensions, fontMm, onDimensionClick, editin
           const color = station.items[0]?.color ?? chainColor;
           return <g key={`${chainId}:tick:${index}`} color={color} stroke={color}>
             {first.chainExtensions !== false && <line className="cad-dimension-extension"
-              x1={station.point.x} y1={station.point.y} x2={at.x} y2={at.y}
+              x1={station.sourcePoint.x} y1={station.sourcePoint.y} x2={at.x} y2={at.y}
               vectorEffect="non-scaling-stroke" />}
             <line x1={tickStart.x} y1={tickStart.y} x2={tickEnd.x} y2={tickEnd.y}
               vectorEffect="non-scaling-stroke" />

@@ -121,6 +121,11 @@ export function ProjectDocumentationQuestionnaire({ jobId, scope, onBack, onSave
 
   const current = draft ? requirements.find(({ id }) => id === draft.step) : null;
   const currentDrawingId = current ? `${current.id}-drawing-${drawingIndex}` : "";
+  const foundationSectionsIndex = current?.kind === "foundation"
+    ? current.drawings.findIndex((label) => label.toLocaleLowerCase("pl-PL").includes("przekroje fundamentów"))
+    : -1;
+  const editorDrawingIndex = showFoundationSections ? 0 : drawingIndex;
+  const editorDrawingId = current ? `${current.id}-drawing-${editorDrawingIndex}` : "";
   const flatIndex = drawingSteps.findIndex((item) => item.id === currentDrawingId);
   const technologyHints = useMemo(() => current
     ? getCadTechnologyHints(current.kind, scope.workType, scope.technology)
@@ -158,23 +163,29 @@ export function ProjectDocumentationQuestionnaire({ jobId, scope, onBack, onSave
           })}
         </nav>
         <div className="cad-stage-tabs cad-drawing-tabs" role="tablist" aria-label="Rysunki etapu">
-          {current.drawings.map((label, i) => <button key={label} type="button" role="tab" aria-label={label} aria-selected={!showFoundationSections && drawingIndex === i}
+          {current.drawings.map((label, i) => <button key={label} type="button" role="tab" aria-label={label}
+            aria-selected={i === foundationSectionsIndex ? showFoundationSections : !showFoundationSections && drawingIndex === i}
             data-completion={(completion[`${current.id}-drawing-${i}`] ?? 0) > 0 ? "saved" : "empty"}
             disabled={busy || cadPending} onClick={() => {
+              if (i === foundationSectionsIndex) { setShowFoundationSections(true); return; }
               setShowFoundationSections(false);
               navigateDrawing(drawingSteps.findIndex((item) => item.id === `${current.id}-drawing-${i}`));
             }}>
             <span aria-hidden="true">{i + 1}. </span>{label}</button>)}
-          {current.kind === "foundation" && <button type="button" role="tab" aria-selected={showFoundationSections}
+          {current.kind === "foundation" && foundationSectionsIndex < 0 && <button type="button" role="tab" aria-selected={showFoundationSections}
             aria-label="Przekroje fundamentów i poziomy posadowienia" disabled={busy || cadPending}
             onClick={() => setShowFoundationSections(true)}>
             Przekroje fundamentów i poziomy posadowienia</button>}
         </div>
-        <StageCadEditor key={`${current.id}-drawing-${drawingIndex}`} jobId={jobId} demoMode={demoMode}
-          requirementId={currentDrawingId} title={current.drawings[drawingIndex]} kind={current.kind}
+        <StageCadEditor key={editorDrawingId} jobId={jobId} demoMode={demoMode}
+          requirementId={editorDrawingId} title={current.drawings[editorDrawingIndex]} kind={current.kind}
+          completionId={showFoundationSections && foundationSectionsIndex >= 0
+            ? `${current.id}-drawing-${foundationSectionsIndex}` : undefined}
           technology={scope.technology} basement={scope.basement === true} disabled={busy}
+          onOpenFoundationSections={() => setShowFoundationSections(true)}
           technologyHints={technologyHints} viewMode={showFoundationSections ? "foundation-sections" : "plan"}
-          sources={drawingSteps.filter((item) => (completion[item.id] ?? 0) > 0)} onPendingChange={onCadPending} onSavedDrawing={onSavedDrawing} />
+          sources={drawingSteps.filter((item) => (completion[item.id] ?? 0) > 0)}
+          onPendingChange={onCadPending} onSavedDrawing={onSavedDrawing} />
         <p className="cad-disclaimer">Zielony: zapisano obiekty. Czerwony: pusty rysunek. Kolory nie oznaczają zatwierdzenia ani kompletności przedmiaru.</p>
         <div className="form-actions">
           <button type="button" className="quiet-button" disabled={busy} onClick={() => void save(draft)}>Zapisz postęp</button>

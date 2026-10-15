@@ -23,6 +23,7 @@ function createDemoJob(): ConstructionJob {
     completionStandard: "turnkey",
     foundationType: ["strip-footings"],
     foundationWalls: "concrete-block-24",
+    foundationRingBeam: "foundation-ring-beam-yes",
     foundationBottomSlab: "bottom-slab-yes",
     foundationWaterproofing: "project",
     foundationDimpleMembrane: "project",

@@ -612,9 +612,10 @@ papierową `2,5 mm × skala`, więc podczas przybliżania tekst wizualnie rósł
 ponownie także przy renderach kursora i dla każdego zdarzenia zoomu.
 
 **Decyzja:** Kolizje etykiet rozwiązujemy wyłącznie wewnątrz pojedynczego łańcucha; odseparowane pasy rodzin
-zapewnia ADR-031. Na ekranie zwykły wymiar ma stałe 8 px, a położenie podpory 7 px, przeliczone do jednostek modelu
-według bieżącego viewBox. Eksport nadal używa fizycznego tekstu 2,5 mm. Układ ścian, pól i wymiarów jest memoizowany,
-a kolejne zdarzenia wheel/pinch są łączone do jednej aktualizacji widoku na klatkę animacji.
+zapewnia ADR-031. Na desktopie zwykły wymiar ma stałe 7 px, a położenie podpory 6 px; na mobilnym canvasie
+odpowiednio 6 px i 5 px. Wartości są przeliczane do jednostek modelu według bieżącego viewBox. Eksport nadal
+używa fizycznego tekstu 2,5 mm. Układ ścian, pól i wymiarów jest memoizowany, a kolejne zdarzenia wheel/pinch
+są łączone do jednej aktualizacji widoku na klatkę animacji.
 
 **Konsekwencje:** Zoom nie zmienia wizualnego rozmiaru tekstu, jedna rodzina nie wypycha etykiet innej, a ruch
 kursora nie uruchamia ponownie całego algorytmu wymiarowania. Mniejszy tekst świadomie zastępuje wcześniejsze
@@ -660,10 +661,782 @@ na każde pole dokładnie jeden poziomy i jeden pionowy łańcuch, którego stac
 Stopy tworzą osobną parę łańcuchów, a stacjami są minimalna i maksymalna krawędź ich obrysu w danej osi.
 Końcami są wewnętrzne lica pola. Łańcuchy podpór mają tylko linię bazową i przecinające kreski; bez
 indywidualnych linii pomocniczych. Etykiety pozostają na tej linii pomiędzy znacznikami i nie są
-przenoszone na kolejne pasy. Obwiednie zwracane przez domenę odpowiadają rzeczywistemu położeniu renderera.
+przenoszone na kolejne pasy. Poziome i pionowe linie bazowe są odsunięte maksymalnie o dwa rozmiary fontu
+dla słupów i pięć dla stóp, zawsze od dolnego lub prawego lica do wnętrza pomieszczenia. W małym polu
+odsunięcie jest ograniczane do połowy jego głębokości. Obwiednie zwracane przez domenę odpowiadają
+rzeczywistemu położeniu renderera.
 
 **Konsekwencje:** Pełna kolejność to ściany cząstkowe → ściany całkowite → ławy cząstkowe → ławy
-całkowite → wykopy cząstkowe → wykopy całkowite → podpory. Słupy i stopy współpołożone zachowują
-oddzielne łańcuchy, ponieważ opisują inne odniesienia (oś oraz krawędzie). Przykładowa stopa daje
-ciąg `425 cm | 50 cm | 300 cm`. Podpory bez zamkniętego pola zachowują dotychczasowe lokalne
-odniesienie do ściany. Zmiana nie modyfikuje geometrii ani JSON CAD i nie wymaga migracji.
+całkowite → wykopy cząstkowe → wykopy całkowite. Słupy i stopy nie trafiają do tej hierarchii zewnętrznej:
+ich linie pozostają wewnątrz właściwego pomieszczenia. Współpołożone słupy i stopy zachowują oddzielne
+łańcuchy, ponieważ opisują inne odniesienia (oś oraz krawędzie). Przykładowa stopa daje ciąg
+`425 cm | 50 cm | 300 cm`. Podpory bez zamkniętego pola zachowują dotychczasowe lokalne odniesienie
+do ściany. Zmiana nie modyfikuje geometrii ani JSON CAD i nie wymaga migracji.
+
+## ADR-035: Autostart serwera deweloperskiego przy otwarciu projektu
+
+**Kontekst:** Praca nad edytorem CAD wymaga stale działającej aplikacji web. Każda sesja zaczynała się
+od ręcznego `pnpm dev:web`, a repozytorium nie miało ani `.devcontainer`, ani `.vscode`.
+
+**Decyzja:** Dodajemy zadanie VS Code `Start aplikacji web (autostart)` w `.vscode/tasks.json`
+z `runOptions.runOn: folderOpen` i `isBackground: true`. Zadanie uruchamia `scripts/dev-web.sh`, który
+sprawdza port `3000`, w razie potrzeby instaluje zależności i wywołuje `pnpm dev:web`. Świadomie nie
+dodajemy pliku `.devcontainer/devcontainer.json`: w istniejącym Codespace jego pojawienie się wymusza
+przebudowę kontenera, a zadanie `folderOpen` działa tak samo w Codespaces i w lokalnym VS Code.
+
+**Konsekwencje:** Aplikacja startuje sama po otwarciu projektu, a ponowne otwarcie okna nie uruchamia
+drugiego serwera dzięki kontroli portu. Autostart wyłącza się przez usunięcie `runOptions.runOn`,
+a ręczne uruchomienie jest dostępne w **Terminal → Run Task…**. Nie uruchamiamy żadnych płatnych
+ani zdalnych usług — zmiana dotyczy wyłącznie lokalnego środowiska deweloperskiego.
+
+## ADR-036: Zwarty pełnoekranowy canvas na telefonie
+
+**Kontekst:** Mobilne reguły pełnoekranowego edytora zwiększały udział interfejsu względem obszaru roboczego:
+nagłówek miał 78 px wysokości, pasek narzędzi 44 px szerokości, przyciski narzędzi 36 × 44 px, a legenda
+i kontrolka wymiarów zajmowały kolejne duże pasy. Na ekranie 390 × 844 px canvas zaczynał się dopiero
+na wysokości 248 px i miał 324 × 588 px. Desktopowy układ na tym samym telefonie był czytelniejszy,
+ponieważ przeglądarka skalowała jego zwarty interfejs.
+
+**Decyzja:** Dla pełnoekranowego CAD przy szerokości do 700 px zachowujemy pionowy układ desktopowy,
+ale zmniejszamy wyłącznie chrom interfejsu: nagłówek do 32 px, pasek narzędzi do 32 px, przyciski do
+28 × 34 px, ikony do 15 px, kontrolkę canvasu do 28 px wysokości oraz legendę do pojedynczego zwartego
+pasa. Panel rysunku zaczyna się 36 px od lewej krawędzi. Ustawienia nadal otwierają się jako osobny panel,
+a obszar dotykowy SVG i przeliczanie współrzędnych pozostają bez zmian.
+
+**Konsekwencje:** Przy 390 × 844 px canvas ma 346 × 769 px i zaczyna się na wysokości 71 px, czyli zajmuje
+około 40% więcej powierzchni niż wcześniej. Rysunek, jego etykiety i gesty nie są skalowane sztucznie;
+zmienia się tylko rozmiar otaczającego UI. Reguły desktopowe przy 1440 px pozostają bez zmian.
+
+## ADR-037: Przekroje jako metadane wspólnego dokumentu CAD
+
+**Kontekst:** Przekroje muszą pozostać zsynchronizowane z rzutem fundamentów, zachować ręczne nadpisania
+i nie mogą tworzyć drugiej, rozjeżdżającej się kopii geometrii. Starsze dokumenty CAD nie zawierają metadanych
+przekrojów, a automatyczny generator nie może ponownie tworzyć tych samych propozycji po każdym wejściu.
+
+**Decyzja:** Widok przekrojów zawsze otwiera `foundation-drawing-0` w trybie tylko do odczytu. Definicje przekrojów
+są opcjonalnymi metadanymi tego samego JSON CAD, a linie cięcia zwykłymi encjami `construction-line` z rolą
+`section-cut`. `sourceElementIds` wiążą przekrój z geometrią, `automaticKey` zapewnia idempotencję,
+`sourceFingerprint` wykrywa zmianę źródła, a lokalne `overrides` przechowują świadome odstępstwa bez modyfikowania
+rzutu. Automatyczne dane pozostają niezatwierdzone i mają status wymagający weryfikacji.
+
+Rysunek wynikowy jest semantycznym SVG składanym z osobnych, wybieralnych obiektów. Ilości są wyliczane z jawnych
+wymiarów; elementy deduplikujemy po ID, ale nie deklarujemy pełnej unii brył w węzłach. Eksport PDF realizuje
+druk czystego SVG przez przeglądarkę, dzięki czemu nie dodajemy zależności generującej PDF.
+
+**Konsekwencje:** Starszy JSON pozostaje zgodny i nie jest potrzebna migracja SQL. Autosave, undo/redo i historia
+działają dla rzutu oraz przekrojów w jednym repozytorium dokumentu. Zmiana rzutu może oznaczyć przekrój jako
+nieaktualny bez usunięcia pracy użytkownika. Edycja przekroju nie aktualizuje automatycznie rzutu; konflikt musi
+być rozstrzygnięty świadomie. Obliczenia zbrojenia, nośności i zgodności z normami pozostają poza tym modułem.
+
+## ADR-038: Etapowy edytor zbrojenia w istniejącym dokumencie CAD
+
+**Kontekst:** Obecny kreator zbrojenia generował zestaw linii, ale nie udostępniał nawigacji po istniejących
+elementach, edycji pojedynczych prętów ani różnych rozstawów strzemion wzdłuż belki. Dane zbrojenia muszą
+pozostawać w tym samym, wersjonowanym dokumencie CAD i nie mogą modyfikować źródłowego rzutu.
+
+**Decyzja:** Etapy i lista elementów są budowane z istniejących encji CAD bieżącego rysunku. Zbrojenie
+przypisane do podparcia jest aktualizowane przez dotychczasowy autosave dokumentu, a operacje edycji dotyczą
+wyłącznie encji prętów. Dopuszczamy opcjonalne, uporządkowane, niepokrywające się strefy strzemion w
+`ReinforcementLayoutSchema`; walidujemy ich długość i limit liczby linii. Zestawienie grupuje wyłącznie
+proste, fizyczne pręty o tej samej średnicy, gatunku, warstwie, otulinie i długości. Projekcje strzemion
+nie są traktowane jako rozwinięta długość pręta. Masa używa jawnie przyjętej gęstości 7850 kg/m³.
+
+**Konsekwencje:** Zmiana jest wstecznie zgodna i nie wymaga migracji; istniejące projekty zachowują JSON.
+Status kompletności nie jest zatwierdzeniem konstrukcyjnym. Łuki, haki, zakłady, wielosegmentowa geometria,
+rzeczywiste strzemiona, połączenia wieloodcinkowe, powierzchniowe siatki, model 3D, eksport dokumentacji
+oraz walidacja normowa pozostają poza obecnym zakresem i nie są zastępowane szacunkami.
+
+## ADR-039: Ciągi hostów, szablony i zachowanie ręcznego zbrojenia
+
+**Kontekst:** Rzut fundamentów może dzielić logicznie ciągłą ławę lub belkę na wiele encji przy węzłach.
+Moduł zbrojenia musi pozwalać prowadzić pręty przez wybrane odcinki, ale nie może zmieniać rzutu ani samodzielnie
+rozstrzygać przebiegu głównego w węzłach T/X. Ponowna konfiguracja podobnych elementów wymaga też trwałych
+szablonów, a zmiana geometrii źródłowej nie może niszczyć ręcznej pracy.
+
+**Decyzja:** Dokument CAD przechowuje opcjonalne `reinforcementChains` z uporządkowanymi ID źródłowych hostów,
+jawnie wybranym ciągiem głównym, fingerprintem geometrii i statusem weryfikacji. Łączenie i rozdzielanie zmienia
+wyłącznie metadane zbrojenia. Węzły rozgałęzione wymagają decyzji użytkownika. Zmiana źródła porównuje fingerprint
+i oznacza układ jako wymagający sprawdzenia zamiast transformować pręty.
+
+`reinforcementTemplates` są częścią tego samego dokumentu. Przechowują względną geometrię prętów, a zastosowanie
+do liniowego hosta wykonuje kontrolowaną translację i obrót do jego osi. Każda nowa encja otrzymuje własne ID.
+
+**Konsekwencje:** Źródłowy rzut pozostaje niezmienny, starsze dokumenty są zgodne dzięki opcjonalnym polom,
+a autosave i historia obejmują ciągi oraz szablony. Szablon nie jest rozwiązaniem zatwierdzonym konstrukcyjnie;
+konflikty geometrii i stan po zmianie źródła muszą zostać zweryfikowane przez użytkownika.
+
+## ADR-040: Walidacja ostrzegawcza i lekki interaktywny podgląd 3D
+
+**Kontekst:** Edytor wymaga natychmiastowej informacji o oczywistych konfliktach i przestrzennego podglądu,
+ale aplikacja nie ma danych ani zweryfikowanych procedur wystarczających do deklarowania zgodności normowej
+lub nośności. Pełny silnik bryłowy zwiększyłby zakres i koszt bez rozwiązania problemu obliczeń konstrukcyjnych.
+
+**Decyzja:** Walidacja domenowa zgłasza jawne ostrzeżenia dla brakującego materiału, położenia względem otuliny,
+przecięć osi w 2D dla tej samej warstwy i hosta, podejrzanie małego promienia gięcia oraz nieaktualnego
+fingerprintu. Nie poprawia automatycznie geometrii. Podgląd 3D jest interaktywną projekcją SVG wspólnej ścieżki
+pręta, z grubością wynikającą ze średnicy, wyborem, filtrowaniem warstw, kamerą i półprzezroczystym betonem.
+
+**Konsekwencje:** Widoki 2D, zestawienie i 3D korzystają z tych samych encji, a użytkownik widzi problemy bez
+fałszywej deklaracji bezpieczeństwa. Kontrole nie zastępują analizy kolizji brył 3D, obliczeń konstrukcyjnych
+ani walidacji wskazanej normy. Analityczne łuki przestrzenne i renderer WebGL/B-Rep pozostają przyszłym zakresem.
+
+## ADR-041: Automatyczna referencja rzutu i eksport bez ciężkich zależności
+
+**Kontekst:** Pusty rysunek zbrojenia nie powinien wymagać ręcznego duplikowania rzutu fundamentów ani ponownego
+wprowadzania znanych wymiarów. Dokumentacja techniczna ma być możliwa lokalnie bez płatnych usług i bez dodawania
+dużych bibliotek tylko dla podstawowych formatów.
+
+**Decyzja:** Przy pierwszym otwarciu pustego rysunku zbrojenia aplikacja pobiera istniejący dokument rzutu
+fundamentów przez dotychczasowy mechanizm kopiowania geometrii i zapisuje `derivedFrom`. Dalsze zmiany źródła
+są wykrywane dla ciągów przez fingerprint, lecz nie nadpisują ręcznych prętów. Zestawienie eksportujemy jako CSV,
+rysunek jako SVG lub PNG, a PDF przez systemowy dialog druku przeglądarki.
+
+**Konsekwencje:** Użytkownik zaczyna od geometrii projektu, a źródłowy rzut nie jest modyfikowany. To wersjonowana
+referencja-kopia, nie współdzielona instancja ani pełna synchronizacja dwukierunkowa. XLSX wymagałby osobnej,
+zaakceptowanej zależności i pozostaje poza obecnym zakresem.
+
+## ADR-042: Zakładka zbrojenia oddzielona od edytora CAD rzutu
+
+**Status:** Zaakceptowany (sesja 62).
+
+**Kontekst:** Rysunek „Detale zbrojenia i zestawienie prętów” dzielił komponent `StageCadEditor` z rzutem
+fundamentów, więc pokazywał pasek narzędzi rysowania, ustawienia wymiarów i pozwalał przesuwać ściany, słupy
+oraz stopy. Geometria konstrukcji jest jednak ustalana w poprzednich rysunkach, a jej przypadkowa edycja w module
+zbrojenia rozjeżdżała model źródłowy. Lista elementów w formie tekstowej nie odwzorowywała też faktycznego układu
+ław i belek.
+
+**Decyzja:** Zakładka zbrojenia ma własną gałąź widoku (`cad-reinforcement-view`) bez narzędzi rysowania i bez
+panelu wymiarów. Pracę organizują zakładki etapów; po wybraniu etapu nowy komponent `ReinforcementStagePlan`
+rysuje wyłącznie elementy tego etapu jako klikalne obrysy. Geometria nienależąca do etapu nie jest renderowana
+w ogóle — zakładka „Ławy fundamentowe” pokazuje same ławy, bez tła pozostałych encji.
+Rzut jest tylko do odczytu — obsługuje jedynie pan, zoom i pinch. Kliknięcie elementu otwiera modalne sub-okno
+z detalami: rysunkiem 2D (widok podłużny, przekrój poprzeczny, rzut prętów), podglądem 3D, właściwościami prętów
+i strzemion oraz zestawieniem stali.
+
+**Konsekwencje:** Model geometryczny pozostaje jedną instancją definiowaną w rzucie fundamentów; moduł zbrojenia
+go konsumuje, lecz nie modyfikuje. Obok klikalnego canvasu utrzymujemy równoważną listę przycisków elementów,
+aby wybór był dostępny także bez precyzyjnego wskazywania (dotyk, klawiatura, czytniki ekranu). Przechwytywanie
+wskaźnika (`setPointerCapture`) włączamy dopiero po przekroczeniu progu przeciągania, ponieważ ustawione już przy
+`pointerdown` przekierowywało zdarzenie `click` na całe SVG i uniemożliwiało wybór pojedynczego elementu.
+
+## ADR-043: Jeden etapowy przepływ edycji zbrojenia
+
+**Status:** Zaakceptowany (sesja 63).
+
+**Kontekst:** Po wprowadzeniu zakładek etapów i sub-okna detali nadal pozostawał starszy, równoległy dialog
+„Kreator zbrojenia belki / płyty”. Pozwalał tworzyć układ po współrzędnych oraz zmieniać przekrój niezależnie
+od hosta. Dublował nowy edytor, omijał wybór elementu z istniejącego rzutu i pozostawiał dwie sprzeczne ścieżki UX.
+
+**Decyzja:** Usuwamy stary kreator, jego przyciski, stan formularza, generator po współrzędnych i dedykowane style.
+Jedyną ścieżką jest: etap → element na rzucie tylko do odczytu → sub-okno detali → „Edytuj pręty”. Geometria
+betonu pochodzi z hosta. Nowy edytor przechowuje gatunek stali i odniesienie do rysunku bez korzystania z pól
+usuniętego formularza.
+
+**Konsekwencje:** Nie można już tworzyć zbrojenia oderwanego od rozpoznanego elementu konstrukcyjnego. Brak hosta
+jest sygnalizowany komunikatem o konieczności uzupełnienia rzutu źródłowego. Istniejące zapisane encje zbrojenia
+pozostają zgodne i edytowalne; usunięto wyłącznie starszy interfejs ich tworzenia.
+
+## ADR-044: Oddzielne rysunki ław i ścian z wieńcem górnym
+
+**Status:** Zaakceptowany (sesja 64).
+
+**Kontekst:** Ławy i ściany fundamentowe były klasyfikowane do jednego etapu, przez co ich współliniowe obrysy
+nakładały się na canvasie. Dla murowanych ścian fundamentowych brakowało też jawnego modelu wieńca na górze.
+Wieniec nie może być utożsamiany ani z ławą, ani z samą ścianą, ponieważ ma własny przekrój i zbrojenie.
+
+**Decyzja:** Etapy „Ławy fundamentowe” i „Ściany fundamentowe i wieńce górne” są oddzielnymi rysunkami.
+W drugim etapie ściana z bloczków/pustaków wymaga konfiguracji wieńca. Wieniec jest osobną encją liniową
+`construction-line` o roli `ring-beam`, powiązaną ze źródłową ścianą przez `relatedTo`. Jego szerokość dziedziczy
+znaną szerokość ściany; wysokość, materiał i numer rysunku pozostają wymaganymi danymi projektowymi.
+
+**Konsekwencje:** Rzut nie ma już nakładających się klikalnych ław i ścian w jednym etapie. Zbrojenie wieńca
+ma własny host, zestawienie i status. System wykrywa brak konfiguracji, ale nie dobiera wymiarów, betonu,
+prętów ani strzemion i nie zastępuje weryfikacji uprawnionego projektanta.
+
+## ADR-045: Trzy rysunki fundamentowe i jawna decyzja o wieńcu
+
+**Status:** Zaakceptowany (sesja 65); zastępuje organizację etapów z ADR-044.
+
+**Kontekst:** Umieszczenie murowanej ściany i jej wieńca na jednym rysunku nadal łączyło dwa różne elementy
+konstrukcyjne. Rozpoznawanie obowiązku wieńca po tekście materiału było niepewne i mogło zastępować informację
+z projektu konstrukcyjnego.
+
+**Decyzja:** Ławy, ściany fundamentowe i wieńce fundamentowe mają trzy osobne rysunki etapowe. Ankieta
+„Materiały i technologia” zawiera pytanie „Wieniec górny na ścianach fundamentowych” z odpowiedziami „Tak”,
+„Nie”, „Zgodnie z projektem” i „Nie dotyczy”. Odpowiedzi „Tak” i „Zgodnie z projektem” udostępniają konfigurację,
+brak odpowiedzi wymaga weryfikacji i blokuje zapis, a „Nie” oraz „Nie dotyczy” ukrywają pusty etap. Już zapisane
+wieńce pozostają widoczne z ostrzeżeniem o konflikcie, aby zmiana ankiety nie usuwała danych.
+
+**Konsekwencje:** Wieniec nadal jest osobnym hostem powiązanym ze ścianą. Nie wnioskujemy rozwiązania
+konstrukcyjnego z materiału i nie wymyślamy wymiarów, betonu ani zbrojenia. Starsze dane technologii są zgodne
+ze schematem dzięki wartości `null`, ale przy kolejnej edycji pełnego formularza użytkownik musi odpowiedzieć.
+
+## ADR-046: Logiczne belki współliniowe i wymiary ograniczone do etapu
+
+**Status:** Zaakceptowany (sesja 65).
+
+**Kontekst:** Węzeł T dzieli źródłową ścianę i jej ławę na segmenty techniczne. Prostokątny obwód przecięty
+jedną ścianą środkową ma przez to siedem encji, chociaż na rysunku zbrojenia powinien przedstawiać pięć prostych
+elementów: górny, dolny, lewy, prawy i środkowy. Jednocześnie canvas etapu potrzebuje wymiarów, ale nie wymiarów
+ścian, słupów ani innych etapów.
+
+**Decyzja:** Rzut zbrojenia grupuje połączone współliniowe hosty w jeden logiczny element bez modyfikowania encji
+źródłowych. Kryterium wymaga wspólnego końca i zgodnego kierunku; narożniki, łamane i krzywizny pozostają
+oddzielne. Dla aktywnego etapu tworzymy odfiltrowany dokument wymiarowy zawierający wyłącznie jego hosty
+i renderujemy istniejącym mechanizmem `CadPlanDimensions`.
+
+**Konsekwencje:** Przykład 7 segmentów daje 5 klikalnych belek, a sub-okno sumuje długości i pokazuje zbrojenie
+wszystkich segmentów logicznego elementu. Ręczne ciągi pozostają potrzebne dla tras L i rozgałęzień. Wymiary
+dziedziczą jednostki i reguły rozmieszczania z głównego modelu CAD, lecz identyfikatory ich encji zawsze należą
+do bieżącego etapu.
+
+## ADR-047: Obrys budynku jako nieklikalny kontekst dla stóp i słupów
+
+**Status:** Zaakceptowany (sesja 66).
+
+**Kontekst:** Etapy stóp fundamentowych oraz słupów potrzebują odniesienia do położenia budynku, ale ławy
+i fundamenty nie są w tych etapach edytowanymi hostami zbrojenia. Pokazywanie ich jako zwykłych elementów
+dodawałoby niepotrzebne kliknięcia i wymiary.
+
+**Decyzja:** Na canvasach etapów „Stopy fundamentowe” oraz „Słupy i trzpienie żelbetowe” renderujemy ławy
+oraz ściany fundamentowe jako szary, przerywany obrys pomocniczy. Warstwa ma `pointer-events: none`, nie jest
+dodawana do listy elementów, nie ma statusu zbrojenia i nie trafia do dokumentu wymiarów. Kliknięcia pozostają
+obsługiwane wyłącznie przez aktywne hosty stóp lub słupów.
+
+**Konsekwencje:** Użytkownik widzi kontekst budynku bez ryzyka otwarcia niewłaściwego sub-okna i bez mieszania
+wymiarów fundamentów z wymiarami aktywnego etapu. Źródłowa geometria pozostaje tylko do odczytu.
+
+## ADR-048: Wieńce fundamentowe korzystają z logicznych ciągów współliniowych
+
+**Status:** Zaakceptowany (sesja 67).
+
+**Kontekst:** Etap wieńców używa ścian fundamentowych jako selektorów. Wyjątek pozostawiający każdy segment
+ściany jako osobny selektor powodował, że prosty wieniec rozcięty węzłem T/X był przedstawiany jako kilka belek,
+chociaż ławy i pozostałe belki były już grupowane.
+
+**Decyzja:** Usuwamy wyjątek dla wieńców fundamentowych. Selektory ścian są grupowane przez tę samą funkcję
+geometrii współliniowej co ławy i belki. Zapis konfiguracji aktualizuje lub tworzy host `ring-beam` dla każdego
+źródłowego segmentu logicznego ciągu. Sub-okno agreguje wszystkie hosty, pręty, długości i statusy tego ciągu.
+Narożniki, łamane i krzywizny nadal pozostają osobnymi wieńcami.
+
+**Konsekwencje:** Rysunek ścian i rysunek wieńców mają tę samą liczbę logicznych prostych ciągów. Relacja
+`ring-beam` → ściana pozostaje jednoznaczna i źródłowe segmenty nie są modyfikowane, ale użytkownik pracuje
+z całym prostym wieńcem jako jedną belką.
+
+## ADR-049: Krawędziowe wymiary stóp i słupów oraz proste łańcuchy współliniowe
+
+**Status:** Zaakceptowany (sesja 68).
+
+**Kontekst:** Etapy stóp i słupów miały obrys budynku jako kontekst, ale wymiarowanie nie korzystało z niego.
+Słupy były lokalizowane osiami, podczas gdy wymagany zapis wykonawczy to: ściana → początek podpory → koniec
+podpory → następna ściana. Techniczne podziały prostego, także ukośnego odcinka dodawały ponadto zbędne kreski.
+
+**Decyzja:** Dla stóp i słupów generujemy wyłącznie łańcuchy `supports:pad:*` albo `supports:column:*` z dokumentu
+obliczeniowego zawierającego aktywne podpory oraz nieklikalny obrys fundamentów. Obie role używają krawędzi
+prostokąta, nie osi. Krótki segment szerokości podpory może mieć proporcjonalnie mniejszy tekst, ale linia bazowa
+pozostaje prosta. Przed generowaniem zwykłych wymiarów scalamy połączone, współliniowe pasma tej samej rodziny
+i szerokości wyłącznie na potrzeby prezentacji wymiarowej. Zmiana kierunku nie jest scalana.
+
+**Konsekwencje:** Obrys fundamentów wyznacza początek i koniec łańcucha, ale nie dostaje własnych wymiarów
+w etapach podpór. T/X nie tworzy kreski pośrodku prostego przebiegu, także ukośnego. Geometria encji i relacje
+pozostają bez zmian; uproszczenie dotyczy tylko żądania wymiarowego.
+
+## ADR-050: Osiowe, kompletne rodziny stacji wymiarowych
+
+**Status:** Zaakceptowany (sesja 69).
+
+**Kontekst:** Scalanie wyłącznie współliniowych pasm nadal pozostawiało ukośne bazy przy lekko przekrzywionych
+ścianach, a rodzina nie powstawała, gdy algorytm nie znalazł co najmniej dwóch połączonych przedziałów. Renderer
+dodatkowo obracał kreski końcowe o 45 stopni względem bazy. Skutkiem były rozdzielone linie oraz brakujące
+przedziały, np. niepełny zapis zamiast `80–400–80–400–80`.
+
+**Decyzja:** Dla każdej widocznej rodziny pasm generujemy jedną kompletną rodzinę poziomych stacji X i jedną
+pionowych stacji Y. Stacje pochodzą z krawędzi pasm prostopadłych oraz końców osi pasm w kierunku rodziny, są
+sortowane i deduplikowane, a wymiar powstaje między każdą sąsiednią parą. Ten sam renderer osiowo normalizuje
+zwykłe wymiary i łańcuchy podpór. Baza pozioma ma wyłącznie pionowe kreski, baza pionowa wyłącznie poziome.
+Rzeczywiste punkty geometrii zachowujemy jako początki prostopadłych linii pomocniczych.
+
+**Konsekwencje:** Rzut fundamentów, etapowe canvasy zbrojenia i plan pomocniczy przekrojów mają tę samą regułę
+prezentacji. Techniczny podział, T/X lub niewielkie przekrzywienie nie obracają linii wymiarowej i nie usuwają
+żadnego przedziału. Geometria projektu nie jest prostowana ani modyfikowana; zmienia się wyłącznie prezentacja.
+
+## ADR-051: Porównywanie przeciwległych profili wymiarowych
+
+**Status:** Zaakceptowany (sesja 70).
+
+**Kontekst:** Jedna globalna rodzina stacji usuwała duplikaty prostokątnego obrysu, ale przy załamaniu tylko jednej
+strony przenosiła jej stacje również na stronę przeciwną. Próba pokazania wszystkich grubości na jednej linii
+powodowała chaos, a identyczne przeciwległe strony niepotrzebnie powtarzały te same wymiary.
+
+**Decyzja:** Dla każdej osi obliczamy osobno profil strony początkowej i końcowej. Element przechodzący przez
+środek obrysu może zasilać oba profile; pozostałe elementy trafiają na stronę wynikającą z ich położenia.
+Porównujemy kompletne, uporządkowane stacje z tolerancją 1 mm. Profile identyczne są prezentowane tylko po stronie
+końcowej. Każda różnica powoduje pokazanie obu niezależnych łańcuchów wraz z ich własnymi wymiarami całkowitymi.
+
+**Konsekwencje:** Prosty prostokąt pozostaje opisany oszczędnie. Obrys z krzywą, załamaniem, niesymetrycznym
+odgałęzieniem albo różnymi długościami stron dostaje osobne wymiary tam, gdzie rzeczywiście się różni. Żaden
+łańcuch nie przejmuje stacji należących wyłącznie do strony przeciwnej.
+
+## ADR-052: Nominalne szerokości pasm na przecięciach osiowych
+
+**Status:** Zaakceptowany (sesja 71).
+
+**Kontekst:** Obrys osiowo wyrównanego prostokąta ściany ukośnej ma inną szerokość niż rzeczywista grubość pasa.
+Użycie jego krawędzi jako stacji prowadziło do sztucznych wartości, np. `0,9 cm` dla ściany o zapisanej grubości
+`1 cm`. Końce kolejnych segmentów ściany tworzyły ponadto niepotrzebne podwymiary.
+
+**Decyzja:** Położenie pasa na konkretnej stronie obliczamy przez przecięcie jego osi z osią tej strony. Wokół
+punktu przecięcia odkładamy połowę zapisanej grubości nominalnej po obu stronach. Stacjami są wyłącznie krawędzie
+tak zdefiniowanych pasm oraz skraje profilu; końce ścian równoległych i techniczne punkty podziału nie tworzą
+osobnych stacji. Renderer używa zapisanej etykiety nominalnej dla przedziału należącego do ściany.
+
+**Konsekwencje:** Ukośność i przesunięcie zmieniają położenie pasa oraz rzeczywiste przerwy, ale nigdy jego
+zadeklarowaną grubość. Łańcuch zawiera tylko grubości ścian i odległości między nimi, np. `1–5–1` po jednej stronie
+i `1–3–1` po stronie przesuniętej, bez dodatkowych wymiarów punktów pośrednich.
+
+## ADR-053: Kompletne profile bez osobnego wymiaru całkowitego
+
+**Status:** Zaakceptowany (sesja 72).
+
+**Kontekst:** Ograniczenie ściany poprzecznej do profilu, którego globalnej krawędzi faktycznie dotykała jej oś,
+usuwało grubość ściany po jej przesunięciu. Osobna linia wymiaru całkowitego powtarzała równocześnie sumę
+łańcucha i była odbierana jako drugi, niekompletny zestaw.
+
+**Decyzja:** Każdy poprzeczny pas zasila oba porównywane profile. Jeśli oś nie przecina pozycji strony, stosujemy
+najbliższy koniec osi do ustalenia położenia, zachowując pełną szerokość nominalną pasa. Deduplikacja następuje
+dopiero po zbudowaniu kompletnych sekwencji obu stron. Dla rodziny z kompletnym łańcuchem nie generujemy
+dodatkowej linii wymiaru całkowitego.
+
+**Konsekwencje:** Przesunięta ściana nie może zgubić swojej grubości, identyczna strona przeciwna nie jest
+powtarzana, a użytkownik widzi wyłącznie pełne sekwencje `grubość–odległość–grubość...`, bez drugiej linii
+z sumą tych samych wartości.
+
+## ADR-054: Ściany wewnętrzne wymiarowane wewnątrz rzutu
+
+**Status:** Zaakceptowany (sesja 73).
+
+**Kontekst:** Ściana poprzeczna należąca do dwóch pomieszczeń była traktowana jak kolejna ściana obwodowa.
+Jej grubość dzieliła przeciwległe zewnętrzne łańcuchy na małe, nieczytelne wartości, mimo że użytkownik potrzebuje
+tam wyłącznie wymiarów obrysu. Pominięcie ściany całkowicie usuwałoby jednak informację o jej długości i grubości.
+
+**Decyzja:** Liczymy wystąpienia identyfikatorów ścian w wykrytych zamkniętych polach. Element należący do więcej
+niż jednego pola jest wewnętrzny; reguła przechodzi również na powiązane ławy i inne pasma przez `supportFor`
+lub `relatedTo`. Takie elementy wyłączamy z profili obwodowych. W zamian generujemy przy ich osi osobny,
+wewnętrzny łańcuch długości oraz lokalny wymiar nominalnej grubości.
+
+**Konsekwencje:** Zewnętrzne boki pozostają pełnymi i prostymi łańcuchami bez stacji ściany środkowej. Informacja
+o ścianie poprzecznej nie ginie, lecz jest pokazana w miejscu, którego dotyczy, wewnątrz rzutu. Wymiary wewnętrzne
+mogą celowo znajdować się w obrysie konstrukcji, podczas gdy wymiary zewnętrzne nadal unikają brył.
+
+## ADR-055: Biblioteka kształtów zbrojenia jest zasobem użytkownika
+
+**Status:** Zaakceptowany (sesja 74).
+
+**Kontekst:** Podgięcia i strzemiona mają być przygotowywane raz i używane w różnych elementach oraz projektach
+danego użytkownika. Istniejące `reinforcementTemplates` należą do dokumentu CAD i przechowują całe układy prętów,
+więc nie są właściwym miejscem dla osobistej minibazy pojedynczych kształtów.
+
+**Decyzja:** Kształty zapisujemy w osobnej tabeli `reinforcement_shape_templates` identyfikowanej przez
+`(user_id, id)`, z politykami RLS ograniczającymi odczyt i zapis do właściciela. Wspólny schemat przechowuje
+kategorię, nazwę oraz uniwersalną geometrię `ReinforcementShape`. Tryb demonstracyjny używa osobnego klucza
+`localStorage`, a podglądy 2D i 3D korzystają z tego samego silnika `reinforcementPath3d`.
+
+**Konsekwencje:** Biblioteka nie duplikuje szablonów projektowych i może działać między projektami jednego konta.
+Pierwszy krok kreatora dotyczy wyłącznie geometrii kształtu; średnica, stal, otulina i odniesienie projektowe są
+uzupełniane po zastosowaniu kształtu do konkretnego pręta. Walidacja techniczna ostrzega, ale zapis kształtu nie
+stanowi zatwierdzenia konstrukcyjnego.
+
+## ADR-056 — Wymiarowany podgląd 2D kształtu zbrojenia
+
+**Status:** Zaakceptowana.
+
+**Kontekst:** Kreator podgięć i strzemion pokazywał sam przebieg osi pręta. Użytkownik nie mógł odczytać z rysunku
+długości poszczególnych części ani kątów gięcia, a konwencja graficzna różniła się od wymiarowania rzutów.
+
+**Decyzja:** Podgląd 2D rysuje łańcuchy wymiarowe w tej samej konwencji co canvasy rzutu — linia pomocnicza,
+prostopadła kreska stacji, linia bazowa i etykieta na białym tle odsunięta od mierzonej krawędzi. Linie wymiarowe
+są odsuwane na zewnątrz kształtu względem środka ciężkości punktów, a tekst jest obracany wzdłuż odcinka i
+odwracany o 180°, gdy wypadłby do góry nogami. Kąty gięcia różne od 0° są opisywane łukiem między kierunkami
+sąsiednich odcinków, z etykietą na dwusiecznej. Wariant `compact` kafelków biblioteki rysuje te same wymiary
+i kąty, ale z własnym, mniejszym zestawem proporcji (`font`, `offset`, `tick`, `labelGap`, `arc`) i cieńszym
+prętem. Łańcuchy wymiarowe rysowane są nad prętem, aby etykieta krótkiego odcinka nie znikała pod jego linią.
+
+**Konsekwencje:** Rysunek kształtu jest czytelny bez otwierania tabeli danych i spójny wizualnie z rzutami,
+a kafelek biblioteki pozwala rozpoznać kształt bez wchodzenia w szczegóły. Proporcje rysunku muszą pozostać
+sparametryzowane — wpisanie ich na sztywno rozjechałoby jeden z dwóch rozmiarów podglądu.
+Definicje `pattern` i `linearGradient` muszą pochodzić z `useId`, ponieważ na stronie działa wiele podglądów
+jednocześnie. Testy przeglądarkowe muszą wskazywać oś pręta selektorem `path.reinforcement-shape-bar`, bo SVG
+zawiera teraz wiele ścieżek. Wymiary opisują geometrię zadeklarowaną przez użytkownika i nie stanowią
+zatwierdzenia konstrukcyjnego.
+
+## ADR-057 — Orientacja całego kształtu niezależna od gięć
+
+**Status:** Zaakceptowana.
+
+**Kontekst:** Kąty zapisane przy częściach opisują gięcia pomiędzy kolejnymi odcinkami, ale nie pozwalają obrócić
+gotowego podgięcia lub strzemienia jako całości. Modyfikowanie pierwszego gięcia w celu zmiany orientacji
+zmieniałoby kształt zamiast jego położenia.
+
+**Decyzja:** `ReinforcementShape` otrzymuje opcjonalne `rotationDegrees` w zakresie od −360° do 360°.
+`reinforcementPath3d` używa tej wartości jako początkowego kierunku dla części płaskich i dodaje ją do azymutu
+części przestrzennych. Kreator udostępnia szybkie obroty o ±90° i 180°, reset oraz dokładne pole liczbowe.
+Brak pola w starszych danych oznacza 0°. Wstawianie pominiętych części pozostaje osobną operacją na kolejności
+segmentów i nie modyfikuje orientacji.
+
+**Konsekwencje:** Orientacja jest trwałą częścią kształtu i jest jednakowa w bibliotece, podglądach 2D/3D oraz
+utworzonym pręcie. Nie wpływa na długości części, kąty gięcia, promienie ani długość rozwiniętą. Obrót jest
+transformacją wokół początku pręta; po przypisaniu do konkretnego elementu nadal podlega kontroli położenia,
+otuliny i kolizji.
+
+## ADR-058 — Średnica drutu jako część kształtu, a promień gięcia jako jej pochodna
+
+**Status:** Zaakceptowana.
+
+**Kontekst:** Kreator podgięć i strzemion opisywał wyłącznie długości części i kąty. Kształt „strzemię 30×50”
+nie niósł informacji, z jakiego drutu ma być wykonany, a promień roboczy gięcia był stałą 20 mm wpisaną
+na sztywno, niezależną od średnicy. Kolumna `shape` w `reinforcement_shape_templates` jest typu `jsonb`
+i waliduje wyłącznie tablicę `bends`.
+
+**Decyzja:** `ReinforcementShape` otrzymuje opcjonalne `diameterMm` (0–100 mm). Dzięki temu średnica jest
+zapisywana razem z geometrią, bez migracji bazy i bez zmian w trasie API. Promień gięcia nie jest już stałą:
+wynika z minimalnej średnicy trzpienia gnącego — 2Ø dla Ø ≤ 16 mm i 3,5Ø powyżej — i nie schodzi poniżej 20 mm.
+Obliczona wartość jest pokazywana wprost w kreatorze i w szczegółach kształtu. Grubość drutu rysowanego w 2D
+i 3D jest proporcjonalna do średnicy, z ograniczeniem od góry i od dołu, aby rysunek pozostał czytelny.
+Brak pola w starszych danych oznacza Ø12 wyłącznie na potrzeby rysunku; szczegóły kształtu pokazują wtedy
+„nie podano”.
+
+**Konsekwencje:** Kształt biblioteczny jest kompletną definicją wyrobu, a nie samą łamaną. Średnica przechodzi
+do pola Ø edytora pręta, więc nie trzeba wpisywać jej dwa razy. Długość rozwinięta zależy teraz od średnicy,
+ponieważ promień łuku wchodzi do obliczeń — to zamierzone i bliższe rzeczywistości niż stałe 20 mm. Wartość
+promienia jest minimum technologicznym, a nie zatwierdzeniem konstrukcyjnym; dobór pozostaje po stronie
+uprawnionego projektanta.
+
+## ADR-059 — Oś pręta bez znaczników punktowych i odsuwanie kolidujących opisów
+
+**Status:** Zaakceptowana.
+
+**Kontekst:** Podgląd kształtu rysował białe kropki na początku i końcu osi pręta. Na miniaturach zasłaniały
+one etykiety wymiarowe, a po usunięciu samego znacznika końcowego drut wyglądał na ucięty, bo jeden koniec
+miał kropkę, a drugi nie. Osobnym problemem było nakładanie się opisu krótkiego haka na opis długiego boku
+strzemienia.
+
+**Decyzja:** Oś pręta nie ma żadnych znaczników punktowych. Jest rysowana jednolitą linią z zaokrąglonymi
+zakończeniami, identycznie na obu końcach, więc nic nie sugeruje ucięcia ani nie przykrywa wymiarów. Znaczniki
+gięcia pozostają jako małe punkty przy łukach kątowych, ponieważ należą do warstwy opisowej, a nie do pręta.
+Łańcuchy wymiarowe są układane kolejno; jeżeli etykieta nachodziłaby na wcześniej umieszczoną, cały jej łańcuch
+jest odsuwany o jeden krok na zewnątrz. Margines wewnętrzny rysunku jest dobrany tak, aby odsunięta etykieta
+nadal mieściła się w `viewBox`.
+
+**Konsekwencje:** Rysunek jest czytelny również na miniaturze kafelka. Odsuwanie wykonuje jeden krok, więc
+przy kilku bardzo krótkich odcinkach w jednym narożniku opisy mogą pozostać ciasne — wtedy pełny podgląd
+jest dostępny po kliknięciu kafelka. Testy przeglądarkowe sprawdzają, że liczba elementów
+`.reinforcement-shape-node` wynosi zero w obu rozmiarach podglądu.
+
+## ADR-060 — Konstruktor belki jako konfiguracja hostów istniejącego rzutu
+
+**Status:** Zaakceptowana.
+
+**Kontekst:** Prosty formularz liczby prętów nie pozwalał definiować kilku stref strzemion, lokalnych zagęszczeń
+ani pakietów. Jednocześnie przywrócenie niezależnego kreatora belki po własnych współrzędnych stworzyłoby drugi
+model geometrii, sprzeczny z zasadą jednego rzutu CAD. Logiczna belka może składać się z kilku współliniowych
+segmentów rozdzielonych technicznie węzłami T/X.
+
+**Decyzja:** Konfiguracja `ReinforcementBeamAssembly` jest opcjonalną częścią dokumentu CAD i przechowuje
+identyfikatory hostów, wymiary odczytane z rzutu oraz uporządkowane strefy strzemion. Każda strefa wskazuje
+kształt z biblioteki użytkownika, rozstaw, pakiet 1–4 sztuk i dowolne podstrefy zagęszczenia. Strefy są ciągłe,
+nie mogą wyjść poza dopuszczalny zakres, a wspólna stacja dwóch stref jest deduplikowana na rzecz następnej
+strefy. `beamStirrupPlacements` rozwija konfigurację do fizycznych stacji, a `locateBeamHostStation` mapuje
+stację całej logicznej belki na konkretny segment i lokalną odległość. Wygenerowane `rebar-line` mają
+`placement.groupId` równe identyfikatorowi konfiguracji; ponowny zapis atomowo zastępuje tylko tę grupę.
+Pierwsze i ostatnie strzemię są odsunięte o połowę szerokości hosta i opisane jako reguła geometryczna,
+nie wymaganie normowe.
+
+**Konsekwencje:** Długość, nazwa i przekrój belki mają jedno źródło w istniejącym rzucie, a pierwotne segmenty
+nie są modyfikowane. Konfiguracja przetrwa zapis dokumentu JSON bez osobnej migracji SQL. Edytor może pokazać
+rzuty front/bok i 3D oraz odtworzyć wszystkie strefy. Limit 1000 rozwiniętych strzemion chroni dokument i renderer
+przed niekontrolowaną liczbą encji. Dobór rozstawu, średnicy, zagęszczeń i odsunięcia wymaga sprawdzenia przez
+uprawnionego projektanta; konstruktor nie deklaruje nośności ani zgodności normowej.
+
+## ADR-061 — Pakiet strzemion jako wspólna stacja i kierunkowy offset przekroju
+
+**Status:** Zaakceptowana.
+
+**Kontekst:** Pierwsza wersja `bundleCount` interpretowała odstęp pakietu jako przesunięcie stacji wzdłuż belki.
+To zmieniało zadany rozstaw i nie odpowiadało znaczeniu „strzemiona obok siebie”. Pakiet ma powtarzać kilka
+strzemion w tym samym miejscu osiowym, ale rozsunąć je w przekroju.
+
+**Decyzja:** Każdy `BeamStirrupPlacement` przechowuje wspólną `stationMm`, indeks pakietu oraz dwa offsety:
+poprzeczny i pionowy. Pierwszy egzemplarz ma offset 0, a kolejne `index × bundleGapMm`. `bundleDirection`
+wybiera znak i oś: `left`/`right` dla osi poprzecznej oraz `up`/`down` dla pionowej. Pole jest opcjonalne dla
+zgodności ze starszymi dokumentami; jego brak oznacza `right`. Deduplikacja styku stref zastępuje cały pakiet
+poprzedniej strefy pakietem następnej, ale nie usuwa egzemplarzy mających tę samą stację wewnątrz jednego pakietu.
+Interfejs przelicza milimetry modelu na centymetry, nie zmieniając jednostki bazowej CAD.
+
+**Konsekwencje:** Rozstaw wzdłuż belki jest niezależny od liczby strzemion obok siebie. Te same dane sterują
+rzutem frontowym, przekrojem i podglądem 3D. Starsze konfiguracje pozostają poprawne. Podany odstęp jest odległością
+osiową pomiędzy kolejnymi egzemplarzami, a nie automatycznie wyliczonym stykiem boków; jego dobór pozostaje decyzją
+projektanta.
+
+## ADR-062 — Rzut przekroju rysuje rzeczywisty obrys strzemienia, a wystawanie wymaga decyzji użytkownika
+
+**Status:** przyjęta.
+
+**Kontekst:** Rzut boczny konstruktora belek rysował strzemię jako prostokąt o wymiarach 80% przekroju betonu.
+Kształt z biblioteki nie miał więc żadnego wpływu na rysunek: strzemię 50 × 50 cm pokazywało się jako 40 cm.
+Brakowało też reakcji na przypadek, w którym wybrany kształt jest wyższy niż wysokość zalewanego etapu.
+
+**Decyzja:** Rzut przekroju rysuje strzemię z rzeczywistego obrysu kształtu, wyliczanego przez czystą funkcję
+domenową `reinforcementShapeOutline`. Funkcja rzutuje ścieżkę 3D na płaszczyznę o największym rozpiętości
+i zwraca punkty znormalizowane do narożnika wraz z rzeczywistą szerokością i wysokością w milimetrach.
+Ta sama funkcja zasila podgląd kształtu, więc rzutowanie ma jedno źródło. Skala rysunku jest wspólna dla betonu
+i zbrojenia, a kadr przekroju obejmuje również elementy wychodzące poza beton. Jeżeli wysokość obrysu przekracza
+wysokość elementu, strefa nie powstaje automatycznie: użytkownik dostaje ostrzeżenie z obiema wysokościami
+i wielkością wystawania oraz wybiera „Wybierz inne” albo „Potwierdź”. Potwierdzenie zapisuje `oversizeAccepted`
+w strefie i ustawia status belki na „do weryfikacji”.
+
+**Konsekwencje:** Rysunek odpowiada danym z biblioteki, a błędny dobór kształtu jest widoczny zamiast być
+ukryty przez umowny prostokąt. Flaga akceptacji jest opcjonalna, więc starsze dokumenty pozostają poprawne.
+Akceptacja opisuje wyłącznie geometrię: nie jest potwierdzeniem otulenia ani nośności i nie zastępuje
+sprawdzenia przez uprawnionego projektanta.
+
+## ADR-063 — Pakiet ma identyfikowalne wymiary, a każdy podgląd rozdziela nawigację od geometrii
+
+**Status:** przyjęta.
+
+**Kontekst:** Kilka przesuniętych strzemion było widocznych na przekroju, ale tylko pierwszy egzemplarz miał
+wymiary, a wszystkie obrysy miały ten sam kolor. Opis betonu nie istniał. Rzut frontowy nie miał nawigacji,
+a model 3D łączył przeciąganie wyłącznie z obrotem, mimo że użytkownik potrzebuje także przesuwania.
+Ostrzeżenie o strzemieniu wyższym od betonu zajmowało miejsce wewnątrz formularza zamiast być osobną decyzją.
+
+**Decyzja:** Indeks egzemplarza pakietu `bundleIndex` wybiera stały kolor z czteroelementowej palety. Każdy
+unikalny egzemplarz w przekroju otrzymuje własny obrys oraz dwa odsunięte łańcuchy wymiarowe opisane numerem
+`S1`–`S4`; kolor obrysu, linii i tekstu jest wspólny. Margines kadru rośnie wraz z liczbą prezentowanych
+egzemplarzy. Beton jest identyfikowany przez etykietę z linią prowadzącą umieszczoną poza zbrojeniem.
+Rzuty 2D używają wspólnego modelu nawigacji: zoom zmienia `viewBox`, pan przesuwa jego początek, a reset
+przywraca bazowy kadr. Model 3D zachowuje obrót jako domyślny tryb i dodaje jawny tryb pan; zoom oraz przesunięcie
+obejmują stal i półprzezroczystą bryłę betonu. Decyzja o zaakceptowaniu strzemienia wystającego ponad beton
+odbywa się w modalnym `dialog`, którego nie można przypadkowo zamknąć klawiszem Escape.
+
+**Konsekwencje:** Pakiety są jednoznaczne także przy nakładających się kształtach, a użytkownik może powiązać
+każdy wymiar z konkretnym egzemplarzem. Opisy materiału nie zasłaniają zbrojenia. Sterowanie frontem, przekrojem
+i modelem 3D jest przewidywalne, natomiast wybór geometrycznie za wysokiego strzemienia pozostaje świadomą,
+rejestrowaną decyzją wymagającą późniejszej weryfikacji konstrukcyjnej.
+
+## ADR-064 — Standardowe druty są jedną konfiguracją czterech narożnych prętów belki
+
+**Status:** przyjęta.
+
+**Kontekst:** Stała paleta średnic tworząca po jednym niezależnym pręcie nie odpowiada żądanemu przepływowi.
+Standardowy układ ma powstać jednym przyciskiem, wykorzystywać geometrię istniejących strzemion, być edytowany
+jako kafelek i znikać jako całość. Przebiegi niestandardowe używają odrębnego edytora i nie zmieniają tej
+atomowej konfiguracji.
+
+**Decyzja:** `ReinforcementBeamAssembly` przechowuje opcjonalną konfigurację `standardMainBars` z jedną średnicą.
+Konfiguracja jest dozwolona tylko przy co najmniej jednej strefie strzemion. Funkcja domenowa rzutuje wszystkie
+kształty strzemion, wybiera dodatni obrys o najmniejszym polu (przy remisie o najmniejszym obwodzie) i zwraca
+cztery narożniki jego prostokąta ograniczającego. Środek pręta jest odsuwany od osi każdego narożnika do wnętrza
+o `(Ø strzemienia + Ø drutu) / 2`, aby okrąg pręta był styczny do wewnętrznych ramion strzemienia. Przekrój,
+kafelek i model 3D korzystają z czterech offsetów. Front 2D redukuje pary o tej samej wysokości do dwóch linii
+projekcyjnych, ponieważ lewy i prawy pręt nakładają się w tym widoku. Zapis tworzy cztery proste pręty na każdy
+segment hosta, zachowuje wspólny `groupId` konfiguracji i rozdziela je na warstwy górną oraz dolną. Usunięcie
+konfiguracji albo ostatniej strefy usuwa układ. Organizację wspólnej sekcji i drutów niestandardowych określa
+ADR-065.
+
+**Konsekwencje:** Średnica i obecność całego układu są trwałe i atomowe, a geometria automatycznie reaguje
+na najmniejsze strzemię bez tworzenia niezależnego modelu przekroju. Cztery pręty trafiają do zestawienia jako
+fizyczne encje. Dobór średnicy, otulenia i nośności nadal wymaga weryfikacji przez uprawnionego projektanta.
+
+## ADR-065 — Druty standardowe i niestandardowe korzystają z jednej sekcji kafelkowej
+
+**Status:** przyjęta.
+
+**Kontekst:** Dawny formularz „Pręty podłużne i indywidualne” był stale wyświetlany pod Konstruktorem belek,
+podczas gdy standardowe druty miały osobny przycisk nad nieaktywnym kafelkiem `+`. Rozdzielało to dwie odmiany
+tej samej operacji i nie pozwalało rozpocząć dodawania niestandardowego przebiegu bez opuszczania głównego UI.
+
+**Decyzja:** Sekcja „2. Druty główne” jest jedynym punktem wejścia dla obu odmian. W jednej responsywnej siatce
+renderuje warunkowy kafelek dodawania standardowego układu oraz zawsze aktywny kafelek `+` dla drutu
+niestandardowego. Standardowy kafelek po użyciu zastępuje się konfiguracją czterech prętów. Kafelek
+niestandardowy otwiera modal korzystający z istniejących stanów i funkcji tworzenia ręcznego pręta. Wybór
+kształtu w bibliotece otwiera ten sam modal z wczytanymi danymi, a udany zapis go zamyka. Formularz inline
+został usunięty, lecz domenowy sposób tworzenia encji pozostał bez zmian.
+
+**Konsekwencje:** Użytkownik widzi obie drogi dodawania obok siebie, standardowy przycisk znika zgodnie ze stanem
+konfiguracji, a niestandardowy przebieg jest dostępny bez stałego zajmowania miejsca pod konstruktorem. Modal
+można rozwijać o dokładne pozycjonowanie pręta bez komplikowania podstawowego widoku belki.
+
+## ADR-066 — Strzemię opasuje drut, a grubości są rzeczywiste w milimetrach
+
+**Status:** przyjęta.
+
+**Kontekst:** Druty narożne były poprawnie wyliczane w domenie, ale renderowane niezgodnie z geometrią. Model 3D
+dodawał do jawnego `offset.z` narożnika domyślną wysokość warstwy (`rebar-top` / `rebar-bottom`), więc pręty były
+przesuwane dwukrotnie i wychodziły poza strzemię. Obrys strzemienia w 3D zaczynał się w punkcie startowym ścieżki,
+czyli zajmował `[0, szerokość] × [0, wysokość]`, podczas gdy pręty były rozmieszczone symetrycznie wokół zera.
+W widokach 2D reguła CSS `stroke-width: 4` z `vector-effect: non-scaling-stroke` nadpisywała atrybut prezentacyjny
+i wymuszała grubość w pikselach ekranu, podczas gdy promień okręgu pręta skalował się z `viewBox`. Dodatkowo pręty
+w przekroju zakładały środek betonu, chociaż strzemię ponadwymiarowe jest tam wyrównywane do dołu.
+
+**Decyzja:** Jawny `offset.z` wyłącza domyślną wysokość warstwy w `Reinforcement3dView`. Obrysy strzemion
+w podglądzie 3D są wyśrodkowane przez pomniejszenie offsetu o połowę własnego obrysu. We wszystkich widokach
+strzemiona są rysowane po prętach, co odwzorowuje montaż: pręt podłużny jest pod strzemieniem, które go opasuje.
+Strzemiona mają rzeczywistą grubość swojego drutu w jednostkach użytkownika — z CSS usunięto stałą grubość
+i `non-scaling-stroke`. Pręty w przekroju są kotwione w faktycznie narysowanym obrysie najmniejszego strzemienia,
+a nie w geometrycznym środku betonu. Rzut frontowy realizuje hierarchię jawnymi warstwami `data-front-layer`:
+wszystkie pręty podłużne trafiają do warstwy `bars`, a strzemiona do rysowanej nad nią warstwy `stirrups`,
+więc przyszłe druty niestandardowe automatycznie znajdą się pod strzemionami bez zmiany kolejności JSX.
+Znacznik drutu na froncie 2D jest linią poglądową o grubości `Ø / 6`, a nie odwzorowaniem przekroju: w tej
+projekcji reprezentuje parę nakładających się prętów, a grubsza linia zasłaniała łańcuchy wymiarowe stref
+i rozstawu. Reguła insetu w domenie pozostała bez zmian — była poprawna.
+
+**Konsekwencje:** Rysunki są wiernym odwzorowaniem geometrii domenowej w każdej skali, a zmiana średnicy
+strzemienia lub drutu natychmiast widać jako zmianę grubości i położenia. Grubość linii zależy teraz od zoomu,
+co jest zamierzone dla elementów konstrukcyjnych, ale wyklucza użycie tych klas do znaczników pomocniczych.
+Dobór otulenia, rozstawu i nośności nadal wymaga weryfikacji przez uprawnionego projektanta.
+
+## ADR-067 — Standardowe druty narożne powstają w każdym strzemieniu pakietu
+
+**Status:** przyjęta.
+
+**Kontekst:** `beamStandardMainBarCorners` zwracało zawsze cztery narożniki wyliczone z obrysu najmniejszego
+strzemienia, ignorując fakt, że strefa może stawiać strzemiona obok siebie w pakiecie. Gdy najmniejsze strzemię
+było właśnie takim pakietem, drugie i kolejne strzemiona pozostawały bez prętów podłużnych, co jest niewykonalne
+na budowie. Identyfikator narożnika był też nazwą pozycji (`top-left`), więc nie dało się odróżnić narożników
+należących do różnych strzemion pakietu ani powiązać pręta z jego obrysem w widokach.
+
+**Decyzja:** Dodano `beamStandardMainBarBundles`, która wyznacza rozróżnialne przesunięcia pakietu z rzeczywistych
+rozmieszczeń zwracanych przez `beamStirrupPlacements`, ograniczonych do strzemion o obrysie najmniejszego.
+Obejmuje to także lokalne zagęszczenia z własnym pakietem. `beamStandardMainBarCorners` generuje komplet czterech
+narożników na każde przesunięcie pakietu, a `BeamMainBarCorner` ma unikalne `id`, nazwę pozycji w polu `corner`
+oraz `bundleIndex`. Widoki wiążą pręt z jego strzemieniem po `bundleIndex`: przekrój i miniatura rysują osobny
+obrys dla każdego pakietu, a kotwica przekroju liczy środek bazowy strzemienia bez przesunięcia pakietu, bo
+przesunięcie jest już zawarte w narożniku.
+
+**Konsekwencje:** Liczba drutów w zestawieniu odpowiada rzeczywistemu układowi — pakiet dwóch strzemion daje osiem
+prętów zamiast czterech. Kafelek, przekrój i model 3D pokazują tę samą liczbę. Konsumenci `BeamMainBarCorner` muszą
+używać pola `corner` zamiast porównywać `id` z nazwą pozycji. Dobór liczby i rozmieszczenia prętów nadal wymaga
+weryfikacji przez uprawnionego projektanta.
+
+## ADR-068 — Rzut frontowy przerywa drut poświatą strzemienia
+
+**Status:** przyjęta.
+
+**Kontekst:** Rzut frontowy belki rysował już pręty i strzemiona w osobnych warstwach, ze strzemionami nad prętami.
+Mimo poprawnej kolejności malowania użytkownik nadal widział drut jako element przesłaniający strzemiona. Przyczyną
+jest to, że obie linie mają `vector-effect: non-scaling-stroke` i zbliżoną grubość ekranową (strzemię 3 px, drut
+`Ø / 6`), a drut biegnie przez całą długość belki. Przy kilkudziesięciu przecięciach różnica trzech pikseli nie
+czyta się jako hierarchia.
+
+**Decyzja:** Każda linia strzemienia na rzucie frontowym jest rysowana dwukrotnie: najpierw szersza poświata
+w kolorze wypełnienia betonu, potem właściwa linia strzemienia. Poświata przerywa drut dokładnie w miejscu
+przecięcia, więc hierarchia jest jednoznaczna niezależnie od grubości linii i poziomu przybliżenia.
+
+**Konsekwencje:** Rzut frontowy czyta się jak rysunek warsztatowy — widać, że drut przechodzi wewnątrz strzemienia.
+Poświata jest związana z kolorem tła betonu, więc zmiana wypełnienia przekroju wymaga aktualizacji obu wartości.
+
+## ADR-069 — Krytyczna grafika rzutów nie może zależeć wyłącznie od CSS
+
+**Status:** przyjęta.
+
+**Kontekst:** Poświata przerywająca drut pod strzemieniem (ADR-068) była opisana wyłącznie regułą
+`.beam-constructor-stirrup-halo` w `globals.css`. Reguła nie trafiła do arkusza serwowanego przez serwer
+deweloperski, więc element poświaty istniał w DOM z domyślnym `stroke: none` i grubością 1 px i niczego nie
+przerywał. Rzut wyglądał dokładnie tak, jakby poprawki nigdy nie było. Kontrola smoke sprawdzała wyłącznie
+obecność elementu, więc raportowała PASS mimo niewidocznego efektu.
+
+**Decyzja:** Parametry, od których zależy czytelność rysunku — kolor poświaty, jej grubość, grubość linii
+strzemienia i `vector-effect` — są zapisywane wprost w atrybutach SVG. CSS odpowiada tylko za detale kosmetyczne.
+Grubość poświaty jest liczona z grubości linii strzemienia i najgrubszego rysowanego drutu, więc przerwa zawsze
+obejmuje cały drut, niezależnie od ustawionej średnicy. Kontrole smoke sprawdzają **wyliczony** styl i relacje
+grubości, a nie samą obecność węzła.
+
+**Konsekwencje:** Rzut zachowuje się tak samo niezależnie od stanu arkusza stylów i kolejności przeładowań.
+Zmiana koloru betonu wymaga zmiany w dwóch miejscach: w wypełnieniu przekroju i w kolorze poświaty.
+
+## ADR-070 — Pakiet strzemion ma własny wymiar łączny na rzucie bocznym
+
+**Status:** przyjęta.
+
+**Kontekst:** Rzut boczny wymiarował każde strzemię pakietu osobno (`S1`, `S2`). Nie dawało to informacji
+o rzeczywistej przestrzeni zajmowanej przez cały pakiet, czyli o wymiarze od lica pierwszego strzemienia do lica
+ostatniego, razem z przesunięciem. Bez tej wartości nie da się sprawdzić, czy pakiet mieści się w przekroju betonu.
+
+**Decyzja:** Dla każdej strefy z więcej niż jednym strzemieniem obok siebie rysowany jest dodatkowy łańcuch
+wymiarowy obejmujący obrys całego pakietu. Wymiar pojawia się wyłącznie w osi, w której pakiet faktycznie się
+rozciąga: przy kierunku lewo/prawo jako szerokość, przy kierunku góra/dół jako wysokość. Dzięki temu nie dubluje
+wymiaru pojedynczego strzemienia. Etykieta podaje liczbę strzemion w pakiecie.
+
+**Konsekwencje:** Użytkownik widzi od razu, że dwa strzemiona 50 cm przesunięte o 25 cm zajmują łącznie 75 cm.
+Ocena, czy taki pakiet jest dopuszczalny konstrukcyjnie, nadal wymaga uprawnionego projektanta.
+
+## ADR-071 — Druty niestandardowe są wstawiane w sloty strzemion
+
+**Status:** przyjęta.
+
+**Kontekst:** Dodawanie drutów niestandardowych przez swobodny formularz pozwalało umieścić pręt w dowolnym punkcie
+przekroju — także poza strzemieniem albo w miejscu zajętym przez inny drut. Przy strzemionach o różnej wysokości
+(np. 30 / 50 / 30 cm) drut prowadzony „przez całą belkę” przechodziłby przez strzemiona, do których nie da się go
+przywiązać.
+
+**Decyzja:** Drut niestandardowy wybiera się jako slot na wewnętrznym licu strzemienia konkretnej strefy i pakietu:
+narożnik, środek boku albo punkt co ok. 2 cm. Zapisywane są strefa, indeks strzemienia w pakiecie, bok i położenie
+na boku, a pozycja jest wyliczana w `packages/domain`, więc zmiana średnicy zachowuje styczność. Slot jest zajęty,
+gdy w zakresie strefy biegnie drut, z którym nowy pręt by kolidował. Zakres drutu jest ograniczony do ciągłego ciągu
+stref, w których strzemię ma slot w tym samym miejscu; poza nim drut jest docinką, a użytkownik wybiera stronę
+(początek albo koniec zakresu), od której ją dodaje. Model 3D w sub-oknie jest zablokowany w widoku od frontu.
+
+**Konsekwencje:** Drut zawsze leży wewnątrz i przy strzemieniu oraz nie nachodzi na inne druty. Zakłady i długości
+zakotwienia docinek nie są jeszcze wyznaczane — ich dobór i ocena konstrukcyjna wymagają uprawnionego projektanta.
+
+## ADR-072 — Drut przez całą belkę wymaga slotu w każdym strzemieniu
+
+**Status:** przyjęta.
+
+**Kontekst:** Drut wybrany „przez całą belkę” był po cichu skracany do ciągłego zakresu zgodnych stref, gdy
+strzemiona miały różne wysokości. Użytkownik oczekuje, że taki drut zajmuje slot w każdym strzemieniu belki.
+
+**Decyzja:** Drut niestandardowy ma jawną flagę `fullBeam`. Domena (`beamCustomMainBarFullBeamCheck`) sprawdza, czy
+każda strefa ma strzemię trzymające drut w tym samym punkcie przekroju i czy slot nie jest zajęty. Gdy reguła nie
+jest spełniona, przycisk „Cała belka” jest zablokowany z podaniem powodu, a drut może być tylko docinką od
+wybranej strony. Drut `fullBeam`, który przestał spełniać regułę, nie jest skracany — kafelek pokazuje błąd, a zapis
+belki jest blokowany (`beamCustomMainBarIssues`).
+
+**Konsekwencje:** Zapisany drut „cała belka” zawsze biegnie od 0 do długości belki przez wszystkie strzemiona.
+Reguła dotyczy wyłącznie geometrii slotów — dobór i ocena konstrukcyjna zbrojenia wymagają uprawnionego projektanta.
+
+## ADR-073 — Typy strzemion mają wspólne kolory, a docinki mogą mieć wypust
+
+**Status:** przyjęta.
+
+**Kontekst:** Przy różnych strzemionach w belce (np. 30 / 50 / 30 cm) rzut frontowy rysował wszystkie strzemiona
+tym samym kolorem i na 80% wysokości betonu, a rzut boczny powtarzał ten sam kształt dla każdej strefy. Docinki
+kończyły się równo z zakresem strzemion.
+
+**Decyzja:** Typ strzemienia to kształt (szerokość × wysokość, Ø) i pozycja w pakiecie. Typ dostaje kolor
+z jednej palety używanej na rzucie frontowym, bocznym, w kafelkach drutów i w sub-oknie slotów. Front rysuje
+strzemię na rzeczywistą wysokość z wymiarem „S{n}”, a bok pokazuje każdy typ raz z listą stref. Drut niestandardowy
+ma opcjonalne `extensionStartMm` / `extensionEndMm`; domena wydłuża docinkę poza zakres strzemion i przycina wypust
+do długości belki. Drut „Cała belka” ignoruje wypust.
+
+**Konsekwencje:** Kolory i wysokości są spójne między rzutami. Wypust zajmuje miejsce w przekroju sąsiednich stref
+(uwzględniane w zajętości slotów). Dobór długości wypustu, zakładu i zakotwienia wymaga uprawnionego projektanta.
+
+## ADR-074 — Niezależne wyrównanie strzemion i diagnostyka geometrii ciągłego pręta
+
+**Status:** przyjęta.
+
+**Kontekst:** Strzemiona w różnych strefach mogą mieć różne wymiary, a ich położenie musi być jawnie kontrolowane
+zamiast zakładać centrowanie lub automatycznie zmieniać geometrię. Również informacja, że pręt przechodzi przez
+kolejne strzemiona, wymaga sprawdzenia wspólnego pola przekroju, bez sugerowania obliczeń konstrukcyjnych.
+
+**Decyzja:** Strefa przechowuje opcjonalne wyrównanie szerokości (środek/lewo/prawo) i wysokości
+(środek/góra/dół), liczone niezależnie względem najmniejszego obrysu w danej osi. Offset wyrównania jest
+sumowany z offsetem pakietu. Rzuty, przekrój, sloty, pręty standardowe i zapis CAD korzystają z jednej domenowej
+geometrii położenia. Diagnostyka oznacza brak wolnego otworu strzemienia oraz brak wspólnego pola przekroju
+między sąsiednimi strefami jako błędy geometrii i blokuje zapis układu. Nie wyznacza nośności, otuliny ani
+zgodności normowej.
+
+**Konsekwencje:** Pola są opcjonalne, więc starsze definicje zachowują dotychczasowe wyrównanie domyślne.
+Użytkownik może dopasować większe strzemiona do krawędzi niezależnie w obu osiach, a zmiana pakietu nie
+nadpisuje tego ustawienia. Komunikat geometrii nie jest deklaracją bezpieczeństwa; ostateczną weryfikację
+konstrukcyjną wykonuje uprawniony projektant.

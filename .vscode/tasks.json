@@ -1,0 +1,39 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Start aplikacji web (autostart)",
+      "type": "shell",
+      "command": "bash scripts/dev-web.sh",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "isBackground": true,
+      "runOptions": {
+        "runOn": "folderOpen"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "dev"
+      },
+      "problemMatcher": {
+        "owner": "next",
+        "fileLocation": ["relative", "${workspaceFolder}/apps/web"],
+        "pattern": {
+          "regexp": "^\\s*(.*):(\\d+):(\\d+)\\s+(error|warning)\\s+(.*)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "severity": 4,
+          "message": 5
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".*(Starting|Compiling|Building).*",
+          "endsPattern": ".*(Ready in|Local:\\s+http|compiled successfully).*"
+        }
+      }
+    }
+  ]
+}
